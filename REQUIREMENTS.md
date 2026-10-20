@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # SwiftDossier — Requirements
@@ -34,8 +34,8 @@ fixtures are not.
 |---|------|
 | SD-1 | **`docs/DOSSIER-FORMAT.md` is the specification.** Where it is silent, raise the question in dossier-format; don't decide it here. |
 | SD-2 | **Data files are consumed, never restated:** `schemas/*.json`, `data/tiers.json`, `data/review.json`, and later `data/fields.json`, the tokens and the template, copied as resources from a pinned dossier-format revision. A test fails if the copies differ from that revision. |
-| SD-3 | **Every manifest this package writes validates** against `schemas/manifest-v2.schema.json`; every Granville v1 manifest validates against `manifest-v1.schema.json` (they do today). |
-| SD-4 | **Fixtures:** private fixtures copied from Granville (HUNTER, GARETH, SHANE, ARCHER) live in this package's tests; public fixtures are dossier-format's (its Q2). |
+| SD-3 | **Every manifest this package writes validates** against `schemas/manifest-v2.schema.json`; every v1 fixture validates against `manifest-v1.schema.json` (Granville's nine do today, checked locally). |
+| SD-4 | **Fixtures are synthetic.** This repository is public (§10 Q1), so nothing from a private project is copied into it: no images, descriptions, CAST.md or manifests from podcast-granville or any other podcast. Tests use dossier-format's synthetic character, plus synthetic v1 bundles that reproduce each shape Granville's nine bundles have (v1 manifest in a `.dossier` directory, sidecars, retired kinds, path-order checksum). Real projects are checked by `make acceptance PROJECT=<path>`, which runs against a local checkout, skips when it is absent, and never runs in CI. |
 
 ## 2. Targets
 
@@ -65,7 +65,7 @@ fixtures are not.
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
 | SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules (`voice/<CHARACTER>.vox` → `vox`; `voice/sample-<variant>[-<model>].m4a` → `voiceSample`, with `model` from the suffix or the vox default). Anything else stays unclassified. Orphan adoption follows §3 exactly. |
-| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`; until Reparto 0.2.0 these are `extraKeys`. A write that would reorder or reformat members the call didn't touch is a bug (Granville's CAST.md is the regression fixture). |
+| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`; until Reparto 0.2.0 these are `extraKeys`. A write that would reorder or reformat members the call didn't touch is a bug (a synthetic CAST.md with Granville's layout quirks is the regression fixture; Granville's own is checked by `make acceptance`). |
 
 ## 4. Face crop, validation, page
 
@@ -112,8 +112,9 @@ dossier migrate  characters/SHANE --cast CAST.md [--apply]   # dry run by defaul
 ## 6. Migration (`dossier migrate`)
 
 Implements DOSSIER-FORMAT Appendix A, per bundle, dry run by default listing
-every change; `--apply` performs it. Granville's nine bundles (version 1
-contents in `.dossier` directories) are the fixtures. The steps, in order:
+every change; `--apply` performs it. The synthetic v1 bundles (SD-4) are the test fixtures;
+Granville's nine bundles (version 1 contents in `.dossier` directories) are
+the local acceptance run. The steps, in order:
 rename `<NAME>/` to `<NAME>.dossier/` if needed; fold sidecars into
 provenance (references mapped by sha256, absolute paths dropped; round and
 seed from the old file name into `provenance.round` / `provenance.seed`);
@@ -133,7 +134,7 @@ first (SD-1).
 
 1. **Core:** `DossierCore` reads v1 and v2 manifests; `Dossier` create, add,
    select, reject, remove, list, prompt, refresh, validate; the CLI for
-   those. Tests against the Granville fixtures.
+   those. Tests against the synthetic fixtures (SD-4).
 2. **Face crop and `check`.**
 3. **Page renderer** with the dossier-format template (blocked on the
    template, SD-2). Until it lands, `render` may shell out to Personaje's
@@ -143,6 +144,9 @@ first (SD-1).
 4. **Migration,** then migrate Granville on a branch.
 
 ## 9. Acceptance
+
+Items 1, 2 and 4 run through `make acceptance` against a local Granville
+checkout (SD-4); they are not part of CI.
 
 1. `dossier validate` on every migrated Granville bundle: no errors, and the
    manifest validates against `schemas/manifest-v2.schema.json`.
@@ -158,6 +162,6 @@ first (SD-1).
 
 | # | Question | Recommendation |
 |---|----------|----------------|
-| Q1 | Public or private repository? (DEPENDENCY-MISSIONS OQ-13) | Private until the private Granville fixtures are out of the tests. |
+| Q1 | Public or private repository? (DEPENDENCY-MISSIONS OQ-13) | **Decided 2026-10-20: public.** Every Swift* package is public by convention; the apps are private. Hence SD-4. |
 | Q2 | Does `render` wait for the dossier-format template, or ship the bridge in §8 phase 3? | Ship the bridge; the start-to-finish run needs a page. |
 | Q3 | `check`: is CHARACTER.md linting the writer's job (here) or Personaje's? | Here: it reads a format file (DOSSIER-FORMAT §9) and is needed by every writer. Personaje only decides the gates. |
