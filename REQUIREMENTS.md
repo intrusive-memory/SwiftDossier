@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: draft
-updated: 2026-10-20
+updated: 2026-10-22
 ---
 
 # SwiftDossier — Requirements
@@ -65,7 +65,7 @@ fixtures are not.
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
 | SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules (`voice/<CHARACTER>.vox` → `vox`; `voice/sample-<variant>[-<model>].m4a` → `voiceSample`, with `model` from the suffix or the vox default). Anything else stays unclassified. Orphan adoption follows §3 exactly. |
-| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`; until Reparto 0.2.0 these are `extraKeys`. A write that would reorder or reformat members the call didn't touch is a bug (a synthetic CAST.md with Granville's layout quirks is the regression fixture; Granville's own is checked by `make acceptance`). |
+| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`; until Reparto 0.2.0 these are `extraKeys`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug, and data never changes. `migrate` and `create` say so when the file was not yet normalized (`generate(parse(x)) != x`), and suggest `reparto canonicalize --apply` first. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
 
 ## 4. Face crop, validation, page
 
@@ -153,8 +153,10 @@ checkout (SD-4); they are not part of CI.
 2. `dossier add` of a Granville view with its sidecar records every field in
    SD-7, including `references` mapped to the bundle's portrait and face.
 3. Rendering the same bundle twice gives identical bytes.
-4. `dossier create` and `dossier migrate --apply` on a copy of Granville's
-   CAST.md change only the lines for the members they touch.
+4. On a copy of Granville's CAST.md that Reparto has written once
+   (`reparto canonicalize --apply`), `dossier create` and
+   `dossier migrate --apply` change only the lines for the members they
+   touch. On the unnormalized copy, they change no member's data.
 5. `DossierCore` builds and links without `Vision`, `ImageIO` or
    ArgumentParser.
 
