@@ -1,0 +1,619 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intrusive-memory.github.io/dossier-format/schemas/manifest-v2.schema.json",
+  "title": "dossier manifest, version 2",
+  "description": "docs/DOSSIER-FORMAT.md §5. Unknown keys are allowed and preserved (D10).",
+  "type": "object",
+  "required": [
+    "manifestVersion",
+    "character",
+    "updatedAt",
+    "files",
+    "assets",
+    "manifestChecksum"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 2
+    },
+    "character": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^/:.][^/:]*$"
+    },
+    "role": {
+      "enum": [
+        "lead",
+        "supporting",
+        "guest",
+        "narrator",
+        "costar",
+        "underfive",
+        "background"
+      ]
+    },
+    "updatedAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "generator": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "prompts": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "string"
+        },
+        "portrait": {
+          "type": "string"
+        },
+        "subject": {
+          "enum": [
+            "man",
+            "woman",
+            "boy",
+            "girl",
+            "person"
+          ]
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "sizeBytes"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "status",
+          "createdAt",
+          "provenance"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+          },
+          "kind": {
+            "enum": [
+              "description",
+              "portrait",
+              "face",
+              "view",
+              "expression",
+              "vox",
+              "voiceSample",
+              "dossier",
+              "sourcePhoto",
+              "lora",
+              "training",
+              "crowdRef"
+            ]
+          },
+          "status": {
+            "enum": [
+              "selected",
+              "candidate",
+              "rejected"
+            ]
+          },
+          "variant": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+          },
+          "provenance": {
+            "type": "object",
+            "required": [
+              "provider"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1
+              },
+              "tool": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "string"
+                  },
+                  "binary": {
+                    "type": "string"
+                  }
+                }
+              },
+              "model": {
+                "type": "string"
+              },
+              "models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "composedPrompt": {
+                "type": "string"
+              },
+              "style": {
+                "type": "string"
+              },
+              "negative": {
+                "type": "string"
+              },
+              "negativeApplied": {
+                "type": "boolean"
+              },
+              "seed": {
+                "type": "integer"
+              },
+              "steps": {
+                "type": "integer"
+              },
+              "guidance": {
+                "type": "number"
+              },
+              "width": {
+                "type": "integer"
+              },
+              "height": {
+                "type": "integer"
+              },
+              "engine": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "durationSeconds": {
+                "type": "number"
+              },
+              "loras": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "path"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "scale": {
+                      "type": "number"
+                    },
+                    "activationKeyword": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "references": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "sha256"
+                  ],
+                  "properties": {
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+                    },
+                    "role": {
+                      "type": "string"
+                    },
+                    "originalWidth": {
+                      "type": "integer"
+                    },
+                    "originalHeight": {
+                      "type": "integer"
+                    },
+                    "effectiveWidth": {
+                      "type": "integer"
+                    },
+                    "effectiveHeight": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "round": {
+                "type": "string"
+              },
+              "box": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "x": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "y": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "width": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "height": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              },
+              "voicePrompt": {
+                "type": "string"
+              },
+              "copiedFrom": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+              },
+              "instruct": {
+                "type": "string"
+              },
+              "instructApplied": {
+                "enum": [
+                  "yes",
+                  "no",
+                  "unverified"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "gateOverridden": {
+                "type": "string"
+              },
+              "notes": {
+                "type": "string"
+              },
+              "artStyle": {
+                "type": "string"
+              }
+            }
+          },
+          "derivedFrom": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "path",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "portrait",
+                        "face",
+                        "vox",
+                        "description"
+                      ]
+                    },
+                    "path": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "castMember",
+                        "bundle"
+                      ]
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "version",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "role": {
+                      "const": "template"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "passed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "failed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notes": {
+                "type": "string"
+              },
+              "reviewedAt": {
+                "type": "string"
+              }
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "sampleText": {
+            "type": "string"
+          },
+          "lora": {
+            "type": "object",
+            "required": [
+              "triggerWord",
+              "version"
+            ],
+            "properties": {
+              "triggerWord": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseModel": {
+                "type": "string"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "rank": {
+                "type": "integer"
+              },
+              "steps": {
+                "type": "integer"
+              },
+              "defaultScale": {
+                "type": "number"
+              },
+              "trainedAt": {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+              },
+              "compatibleEngines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "training": {
+            "type": "object",
+            "properties": {
+              "caption": {
+                "type": "string"
+              },
+              "view": {
+                "type": "string"
+              },
+              "isSynthetic": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "view"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "variant",
+                "derivedFrom"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "expression"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "variant",
+                "derivedFrom"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "face"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "derivedFrom"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "voiceSample"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "variant",
+                "model",
+                "sampleText",
+                "derivedFrom"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "dossier"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "derivedFrom"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "lora"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "lora"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "training"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "training"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "manifestChecksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

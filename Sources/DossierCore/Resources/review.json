@@ -1,0 +1,64 @@
+{
+  "$comment": "Review checklist IDs for assets[].review (docs/DOSSIER-FORMAT.md §5.4). Advisory; never blocks selection. Sources: Personaje REQUIREMENTS §2 rule 4, CHARACTER_CREATION 4.5, 8.6, 9.5.",
+  "formatVersion": 2,
+  "checks": {
+    "image": [
+      {
+        "id": "asked",
+        "label": "It is the view or expression asked for"
+      },
+      {
+        "id": "anatomy",
+        "label": "Anatomy and pose make sense (hands, arms, fingers)"
+      },
+      {
+        "id": "consistent",
+        "label": "Consistent with the portrait"
+      },
+      {
+        "id": "noExtras",
+        "label": "No unrequested details (text, jewelry, tattoos)"
+      },
+      {
+        "id": "style",
+        "label": "Matches the project style"
+      }
+    ],
+    "vox": [
+      {
+        "id": "apparentAge",
+        "label": "Sounds the character's age"
+      },
+      {
+        "id": "accentLight",
+        "label": "Accent as written, not overdone"
+      },
+      {
+        "id": "deliveryMatches",
+        "label": "Delivery matches the character"
+      },
+      {
+        "id": "modelSizesMatch",
+        "label": "1.7B and 0.6B sound like the same person"
+      },
+      {
+        "id": "noArtifacts",
+        "label": "No artifacts"
+      }
+    ],
+    "voiceSample": [
+      {
+        "id": "sameVoice",
+        "label": "Same person as the neutral sample"
+      },
+      {
+        "id": "register",
+        "label": "The register asked for"
+      },
+      {
+        "id": "noArtifacts",
+        "label": "No artifacts"
+      }
+    ]
+  }
+}

@@ -29,6 +29,8 @@ the two.
 dossier-format's specification, schemas, tier table and conformance fixtures
 are written and tagged **`v2.0.0-rc.3`** (2026-10-31), the revision this package
 pins. Its page template, field list and design tokens are not written.
+The rules of rc.5 are implemented ahead of this pin, and conformance on them is
+run with `make test SPEC_DIR=<dossier-format clone>`.
 
 | # | Rule |
 |---|------|
@@ -62,8 +64,8 @@ pins. Its page template, field list and design tokens are not written.
 | # | Requirement |
 |---|-------------|
 | SD-5 | **Every mutation:** copy or write the file → rescan `files` → recompute `manifestChecksum` → write the manifest to a temporary file → replace → re-read and compare (DOSSIER-FORMAT §5.6). The checksum is the **sorted** form (§5.3, SwiftAcervo's `computeChecksum`); a v1 manifest is verified with the path-order form (Appendix A), which is what Personaje's `tools/record.py` writes. |
-| SD-6 | **`add` names image files** `images/<kind>[-<variant>]-<sha8>.png` (DOSSIER-FORMAT §4). Voice files keep their producer's names. The source file is copied, never moved, and never modified. |
-| SD-7 | **`add` folds provenance in** (DOSSIER-FORMAT §6). Given a Vinetas sidecar (`--sidecar`) or a PNG with Vinetas's embedded metadata, it records every §6 key the sidecar has; the sidecar's `generatedAt` becomes the asset's `createdAt`. `references[].source` is **never** recorded: each reference becomes `{sha256, path, role}`, where `path` is the bundle path of the asset with that sha256 (omitted when none matches) and `role` comes from `--reference-roles portrait,face`. Extra provenance (`tool`, notes, `gateOverridden`) is merged from `--provenance <json>`. |
+| SD-6 | **`add` names image files** `images/<kind>[-<variant>]-<sha8>.png` (DOSSIER-FORMAT §4). Voice files keep their producer's names. The source file is copied, never moved, and never modified. **A PNG image copied in loses its metadata in the bundle's copy:** the chunks `tEXt`, `zTXt`, `iTXt`, `eXIf` and `tIME` go, and every other chunk (`iCCP`, `gAMA`, `sRGB`, `IDAT`) stays byte for byte. The embedded Vinetas record is read for provenance first. The stored hash, size and file name come from the stripped bytes. A malformed PNG is refused and not copied. Images that aren't PNG are copied as they are. A file already inside the bundle is never modified: `add` of a file in place keeps its bytes and name, and so does `refresh` adoption. |
+| SD-7 | **`add` folds provenance in** (DOSSIER-FORMAT §6). Given a Vinetas sidecar (`--sidecar`) or a PNG with Vinetas's embedded metadata, it records every §6 key the sidecar has; the sidecar's `generatedAt` becomes the asset's `createdAt`. `references[].source` is **never** recorded: each reference becomes `{sha256, path, role}`, where `sha256` stays what was sent, `role` comes from `--reference-roles portrait,face`, and `path` is the bundle path of the asset with that sha256; when none has it and the reference's role has a current selection, that selection's path; otherwise omitted. A `derivedFrom` input records the hash actually sent: when those bytes are no longer in the bundle, it carries the path of the current selection for that role, so a selected asset reads `W-STALE`, and when the role has no current selection `add` refuses with `missingDerivedInput`, since §7 requires the input. Extra provenance (`tool`, notes, `gateOverridden`) is merged from `--provenance <json>`. |
 | SD-8 | **`select`** demotes the previous `selected` of the same `kind` + `variant` to `candidate`; for a `voiceSample`, of the same `kind` + `variant` + `model` (DOSSIER-FORMAT §5.4). `--select` on `add` does both in one write. |
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
@@ -168,7 +170,8 @@ checkout (SD-4); they are not part of CI.
    `schemas/manifest-v2.schema.json`. Separately, in CI: `dossier validate`
    gives the result `conformance.json` states for every fixture.
 2. `dossier add` of a Granville view with its sidecar records every field in
-   SD-7, including `references` mapped to the bundle's portrait and face.
+   SD-7, with `references` mapped where a hash matches.
+   *Note 2026-11-01:* mapping a reference to a `face` on real data is unproven.
 3. Rendering the same bundle twice gives identical bytes.
 4. On a copy of Granville's CAST.md that Reparto has written once
    (`reparto canonicalize --apply`), `dossier create` changes only the lines
