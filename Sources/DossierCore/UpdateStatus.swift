@@ -54,8 +54,8 @@ extension DossierBundle {
 
 /// §5.7's rules for what a marker is, shared by the reader here and the writer in `Dossier`.
 ///
-/// SPEC-PIN: `schemas/update-marker.schema.json` arrives after the pinned `v2.0.0-rc.3`, and a reader
-/// has no use for it: §5.7 has a reader check only `expiresAt`, so that's what this does, in code.
+/// `schemas/update-marker.schema.json` is what a writer writes (`UpdateMarkerStore` checks it). A
+/// reader has no use for it: §5.7 has a reader check only `expiresAt`, so that's what this does.
 package enum UpdateMarker {
   /// §5.7's limit on how far ahead an active `expiresAt` can be.
   package static let maximumLifetime: TimeInterval = 3600

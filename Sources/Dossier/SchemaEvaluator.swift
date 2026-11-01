@@ -17,7 +17,7 @@ public enum SchemaError: Error, Equatable, Sendable, LocalizedError {
   case unsupportedKeyword(schema: String, location: String, keyword: String)
   /// A `pattern` uses regular-expression syntax the evaluator can't give ECMA-262 meaning.
   case unsupportedPattern(String)
-  /// A `$ref` names no loaded schema, or uses a fragment.
+  /// A `$ref` names no loaded schema, points at nothing in its own, or has any other fragment.
   case unresolvedReference(String)
   /// A schema is malformed: not an object or boolean, no `$id`, or a keyword has the wrong shape.
   case malformedSchema(String)
@@ -39,15 +39,16 @@ public enum SchemaError: Error, Equatable, Sendable, LocalizedError {
 
 /// A small JSON Schema evaluator for exactly the keywords the pinned schemas use (SD-13):
 /// `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`,
-/// `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and
-/// `$ref` to another loaded schema. `$id`, `$schema`, `title` and `description` are ignored.
+/// `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, `$defs`, and
+/// `$ref`, either to another loaded schema or a `#/` pointer into its own.
+/// `$id`, `$schema`, `title` and `description` are ignored.
 ///
 /// Loading fails on any other keyword, so a schema change that adds one can't pass silently.
 public struct SchemaEvaluator: Sendable {
   private static let ignored: Set<String> = ["$id", "$schema", "title", "description"]
   private static let supported: Set<String> = [
     "type", "required", "properties", "additionalProperties", "items", "enum", "const",
-    "pattern", "minimum", "minLength", "minItems", "allOf", "oneOf", "if", "then", "$ref",
+    "pattern", "minimum", "minLength", "minItems", "allOf", "oneOf", "if", "then", "$ref", "$defs",
   ]
   private static let typeNames: Set<String> = [
     "null", "boolean", "object", "array", "number", "integer", "string",
@@ -155,6 +156,15 @@ public struct SchemaEvaluator: Sendable {
         }
       case "additionalProperties", "items", "if", "then":
         try sub(value, keyword)
+      case "$defs":
+        guard let definitions = value.objectValue else {
+          throw SchemaError.malformedSchema("\(schema.name) \(location): bad $defs")
+        }
+        for definition in definitions.entries {
+          try check(
+            definition.value, schema: schema,
+            location: location + "/$defs/" + definition.key, known: known, patterns: &patterns)
+        }
       case "allOf", "oneOf":
         guard let items = value.arrayValue, !items.isEmpty else {
           throw SchemaError.malformedSchema("\(schema.name) \(location): bad \(keyword)")
@@ -184,9 +194,18 @@ public struct SchemaEvaluator: Sendable {
           throw SchemaError.malformedSchema("\(schema.name) \(location): bad \(keyword)")
         }
       case "$ref":
-        guard let ref = value.stringValue, let target = resolve(ref, base: schema.id),
-          known.contains(target)
-        else { throw SchemaError.unresolvedReference(value.stringValue ?? "?") }
+        guard let ref = value.stringValue else {
+          throw SchemaError.unresolvedReference("?")
+        }
+        if ref.hasPrefix("#") {
+          guard pointer(ref, in: schema.root) != nil else {
+            throw SchemaError.unresolvedReference(ref)
+          }
+        } else {
+          guard let target = resolve(ref, base: schema.id), known.contains(target) else {
+            throw SchemaError.unresolvedReference(ref)
+          }
+        }
       default:
         break
       }
@@ -199,6 +218,20 @@ public struct SchemaEvaluator: Sendable {
       url.fragment == nil, !ref.contains("#")
     else { return nil }
     return url.absoluteURL.absoluteString
+  }
+
+  /// The subschema a `#/a/b` pointer names in `root`, through object keys, with RFC 6901's `~1`
+  /// and `~0`. `nil` for anything else: a bare `#`, an array index, or percent-encoding.
+  private static func pointer(_ ref: String, in root: JSONValue) -> JSONValue? {
+    guard ref.hasPrefix("#/"), !ref.contains("%") else { return nil }
+    var node = root
+    for token in ref.dropFirst(2).split(separator: "/", omittingEmptySubsequences: false) {
+      let key = token.replacingOccurrences(of: "~1", with: "/")
+        .replacingOccurrences(of: "~0", with: "~")
+      guard let next = node.objectValue?[key] else { return nil }
+      node = next
+    }
+    return node
   }
 
   // MARK: Evaluation
@@ -224,10 +257,14 @@ public struct SchemaEvaluator: Sendable {
       return scratch.isEmpty
     }
 
-    if let ref = object["$ref"]?.stringValue, let id = Self.resolve(ref, base: base),
-      let target = schemas[id]
-    {
-      evaluate(instance, target.root, base: target.id, path: path, into: &violations)
+    if let ref = object["$ref"]?.stringValue {
+      if ref.hasPrefix("#") {
+        if let root = schemas[base]?.root, let target = Self.pointer(ref, in: root) {
+          evaluate(instance, target, base: base, path: path, into: &violations)
+        }
+      } else if let id = Self.resolve(ref, base: base), let target = schemas[id] {
+        evaluate(instance, target.root, base: target.id, path: path, into: &violations)
+      }
     }
     if let type = object["type"] {
       let names = type.stringValue.map { [$0] } ?? type.arrayValue?.compactMap(\.stringValue) ?? []

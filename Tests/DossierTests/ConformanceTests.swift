@@ -145,8 +145,8 @@ struct ConformanceTests {
     }
   }
 
-  // At the rc.3 pin there's no such fixture, and the assertion in `fixture` doesn't run:
-  // `UpdateStatusTests` has the rule. A tree with them can't pass without asserting them.
+  // The pinned tag has these fixtures, and the assertion in `fixture` runs on them. A tree that
+  // has them can't pass without asserting them.
   @Test("An update-* fixture has an updateStatus entry")
   func updateFixturesAreAsserted() throws {
     let entries = try Conformance.document().fixtures

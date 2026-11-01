@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intrusive-memory.github.io/dossier-format/schemas/update-marker.schema.json",
+  "title": ".update-<id>.json",
+  "description": "docs/DOSSIER-FORMAT.md §5.7. What a writer writes. A reader checks only expiresAt, and counts a marker this schema rejects if its expiresAt is valid.",
+  "type": "object",
+  "required": [
+    "writer",
+    "startedAt",
+    "expiresAt"
+  ],
+  "properties": {
+    "writer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "startedAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "expiresAt": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    }
+  }
+}

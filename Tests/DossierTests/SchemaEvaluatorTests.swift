@@ -198,10 +198,63 @@ enum SchemaEvaluatorTests {
       #expect(throws: SchemaError.self) { try SchemaEvaluator(schemas: [schema]) }
     }
 
-    @Test func refWithFragmentFailsToLoad() {
+    @Test func pointerToNothingFailsToLoad() {
       let schema = json(
-        ##"{"$id": "https://example.invalid/s/a.schema.json", "$ref": "#/definitions/x"}"##)
+        ##"{"$id": "https://example.invalid/s/a.schema.json", "$ref": "#/$defs/x"}"##)
+      #expect(throws: SchemaError.unresolvedReference("#/$defs/x")) {
+        try SchemaEvaluator(schemas: [schema])
+      }
+    }
+
+    @Test func otherFragmentsFailToLoad() {
+      let other = json(#"{"$id": "https://example.invalid/s/b.schema.json", "$defs": {"x": true}}"#)
+      for ref in ["#", "b.schema.json#/$defs/x", "#/$defs/%78", "#anchor"] {
+        let schema = json(#"{"$id": "https://example.invalid/s/a.schema.json", "$ref": "\#(ref)"}"#)
+        #expect(throws: SchemaError.self, "\(ref)") { try SchemaEvaluator(schemas: [schema, other]) }
+      }
+    }
+
+    @Test func pointerIntoDefsApplies() throws {
+      let evaluator = try evaluator(
+        ##""type": "object", "properties": {"a": {"$ref": "#/$defs/small"}}, "$defs": {"small": {"type": "integer", "minimum": 5}}"##)
+      #expect(try evaluator.validate(json(#"{"a": 6}"#), against: "t.schema.json").isEmpty)
+      let violations = try evaluator.validate(json(#"{"a": 1}"#), against: "t.schema.json")
+      #expect(violations.map(\.path) == ["/a"])
+      #expect(violations.map(\.keyword) == ["minimum"])
+    }
+
+    @Test func pointerStaysInItsOwnSchemaAcrossARef() throws {
+      let base = json(
+        #"{"$id": "https://example.invalid/s/a.schema.json", "properties": {"inner": {"$ref": "b.schema.json"}}}"#)
+      let other = json(
+        ##"{"$id": "https://example.invalid/s/b.schema.json", "$ref": "#/$defs/n", "$defs": {"n": {"type": "string"}}}"##)
+      let evaluator = try SchemaEvaluator(schemas: [base, other])
+      #expect(try evaluator.validate(json(#"{"inner": "x"}"#), against: "a.schema.json").isEmpty)
+      #expect(try evaluator.validate(json(#"{"inner": 1}"#), against: "a.schema.json").map(\.path) == ["/inner"])
+    }
+
+    @Test func pointerEscapes() throws {
+      let evaluator = try evaluator(
+        ##""$ref": "#/$defs/a~1b~0c", "$defs": {"a/b~c": {"type": "string"}}"##)
+      #expect(try evaluator.validate(json(#""x""#), against: "t.schema.json").isEmpty)
+      #expect(try !evaluator.validate(json("1"), against: "t.schema.json").isEmpty)
+    }
+
+    @Test func unsupportedKeywordInsideDefsFailsToLoad() {
+      let schema = json(
+        ##"{"$id": "https://example.invalid/s/a.schema.json", "$defs": {"x": {"format": "date"}}}"##)
       #expect(throws: SchemaError.self) { try SchemaEvaluator(schemas: [schema]) }
+    }
+
+    @Test func updateMarkerSchemaEnforcesItsTimestamp() throws {
+      let pinned = try SchemaEvaluator.pinned()
+      let good = json(
+        #"{"writer": "t", "startedAt": "2026-11-01T00:00:00Z", "expiresAt": "2026-11-01T01:00:00Z", "other": 1}"#)
+      #expect(try pinned.validate(good, against: "update-marker.schema.json").isEmpty)
+      let bad = json(
+        #"{"writer": "t", "startedAt": "2026-11-01", "expiresAt": "2026-11-01T01:00:00Z"}"#)
+      #expect(
+        try pinned.validate(bad, against: "update-marker.schema.json").map(\.path) == ["/startedAt"])
     }
 
     @Test func unknownSchemaName() throws {
@@ -250,6 +303,7 @@ enum SchemaEvaluatorTests {
       (#"^(?!/)(?!.*(^|/)\.{0,2}(/|$)).+$"#, "1001110000000011111101101111"),
       (#"^[0-9a-f]{64}$"#, "0000000000000000000100000000"),
       (#"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"#, "0000000000000000000000100000"),
+      (#"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"#, "0000000000000000000000100000"),
       (#"^[^/:.][^/:]*$"#, "0000010000011110001111000010"),
     ]
 
@@ -310,13 +364,13 @@ enum SchemaEvaluatorTests {
       #expect(
         evaluator.schemaNames == [
           "manifest-v1.schema.json", "manifest-v2.schema.json", "record.schema.json",
-          "samples.schema.json",
+          "samples.schema.json", "update-marker.schema.json",
         ])
     }
 
     @Test func addingAnUnsupportedKeywordToAnyPinnedSchemaFails() throws {
       let files = try Self.schemaFiles
-      #expect(files.count == 4)
+      #expect(files.count == 5)
       let all = try files.map { try JSONValue.parse(Data(contentsOf: $0)) }
       for index in all.indices {
         var object = try #require(all[index].objectValue)
@@ -365,7 +419,7 @@ enum SchemaEvaluatorTests {
     @Test func v1FixturesValidateAgainstManifestV1() throws {
       let evaluator = try SchemaEvaluator.pinned()
       let found = try Self.manifests(under: "warnings") { $0.hasPrefix("W-V1") }
-      #expect(found.count == 2)
+      #expect(found.count == 3)
       for (name, manifest) in found {
         let result = try evaluator.validate(manifest, against: "manifest-v1.schema.json")
         #expect(result.isEmpty, "\(name): \(result)")
@@ -375,7 +429,7 @@ enum SchemaEvaluatorTests {
     @Test func validFixturesValidateAgainstManifestV2() throws {
       let evaluator = try SchemaEvaluator.pinned()
       let found = try Self.manifests(under: "valid")
-      #expect(found.count == 14)
+      #expect(found.count == 18)
       for (name, manifest) in found {
         let result = try evaluator.validate(manifest, against: "manifest-v2.schema.json")
         #expect(result.isEmpty, "\(name): \(result)")

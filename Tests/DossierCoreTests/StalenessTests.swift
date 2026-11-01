@@ -35,7 +35,7 @@ struct StalenessTests {
       }
       measured += 1
     }
-    #expect(staleCount == 9)
+    #expect(staleCount == 10)
     #expect(measured >= 80)
   }
 
