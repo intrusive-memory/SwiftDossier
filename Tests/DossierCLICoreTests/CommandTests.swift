@@ -204,3 +204,51 @@ struct CommandTests {
     #expect(dossier(["list"]).stderr.contains("error"))
   }
 }
+
+@Suite("dossier face")
+struct FaceCommandTests {
+  @Test("--box crops the selected portrait, records the box, and a second run changes nothing")
+  func facesFromBox() throws {
+    let project = try TempProject(castText: plainCast)
+    #expect(dossier(["create", "THE LAMPLIGHTER", "--role", "lead", "--in", project.path("characters")]).status == 0)
+    let bundle = project.path("characters/THE LAMPLIGHTER.dossier")
+    let portrait = try writePNG(named: "portrait.png", in: project.root)
+    #expect(dossier(["add", bundle, portrait.path, "--kind", "portrait", "--select"]).status == 0)
+
+    let first = dossier(["face", bundle, "--box", "2,4,8,10", "--json"])
+    #expect(first.status == 0, "\(first.stderr)\(first.stdout)")
+    let object = try first.object()
+    let crop = try #require(object["crop"] as? [String: Any])
+    // side = round(1.8 * 10) = 18 = the portrait's width; top = round(9 - 9) = 0.
+    #expect(crop["side"] as? Int == 18)
+    #expect(crop["left"] as? Int == 0)
+    #expect(crop["top"] as? Int == 0)
+    #expect(object["written"] as? Bool == true)
+    #expect(object["handSet"] as? Bool == true)
+
+    let second = dossier(["face", bundle, "--box", "2,4,8,10", "--json"])
+    #expect(second.status == 0)
+    #expect(try second.object()["written"] as? Bool == false)
+    let validated = dossier(["validate", bundle])
+    #expect(validated.status != 2, "\(validated.stdout)")
+  }
+
+  @Test("A bad --box is a usage error")
+  func badBox() throws {
+    let project = try TempProject(castText: plainCast)
+    for box in ["1,2,3", "a,b,c,d", "1,2,0,4", "-1,2,3,4"] {
+      let ran = dossier(["face", project.path("none.dossier"), "--box", box])
+      #expect(ran.status != 0)
+      #expect(ran.stderr.contains("--box"), "\(box): \(ran.stderr)")
+    }
+  }
+
+  @Test("A bundle with no selected portrait is a reported error")
+  func noPortrait() throws {
+    let project = try TempProject(castText: plainCast)
+    #expect(dossier(["create", "THE LAMPLIGHTER", "--role", "lead", "--in", project.path("characters")]).status == 0)
+    let ran = dossier(["face", project.path("characters/THE LAMPLIGHTER.dossier"), "--box", "1,1,5,5", "--json"])
+    #expect(ran.status == 1)
+    #expect(ran.stdout.contains("\"error\""))
+  }
+}

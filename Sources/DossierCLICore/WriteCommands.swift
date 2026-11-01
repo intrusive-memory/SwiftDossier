@@ -209,3 +209,43 @@ struct RefreshCommand: DossierSubcommand {
     return 0
   }
 }
+
+struct FaceCommand: DossierSubcommand {
+  static let configuration = CommandConfiguration(
+    commandName: "face", abstract: "Crop the face from the selected portrait and select it (DOSSIER-FORMAT 8.5).")
+  @Argument(help: "The bundle.") var bundle: String
+  @Option(help: "A hand-set face box in the portrait's pixels, origin top-left: x,y,w,h. Recorded and reused.")
+  var box: String?
+  @OptionGroup var output: OutputOptions
+
+  func validate() throws {
+    if let box, FaceCommand.parse(box) == nil {
+      throw ValidationError("--box must be four non-negative numbers, x,y,w,h, with a width and height above 0")
+    }
+  }
+
+  static func parse(_ text: String) -> FaceBox? {
+    let parts = text.split(separator: ",", omittingEmptySubsequences: false)
+      .map { Double($0.trimmingCharacters(in: .whitespaces)) }
+    guard parts.count == 4, let x = parts[0], let y = parts[1], let w = parts[2], let h = parts[3] else { return nil }
+    let result = FaceBox(x: x, y: y, width: w, height: h)
+    return result.isValid ? result : nil
+  }
+
+  func execute(io: CommandIO) throws -> Int32 {
+    var target = try openBundle(bundle)
+    let derived = try target.deriveFace(box: box.flatMap(FaceCommand.parse))
+    if io.json {
+      io.emit([
+        "asset": assetJSON(derived.asset), "written": derived.wasWritten, "handSet": derived.handSet,
+        "box": ["x": derived.box.x, "y": derived.box.y, "width": derived.box.width, "height": derived.box.height],
+        "crop": ["left": derived.crop.left, "top": derived.crop.top, "side": derived.crop.side],
+      ])
+    } else {
+      io.line(
+        "\(derived.wasWritten ? "Added" : "Already there:") " + assetLine(derived.asset)
+          + "  \(derived.crop.side)x\(derived.crop.side) at (\(derived.crop.left),\(derived.crop.top))")
+    }
+    return 0
+  }
+}

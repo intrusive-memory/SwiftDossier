@@ -20,7 +20,8 @@ public struct DossierCommand: ParsableCommand {
     subcommands: [
       CreateCommand.self, AddCommand.self, SelectCommand.self, RejectCommand.self,
       RemoveCommand.self, ListCommand.self, PromptCommand.self, ValidateCommand.self,
-      RefreshCommand.self, CandidatesCommand.self, RenderCommand.self, MigrateCommand.self,
+      RefreshCommand.self, CandidatesCommand.self, FaceCommand.self,
+      RenderCommand.self, MigrateCommand.self,
     ]
   )
 

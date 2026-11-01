@@ -56,6 +56,16 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case derivedInputNotInBundle(role: String, sha256: String)
   /// `delete()` only removes a `.dossier` directory holding a `manifest.json`.
   case notADossierDirectory(String)
+  /// There is no selected portrait to take a face from.
+  case noSelectedPortrait
+  /// A face box with a negative edge, a size of zero, or a value that isn't finite.
+  case faceBoxInvalid
+  /// The portrait's file can't be read as an image.
+  case imageUnreadable(String)
+  /// No face was found in the portrait and no box was given. Nothing was written.
+  case noFaceFound(String)
+  /// The crop couldn't be encoded as PNG.
+  case faceEncodeFailed
   /// A character name with no canonical form (§2, `E-NAME`).
   case nameNotAllowed(name: String, detail: String)
   /// A role that isn't a tier (§8.3).
@@ -107,6 +117,11 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .derivedInputNotInBundle(let role, let sha256):
       return "The \(role) reference sent (\(sha256)) is no asset in the bundle"
     case .notADossierDirectory(let path): return "Not a .dossier directory with a manifest: \(path)"
+    case .noSelectedPortrait: return "There is no selected portrait to take a face from"
+    case .faceBoxInvalid: return "A face box needs x and y of 0 or more, and a width and height above 0"
+    case .imageUnreadable(let path): return "Can't read \(path) as an image"
+    case .noFaceFound(let path): return "No face found in \(path); pass --box x,y,w,h"
+    case .faceEncodeFailed: return "The crop couldn't be encoded as PNG"
     case .nameNotAllowed(let name, let detail): return "The name \"\(name)\" can't be used: \(detail)"
     case .roleNotATier(let role): return "\(role) isn't a tier"
     case .bundleExists(let path): return "A bundle is already at \(path)"
