@@ -19,6 +19,10 @@ DESTINATION = 'platform=macOS,arch=arm64'
 IOS_DESTINATION = 'platform=iOS Simulator,name=iPhone 17,OS=latest'
 ARCH = ARCHS=arm64 ONLY_ACTIVE_ARCH=YES
 XCODE_FLAGS = -skipPackagePluginValidation -skipMacroValidation
+# xcodebuild instruments a package's CLI for coverage even in Release, which leaves a profile runtime
+# in the shipped binary. `release` and `install` turn it off, and `smoke` fails if it comes back.
+NO_COVERAGE = CLANG_ENABLE_CODE_COVERAGE=NO CLANG_COVERAGE_MAPPING=NO ENABLE_CODE_COVERAGE=NO
+
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
 # Optional: TEST_FILTER=<name> make test. A test target (DossierCoreTests), a
@@ -109,6 +113,7 @@ release: resolve
 	  -destination $(DESTINATION) \
 	  -configuration Release \
 	  $(XCODE_FLAGS) \
+	  $(NO_COVERAGE) \
 	  $(ARCH)
 	@mkdir -p $(BIN_DIR)
 	@PRODUCT_DIR=$$(ls -td $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Release 2>/dev/null | head -1); \
@@ -125,6 +130,9 @@ release: resolve
 # Runs the released binary from a directory that is not this one, so a resource bundle it
 # only finds through a build-tree path fails here. Needs `make release` and `make fixtures`.
 smoke:
+	@if xcrun otool -l $(BIN_DIR)/$(BINARY) | grep -q __llvm_prf; then \
+		echo "smoke: $(BIN_DIR)/$(BINARY) is instrumented for coverage" >&2; exit 1; \
+	fi
 	@FIX="$$(cd $(FIXTURES_DIR)/examples/valid/complete-lead && pwd)"; BIN="$$(cd $(BIN_DIR) && pwd)/$(BINARY)"; \
 	cd "$$(mktemp -d)" && \
 	"$$BIN" validate "$$FIX/characters/WREN HALLOWAY.dossier" --cast "$$FIX/CAST.md" --json >/dev/null && \
@@ -134,6 +142,7 @@ install: resolve
 	xcodebuild build -scheme $(CLI_SCHEME) \
 	  -destination $(DESTINATION) \
 	  $(XCODE_FLAGS) \
+	  $(NO_COVERAGE) \
 	  $(ARCH)
 	@mkdir -p $(BIN_DIR)
 	@PRODUCT_DIR=$$(ls -td $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Debug 2>/dev/null | head -1); \
