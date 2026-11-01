@@ -29,3 +29,19 @@ The Swift implementation of dossier-format: read, write, validate, migrate and r
 - macOS 26, Swift 6.2, strict concurrency. intrusive-memory dependencies use
   the sibling pattern on `development`.
 - Work on `development`; `main` takes releases.
+
+## Queryable Codemap
+
+A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
+codebase lives in [`graphify-out/`](graphify-out/) (1999 nodes · 4215 edges). **Prefer
+querying it before grepping** for architecture or "what connects to what" questions:
+
+```bash
+graphify query "How does X flow through the system?"
+graphify path "TypeA" "TypeB"      # shortest path between two nodes
+graphify explain "SomeType"        # plain-language node explanation
+```
+
+Human-readable summary: [`graphify-out/GRAPH_REPORT.md`](graphify-out/GRAPH_REPORT.md).
+Refresh after significant changes with `/codemap` (or
+`graphify . --backend claude-cli`).
