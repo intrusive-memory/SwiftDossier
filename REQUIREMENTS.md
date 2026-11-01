@@ -27,25 +27,28 @@ the two.
 ## 1. The specification
 
 dossier-format's specification, schemas, tier table and conformance fixtures
-are written and tagged **`v2.0.0-rc.1`** (2026-10-31), the revision this package
+are written and tagged **`v2.0.0-rc.2`** (2026-10-31), the revision this package
 pins. Its page template, field list and design tokens are not written.
 
 | # | Rule |
 |---|------|
 | SD-1 | **`docs/DOSSIER-FORMAT.md` is the specification.** Where it is silent, raise the question in dossier-format; don't decide it here. |
 | SD-2 | **Data files are consumed, never restated:** `schemas/*.json`, `data/tiers.json`, `data/review.json`, and later `data/fields.json`, the tokens and the template, copied as resources from a pinned dossier-format revision. A test fails if the copies differ from that revision. |
-| SD-3 | **Every manifest this package writes validates** against `schemas/manifest-v2.schema.json`; every v1 fixture validates against `manifest-v1.schema.json` (Granville's nine do today, checked locally). |
+| SD-3 | **Every manifest this package writes validates** against `schemas/manifest-v2.schema.json`; every v1 fixture validates against `manifest-v1.schema.json`. The v1 fixtures are `examples/warnings/W-V1*`. `E-SCHEMA` comes from the schema files, through SD-13's evaluator; the rules are not restated in Swift (SD-2). |
 | SD-4 | **Fixtures are synthetic.** This repository is public (§10 Q1), so nothing from a private project is copied into it: no images, descriptions, CAST.md or manifests from podcast-granville or any other podcast. Tests use dossier-format's `examples/` and its `conformance.json`, which includes synthetic v1 bundles of both Appendix A shapes (v1 manifest in a `.dossier` directory or a plain one, sidecars, retired kinds, path-order checksum). Real projects are checked by `make acceptance PROJECT=<path>`, which runs against a local checkout, skips when it is absent, and never runs in CI. |
 
 ## 2. Targets
 
 | Target | Depends on | Contains |
 |--------|------------|----------|
-| `DossierCore` | Foundation, CryptoKit, SwiftReparto | Read-only. `Cast.load(_:)` (discovery from CAST.md, DOSSIER-FORMAT §3), `DossierBundle.open(at:)`, `Manifest`, `Asset`, `AssetKind`, `assets(kind:variant:)`, `selectedAsset(kind:variant:)`, `sampleURL(variant:)`, `identityPrompt`, `artStyle` (CHARACTER.md front matter, UD20), `pageURL`, `completeness(tier:)`, `stale()`, `DossierTabs`. No writers. Linked by the Vinetas app. |
+| `DossierCore` | Foundation, CryptoKit, SwiftReparto, Yams | Read-only. `Cast.load(_:)` (discovery from CAST.md, DOSSIER-FORMAT §3), `DossierBundle.open(at:)`, `Manifest`, `Asset`, `AssetKind`, `assets(kind:variant:)`, `selectedAsset(kind:variant:)`, `sampleURL(variant:)`, `identityPrompt`, `artStyle` (CHARACTER.md front matter, UD20), `pageURL`, `completeness(tier:)`, `stale()`, `DossierTabs`. No writers. Linked by the Vinetas app. |
 | `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate()`, `validate(cast:)`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
 | `DossierCLICore` | `Dossier`, ArgumentParser | Command logic, unit-testable without a subprocess. Not a product (SwiftReparto D-6). |
 | `dossier` | `DossierCLICore` | The executable (§5). |
 
+- **Yams** reads CHARACTER.md's front matter, in the same version range as
+  SwiftReparto's (`.upToNextMajor(from: "6.2.2")`). It already arrives through
+  Reparto, which doesn't re-export it, so it adds no new code to the build.
 - **No MLX, no network, no generation.** SwiftDossier never depends on
   SwiftVinetas, SwiftEchada or SwiftPersonaje.
 - **macOS 26 / iOS 26, Swift 6.2,** strict concurrency.
@@ -65,7 +68,8 @@ pins. Its page template, field list and design tokens are not written.
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
 | SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules (`voice/<CHARACTER>.vox` → `vox`; `voice/sample-<variant>[-<model>].m4a` → `voiceSample`, with `model` from the suffix or the vox default). Anything else stays unclassified. Orphan adoption follows §3 exactly. |
-| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.0 or later. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug, and data never changes. `migrate` and `create` say so when the file was not yet normalized (`generate(parse(x)) != x`), and suggest `reparto canonicalize --apply` first. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
+| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug, and data never changes. `migrate` and `create` say so when the file was not yet normalized (`generate(parse(x)) != x`), and suggest `reparto canonicalize --apply` first. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
+| SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and `$ref` to another of the pinned schemas (`$id`, `$schema`, `title` and `description` are ignored). An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
 
 ## 4. Face crop, validation, page
 
@@ -122,6 +126,9 @@ move candidates and sidecars to `.generations/<NAME>/`; map retired kinds
 (variant from `label`); rename selected images to content names; rewrite
 `derivedFrom` in the §7 shape; update CAST.md pointers through Reparto;
 write the v2 manifest; render the page and delete `dossier.html`; validate.
+An asset that can't be mapped stays an unclassified file and is reported
+(Appendix A). Until the renderer ships (§8 phase 3), `migrate` stops before the
+page and says so.
 
 ## 7. Format additions
 
@@ -137,11 +144,9 @@ first (SD-1).
    those. Tests against the synthetic fixtures (SD-4).
 2. **Face crop and `check`.**
 3. **Page renderer** with the dossier-format template (blocked on the
-   template, SD-2). Until it lands, `render` may shell out to Personaje's
-   `render_dossier.py` behind a flag, so a run can finish; remove the flag
-   when the template ships. The bridge's page is a v1-style page and is
-   reported `W-PAGE-EXTERNAL`. **The bridge ships only if it is first shown to
-   read v2 bundles;** if it can't, `render` waits for the template (Q2).
+   template, SD-2). `dossier render` waits for it: there is no bridge (Q2). The
+   template's mission follows phase 1 directly. **`render_dossier.py` must not
+   be run on a v2 bundle;** it rewrites the manifest with a path-order checksum.
 4. **Migration,** for any remaining v1 bundle. Granville's nine are already on
    manifest v2 (`dossier/v2-migration`, by a one-off script, 2026-10-22), so
    nothing else waits on this phase. Reading v1 stays in phase 1.
@@ -171,5 +176,5 @@ checkout (SD-4); they are not part of CI.
 | # | Question | Recommendation |
 |---|----------|----------------|
 | Q1 | Public or private repository? (DEPENDENCY-MISSIONS OQ-13) | **Decided 2026-10-20: public.** Every Swift* package is public by convention; the apps are private. Hence SD-4. |
-| Q2 | Does `render` wait for the dossier-format template, or ship the bridge in §8 phase 3? | **Decided 2026-10-31:** ship the bridge, if it is shown to read v2 bundles first (§8 phase 3). |
+| Q2 | Does `render` wait for the dossier-format template, or ship the bridge in §8 phase 3? | **Decided 2026-10-31:** ship the bridge only if it is shown to read v2 bundles first. **Recon showed it can't:** it doesn't find a v2 bundle's views, face or expressions, writes the wrong file name, and corrupts the manifest. So there's no bridge, and `render` waits for the template (§8 phase 3). |
 | Q3 | `check`: is CHARACTER.md linting the writer's job (here) or Personaje's? | **Decided 2026-10-31:** here. It reads a format file (DOSSIER-FORMAT §9) and is needed by every writer. Personaje only decides the gates. |
