@@ -21,9 +21,12 @@ ARCH = ARCHS=arm64 ONLY_ACTIVE_ARCH=YES
 XCODE_FLAGS = -skipPackagePluginValidation -skipMacroValidation
 DERIVED_DATA = $(HOME)/Library/Developer/Xcode/DerivedData
 
-# Optional: TEST_FILTER=<regex> make test
+# Optional: TEST_FILTER=<name> make test. A test target (DossierCoreTests), a
+# Target/Suite path, or a bare suite name (SchemaEvaluatorTests), which is found
+# by the file under Tests/ that declares it. xcodebuild's -only-testing needs
+# the target, so a bare name that matches no suite is passed through unchanged.
 ifdef TEST_FILTER
-TEST_ONLY = -only-testing:$(TEST_FILTER)
+TEST_ONLY = -only-testing:$(shell scripts/test-filter.sh "$(TEST_FILTER)")
 endif
 
 .PHONY: help build test test-ios fixtures release install clean resolve acceptance
