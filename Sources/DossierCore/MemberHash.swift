@@ -96,8 +96,14 @@ public enum MemberHash {
     return voices
   }
 
+  /// The provider keys of a member node's `voices`, as written.
+  static func voiceProviderSpellings(of node: Node) -> [String] {
+    guard case .mapping(let mapping) = node, case .mapping(let voices)? = mapping["voices"] else { return [] }
+    return voices.map { $0.0.string ?? "" }
+  }
+
   /// A value in any other key, at any depth.
-  private static func generalValue(_ node: Node) -> JSONValue {
+  static func generalValue(_ node: Node) -> JSONValue {
     switch node {
     case .scalar(let scalar):
       // SPEC-GAP: §7: an explicit YAML tag on a plain scalar isn't mentioned, so tags are

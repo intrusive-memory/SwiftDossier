@@ -57,6 +57,16 @@ public struct AddOptions: Sendable {
   }
 }
 
+/// The keys of `prompts` (§5.5).
+public enum PromptKey: String, CaseIterable, Sendable {
+  /// Who the character is, visually.
+  case identity
+  /// The working portrait prompt.
+  case portrait
+  /// The noun prompts use for the character.
+  case subject
+}
+
 extension DossierBundle {
   /// Copies a file into the bundle and records it as an asset (SD-5, SD-6, SD-7, SD-10).
   ///
@@ -156,6 +166,27 @@ extension DossierBundle {
   @discardableResult
   public mutating func reject(path: String) throws -> Asset {
     try setStatus(of: path, to: .rejected)
+  }
+
+  /// Sets one of `prompts`' keys (§5.5), keeping the others and any unknown key. Nothing is
+  /// written when nothing changes.
+  ///
+  /// - Parameters:
+  ///   - key: Which prompt.
+  ///   - text: Its text. A `subject` outside §5.5's words fails the schema, and is refused.
+  public mutating func setPrompt(_ key: PromptKey, _ text: String) throws {
+    let writer = ManifestWriter(bundle: url)
+    let current = try writer.currentManifest()
+    if current.prompts?.json[key.rawValue]?.stringValue?.hasSameBytes(as: text) == true {
+      self = DossierBundle(url: url, manifest: current, member: member)
+      return
+    }
+    let manifest = try writer.update { manifest, _ in
+      var prompts = manifest.prompts ?? Manifest.Prompts(json: JSONObject())
+      prompts.json[key.rawValue] = .string(text)
+      manifest.prompts = prompts
+    }
+    self = DossierBundle(url: url, manifest: manifest, member: member)
   }
 
   /// Deletes one asset and its file (SD-9). Assets derived from it stay, and read as stale (§7).

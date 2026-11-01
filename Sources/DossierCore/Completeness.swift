@@ -143,7 +143,7 @@ extension DossierBundle {
 
   private func selectedVoxHolds(_ size: String) -> Bool {
     guard let vox = selectedAsset(kind: .vox) else { return false }
-    return vox.provenance.models.contains { $0.lowercased().contains(size) }
+    return vox.provenance.holds(size: size)
   }
 
   private var selectedSamples: [Asset] {

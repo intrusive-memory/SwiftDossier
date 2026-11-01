@@ -54,6 +54,9 @@ public struct Cast: Sendable {
     public let fields: CastMember
     /// §7's normal form, from the node the member was written as.
     public let normalForm: JSONValue
+    /// The provider keys of `voices`, spelled as written. Reparto lowercases them and
+    /// drops some, so a writer reporting that (SD-12) reads them here.
+    package let voiceProviderSpellings: [String]
 
     /// §7's canonical JSON of this member.
     public var canonicalJSON: String { normalForm.canonicalEncoded() }
@@ -92,9 +95,22 @@ public struct Cast: Sendable {
       throw DossierError.castUnreadable("the cast list doesn't read as YAML nodes")
     }
     let members = zip(document.cast, nodes).map { fields, node in
-      Member(fields: fields, normalForm: MemberHash.normalForm(of: node))
+      Member(
+        fields: fields, normalForm: MemberHash.normalForm(of: node),
+        voiceProviderSpellings: MemberHash.voiceProviderSpellings(of: node))
     }
     return Cast(url: url, members: members)
+  }
+
+  /// §7's canonical JSON of each member of a `CAST.md`'s text, in document order, or `nil`
+  /// when the text's front matter has no `cast` list. Reparto isn't involved: this is how a
+  /// writer compares the text it's about to write with the text that's there (SD-12).
+  package static func canonicalMemberJSON(ofMarkdown text: String) -> [String]? {
+    guard let yaml = FrontMatter.split(text)?.yaml,
+      case .mapping(let root)? = try? Yams.compose(yaml: yaml),
+      case .sequence(let nodes)? = root["cast"]
+    else { return nil }
+    return nodes.map { MemberHash.normalForm(of: $0).canonicalEncoded() }
   }
 
   /// The file a member's pointer leads to, or `nil` when it has no `manifest:`.

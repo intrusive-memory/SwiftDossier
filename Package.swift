@@ -82,7 +82,11 @@ let package = Package(
     ),
     .target(
       name: "Dossier",
-      dependencies: ["DossierCore"],
+      // SwiftReparto directly: `CAST.md` is written only through it (SD-12).
+      dependencies: [
+        "DossierCore",
+        .product(name: "SwiftReparto", package: "SwiftReparto"),
+      ],
       resources: [
         .copy("Resources/PINNED.sha256"),
         .copy("Resources/schemas"),
@@ -112,7 +116,10 @@ let package = Package(
     ),
     .testTarget(
       name: "DossierTests",
-      dependencies: ["Dossier"],
+      dependencies: [
+        "Dossier",
+        .product(name: "SwiftReparto", package: "SwiftReparto"),
+      ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
     .testTarget(

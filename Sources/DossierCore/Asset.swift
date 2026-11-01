@@ -245,6 +245,11 @@ public struct Provenance: Sendable, Equatable {
   public var model: String? { text("model") }
   /// The models a `.vox` holds, as the tool reports them.
   public var models: [String] { json["models"]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+  /// §8.3: an entry of ``models`` contains the size, compared case-insensitively.
+  package func holds(size: String) -> Bool {
+    let size = size.lowercased()
+    return models.contains { $0.lowercased().contains(size) }
+  }
   /// The prompt sent, before style.
   public var prompt: String? { text("prompt") }
   /// Style and prompt as the engine received them.

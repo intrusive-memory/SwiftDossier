@@ -56,6 +56,25 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case derivedInputNotInBundle(role: String, sha256: String)
   /// `delete()` only removes a `.dossier` directory holding a `manifest.json`.
   case notADossierDirectory(String)
+  /// A character name with no canonical form (§2, `E-NAME`).
+  case nameNotAllowed(name: String, detail: String)
+  /// A role that isn't a tier (§8.3).
+  case roleNotATier(String)
+  /// A bundle of this name is already there.
+  case bundleExists(String)
+  /// A bundle's name differs from this one's only by case (§2).
+  case bundleNameCollision(name: String, existing: String)
+  /// The `CAST.md` member would match this name only after canonicalizing. Its name belongs to
+  /// `reparto canonicalize --apply`, not to this package (SD-12).
+  case memberNotCanonical(member: String, canonical: String)
+  /// More than one `CAST.md` member has this canonical name.
+  case memberAmbiguous(canonical: String, members: [String])
+  /// The `CAST.md` member already points somewhere else.
+  case memberPointsElsewhere(member: String, pointer: String)
+  /// A bundle outside the directory holding `CAST.md` can't be pointed at from it.
+  case bundleOutsideCastDirectory(String)
+  /// `CAST.md` couldn't be written. A bundle made for the write was removed.
+  case castWriteFailed(String)
 
   /// A description of the failure, for people.
   public var errorDescription: String? {
@@ -88,6 +107,18 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .derivedInputNotInBundle(let role, let sha256):
       return "The \(role) reference sent (\(sha256)) is no asset in the bundle"
     case .notADossierDirectory(let path): return "Not a .dossier directory with a manifest: \(path)"
+    case .nameNotAllowed(let name, let detail): return "The name \"\(name)\" can't be used: \(detail)"
+    case .roleNotATier(let role): return "\(role) isn't a tier"
+    case .bundleExists(let path): return "A bundle is already at \(path)"
+    case .bundleNameCollision(let name, let existing):
+      return "\(name) differs from the existing bundle \(existing) only by case"
+    case .memberNotCanonical(let member, let canonical):
+      return "CAST.md has \"\(member)\", not \"\(canonical)\". Run `reparto canonicalize --apply` first"
+    case .memberAmbiguous(let canonical, let members):
+      return "CAST.md has more than one member named \(canonical): \(members.joined(separator: ", "))"
+    case .memberPointsElsewhere(let member, let pointer): return "\(member) already points at \(pointer)"
+    case .bundleOutsideCastDirectory(let path): return "\(path) isn't under the directory holding CAST.md"
+    case .castWriteFailed(let detail): return "CAST.md couldn't be written: \(detail)"
     }
   }
 }
