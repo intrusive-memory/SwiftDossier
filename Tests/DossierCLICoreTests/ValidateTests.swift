@@ -1,3 +1,4 @@
+import DossierCore
 import Foundation
 import Testing
 
@@ -52,6 +53,21 @@ struct ValidateTests {
     let codes = (try ran.object()["findings"] as? [[String: Any]])?.compactMap { $0["code"] as? String } ?? []
     #expect(codes.contains("W-ORPHAN"))
     #expect(ran.status >= 1)
+  }
+
+  @Test("validate --cast --json lists each member's hash and manifest; a bundle's result doesn't")
+  func memberLines() throws {
+    let project = try TempProject(copyOf: "valid/complete-lead")
+    let cast = try Cast.load(project.cast)
+
+    let members = try #require(try dossier(["validate", "--cast", project.cast.path, "--json"]).object()["members"] as? [[String: Any]])
+    #expect(members.compactMap { $0["character"] as? String } == cast.members.map(\.character))
+    #expect(members.compactMap { $0["hash"] as? String } == cast.members.map(\.hash))
+    #expect(members[0]["manifest"] as? String == cast.manifestURL(of: cast.members[0])?.path)
+    #expect(members[1]["manifest"] is NSNull)
+
+    let bundle = project.path("characters/WREN HALLOWAY.dossier")
+    #expect(try dossier(["validate", bundle, "--cast", project.cast.path, "--json"]).object()["members"] == nil)
   }
 
   @Test("an unreadable CAST.md is E-CAST and exit 2")

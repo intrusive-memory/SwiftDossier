@@ -87,6 +87,18 @@ struct ValidateCommand: DossierSubcommand {
     let path: String?
   }
 
+  /// Each member of a `CAST.md`: its name, its §7 hash, and where its `manifest:` leads, which
+  /// `make acceptance` reads. Empty for a file that can't be read, which is already `E-CAST`.
+  private func memberLines(cast: URL) -> [[String: Any]] {
+    guard let loaded = try? Cast.load(cast) else { return [] }
+    return loaded.members.map { member in
+      [
+        "character": member.character, "hash": member.hash,
+        "manifest": loaded.manifestURL(of: member).map { $0.path as Any } ?? NSNull(),
+      ]
+    }
+  }
+
   func execute(io: CommandIO) throws -> Int32 {
     let report: ValidationReport
     var extra: [Line] = []
@@ -109,7 +121,7 @@ struct ValidateCommand: DossierSubcommand {
       lines.contains { $0.level == "error" } ? 2 : (lines.isEmpty ? 0 : 1)
 
     if io.json {
-      io.emit([
+      var object: [String: Any] = [
         "status": Int(status),
         "findings": lines.map { line -> [String: Any] in
           ["code": line.code, "level": line.level, "message": line.message, "path": line.path.map { $0 as Any } ?? NSNull()]
@@ -123,7 +135,9 @@ struct ValidateCommand: DossierSubcommand {
             },
           ]
         },
-      ])
+      ]
+      if bundle == nil, let cast { object["members"] = memberLines(cast: fileURL(cast)) }
+      io.emit(object)
     } else {
       for line in lines {
         io.line("\(line.level) \(line.code)\(line.path.map { " \($0)" } ?? ""): \(line.message)")

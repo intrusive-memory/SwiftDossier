@@ -45,7 +45,7 @@ help:
 	@echo "  smoke       - Run bin/dossier from another directory on a conformance fixture (after release)"
 	@echo "  clean       - Remove build artifacts, $(BIN_DIR)/, and DerivedData"
 	@echo "  resolve     - Resolve package dependencies"
-	@echo "  acceptance  - Acceptance run (stub; Sortie 10 fills it)"
+	@echo "  acceptance  - REQUIREMENTS 9 against a checkout, read-only: PROJECT=<path> [REF=<ref>] [REPARTO=<path>]; not in CI"
 	@echo ""
 	@echo "macOS destination: $(DESTINATION)"
 	@echo "iOS destination:   $(IOS_DESTINATION)"
@@ -137,5 +137,6 @@ clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(DERIVED_DATA)/SwiftDossier-*
 
+# Reads PROJECT and never writes to it, and skips when it isn't there (SD-4). Not part of `test`.
 acceptance:
-	@echo "acceptance: not implemented yet; Sortie 10 fills this target."
+	@REPARTO="$(REPARTO)" scripts/acceptance.sh "$(PROJECT)" "$(REF)"
