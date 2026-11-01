@@ -1,4 +1,5 @@
 import CoreGraphics
+import CryptoKit
 import Foundation
 import ImageIO
 import Testing
@@ -114,13 +115,6 @@ final class LockedBox<Value: Sendable>: @unchecked Sendable {
 }
 
 func sha256(of path: String) throws -> String {
-  let process = Process()
-  process.executableURL = URL(fileURLWithPath: "/usr/bin/shasum")
-  process.arguments = ["-a", "256", path]
-  let pipe = Pipe()
-  process.standardOutput = pipe
-  try process.run()
-  let data = pipe.fileHandleForReading.readDataToEndOfFile()
-  process.waitUntilExit()
-  return String(decoding: data, as: UTF8.self).split(separator: " ").first.map(String.init) ?? ""
+  let digest = SHA256.hash(data: try Data(contentsOf: URL(fileURLWithPath: path)))
+  return digest.map { String(format: "%02x", $0) }.joined()
 }
