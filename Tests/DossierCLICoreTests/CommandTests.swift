@@ -252,3 +252,35 @@ struct FaceCommandTests {
     #expect(ran.stdout.contains("\"error\""))
   }
 }
+
+@Suite("Help names the command asked about")
+struct HelpTests {
+  private static let commands = [
+    "create", "add", "select", "reject", "remove", "list", "prompt", "validate", "refresh",
+    "candidates", "face", "check", "update", "render", "migrate",
+  ]
+
+  @Test("--help, -h and help <command>", arguments: commands)
+  func eachCommand(command: String) {
+    for line in [[command, "--help"], [command, "-h"], ["help", command]] {
+      let ran = dossier(line)
+      #expect(ran.status == 0, "\(line)")
+      #expect(ran.stdout.contains("USAGE: dossier \(command)"), "\(line): \(ran.stdout)")
+      #expect(!ran.stdout.contains("Show subcommand help"), "\(line)")
+    }
+  }
+
+  @Test("A nested command, and a flag or argument before --help")
+  func nested() {
+    #expect(dossier(["update", "begin", "--help"]).stdout.contains("USAGE: dossier update begin"))
+    #expect(dossier(["help", "update", "renew"]).stdout.contains("USAGE: dossier update renew"))
+    #expect(dossier(["add", "some.dossier", "--help"]).stdout.contains("USAGE: dossier add"))
+  }
+
+  @Test("The root, and a command with no such subcommand")
+  func root() {
+    #expect(dossier([]).stdout.contains("USAGE: dossier <subcommand>"))
+    #expect(dossier(["--help"]).stdout.contains("USAGE: dossier <subcommand>"))
+    #expect(dossier(["help"]).stdout.contains("USAGE: dossier <subcommand>"))
+  }
+}

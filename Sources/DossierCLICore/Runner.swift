@@ -84,7 +84,9 @@ public enum DossierCLI {
     do {
       let parsed = try DossierCommand.parseAsRoot(arguments)
       guard let command = parsed as? any DossierSubcommand else {
-        sink.writeOutput(DossierCommand.helpMessage(for: type(of: parsed)) + "\n")
+        // `add --help` parses as ArgumentParser's own help command, whose type says nothing about
+        // which command was asked about, so the command line has to say.
+        sink.writeOutput(DossierCommand.helpMessage(for: helpTarget(arguments)) + "\n")
         return 0
       }
       failureStatus = type(of: command).failureStatus
@@ -108,6 +110,22 @@ public enum DossierCLI {
       report(code: name, message: described, json: json, sink: sink)
       return failureStatus
     }
+  }
+
+  /// The command a help request is about: `add --help`, `help add`, `update run -h`, or `update`.
+  /// The path of subcommand names on the command line, stopping at the first word that isn't one.
+  static func helpTarget(_ arguments: [String]) -> any ParsableCommand.Type {
+    var target: any ParsableCommand.Type = DossierCommand.self
+    var words = arguments.prefix { $0 != "--" }.filter { !$0.hasPrefix("-") }[...]
+    if words.first == "help" { words = words.dropFirst() }
+    for word in words {
+      let next = target.configuration.subcommands.first { command in
+        command._commandName == word || command.configuration.aliases.contains(word)
+      }
+      guard let next else { break }
+      target = next
+    }
+    return target
   }
 
   private static func report(code: String, message: String, json: Bool, sink: any OutputSink) {
