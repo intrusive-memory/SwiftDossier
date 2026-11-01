@@ -217,6 +217,44 @@ struct WithUpdateTests {
     #expect(temp.hiddenNames.isEmpty)
   }
 
+  /// The render a hold exists for: every core busy above the timer's queue, which a global queue
+  /// never gets a thread under. The wait only bounds a failure: it returns at the first renewal,
+  /// and the load stops there, so tests running alongside lose milliseconds.
+  @Test("Renewal doesn't wait for a free core, and no renewal fails")
+  func renewsWithEveryCoreBusy() throws {
+    let temp = try TemporaryBundle()
+    let renewed = DispatchSemaphore(value: 0)
+    let failed = Mutex(0)
+    let stop = Mutex(false)
+    let finished = DispatchGroup()
+    defer { stop.withLock { $0 = true }; finished.wait() }
+    for _ in 0..<ProcessInfo.processInfo.activeProcessorCount {
+      DispatchQueue.global(qos: .userInitiated).async(group: finished) {
+        var total = 0.0
+        while !stop.withLock({ $0 }) {
+          for value in 0..<1000 { total += Double(value).squareRoot() }
+        }
+        _ = total
+      }
+    }
+    var environment = UpdateEnvironment()
+    environment.renewalInterval = 0.001
+    environment.observe = { event in
+      switch event {
+      case .renewed: renewed.signal()
+      case .writeFailed: failed.withLock { $0 += 1 }
+      default: break
+      }
+    }
+    let waited = UpdateHolding.$environment.withValue(environment) {
+      temp.bundle.withUpdate { _ in renewed.wait(timeout: .now() + 60) }
+    }
+    stop.withLock { $0 = true }
+    #expect(waited == .success)
+    #expect(failed.withLock { $0 } == 0)
+    #expect(temp.hiddenNames.isEmpty)
+  }
+
   @Test("§5.7: expiresAt is no more than 3600 seconds ahead, as a default and as asked")
   func limit() throws {
     #expect(UpdateEnvironment().lifetime <= 3600)
