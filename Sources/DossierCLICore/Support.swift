@@ -8,6 +8,14 @@ func openBundle(_ path: String) throws -> DossierBundle {
   try DossierBundle.open(at: fileURL(path))
 }
 
+/// The `CAST.md` member whose `manifest:` leads to this bundle.
+func castMember(pointingAt bundle: URL, in cast: Cast) -> Cast.Member? {
+  let target = bundle.resolvingSymlinksInPath()
+  return cast.members.first { member in
+    cast.manifestURL(of: member)?.deletingLastPathComponent().resolvingSymlinksInPath().path == target.path
+  }
+}
+
 func parseObject(_ text: String, option: String) throws -> JSONObject {
   guard let value = try? JSONValue.parse(Data(text.utf8)), let object = value.objectValue else {
     throw CLIFailure("usage", "\(option) must be a JSON object")

@@ -41,6 +41,27 @@ package enum FrontMatter {
   }
 }
 
+/// Markdown's fenced code blocks, read a line at a time.
+package struct CodeFence {
+  private var marker: Character?
+
+  package init() {}
+
+  /// Whether a line, taken in file order, is a fence line or inside a fence.
+  package mutating func isCode(_ line: some StringProtocol) -> Bool {
+    let trimmed = line.drop { $0 == " " }
+    if let first = trimmed.first, first == "`" || first == "~", trimmed.hasPrefix(String(repeating: first, count: 3)) {
+      if marker == nil {
+        marker = first
+      } else if marker == first {
+        marker = nil
+      }
+      return true
+    }
+    return marker != nil
+  }
+}
+
 /// `CHARACTER.md`, read as far as staleness and completeness need (§9).
 ///
 /// Internal to the package. The public reader and writer of this file are
@@ -53,6 +74,9 @@ package struct CharacterDocument: Sendable {
   ]
   /// §9.2's short set.
   package static let shortSections = ["Logline", "Appearance", "Voice & Speech"]
+
+  /// §9.2's sections, in their order.
+  package static let allSections = fullSections + ["Canon & Guardrails", "Open Questions"]
 
   package let frontMatterYAML: String?
   package let body: String
@@ -97,7 +121,7 @@ package struct CharacterDocument: Sendable {
     }
   }
 
-  private static func heading(_ heading: String, matches name: String) -> Bool {
+  package static func heading(_ heading: String, matches name: String) -> Bool {
     if heading.hasSameBytes(as: name) { return true }
     return heading.hasPrefix(name + " (") && heading.hasSuffix(")")
   }
@@ -106,18 +130,10 @@ package struct CharacterDocument: Sendable {
   // heading. Markdown's rule is followed, so a fenced example can't satisfy a tier.
   private static func parseSections(_ body: String) -> [(heading: String, content: String)] {
     var result: [(heading: String, content: String)] = []
-    var fence: Character?
+    var fence = CodeFence()
     for rawLine in body.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
       let line = String(rawLine)
-      let trimmed = line.drop { $0 == " " }
-      if let marker = trimmed.first, marker == "`" || marker == "~", trimmed.hasPrefix(String(repeating: marker, count: 3)) {
-        if fence == nil {
-          fence = marker
-        } else if fence == marker {
-          fence = nil
-        }
-      }
-      if fence == nil, line.hasPrefix("## ") {
+      if !fence.isCode(line), line.hasPrefix("## ") {
         let heading = line.dropFirst(3).trimmingCharacters(in: .whitespaces)
         result.append((heading, ""))
       } else if !result.isEmpty {

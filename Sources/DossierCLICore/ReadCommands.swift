@@ -137,15 +137,11 @@ struct ValidateCommand: DossierSubcommand {
   /// §14 for one bundle with the member `CAST.md` gives it. A bundle no member points at is
   /// validated alone and reported as an orphan, as the project-wide run would.
   private func bundleFromProject(bundle: URL, cast castURL: URL) throws -> (ValidationReport, [Line]) {
-    let target = bundle.resolvingSymlinksInPath()
     guard let cast = try? Cast.load(castURL) else {
       // The project run reports the unreadable CAST.md as E-CAST.
       return (try DossierBundle.validate(cast: castURL), [])
     }
-    let member = cast.members.first { member in
-      cast.manifestURL(of: member)?.deletingLastPathComponent().resolvingSymlinksInPath().path == target.path
-    }
-    guard let member else {
+    guard let member = castMember(pointingAt: bundle, in: cast) else {
       let alone = try DossierBundle.validate(at: bundle)
       let orphan = Line(
         code: Finding.Code.orphan.rawValue, level: Finding.Code.orphan.level.rawValue,
@@ -156,6 +152,98 @@ struct ValidateCommand: DossierSubcommand {
       return (try DossierBundle.validate(at: bundle), [])
     }
     return (try opened.validate(), [])
+  }
+}
+
+struct CheckCommand: DossierSubcommand {
+  static let configuration = CommandConfiguration(
+    commandName: "check",
+    abstract: "Report on CHARACTER.md: front matter, sections against the tier, footnotes, open questions.",
+    discussion: """
+      Read-only. The tier is the CAST.md member's role with --cast; without it, the role copied \
+      into CHARACTER.md or the manifest. Open questions are reported, not judged.
+
+      Exits 0 when clean, 1 with warnings only, 2 with any error.
+      """)
+  static var failureStatus: Int32 { 2 }
+
+  @Argument(help: "The bundle.") var bundle: String
+  @Option(help: "The CAST.md, which gives the tier.") var cast: String?
+  @OptionGroup var output: OutputOptions
+
+  func execute(io: CommandIO) throws -> Int32 {
+    let url = fileURL(bundle)
+    var found: Cast.Member?
+    if let cast {
+      do {
+        found = castMember(pointingAt: url, in: try Cast.load(fileURL(cast)))
+      } catch {
+        throw CLIFailure(Finding.Code.cast.rawValue, error.localizedDescription, status: 2)
+      }
+    }
+    var report = try DossierBundle.open(at: url, member: found).checkDescription()
+    if cast != nil, found == nil {
+      report.append(.init(.file, code: .orphan, "No CAST.md member points at \(url.lastPathComponent)"))
+    }
+
+    if io.json {
+      io.emit(Self.json(report))
+    } else {
+      printReport(report, io: io)
+    }
+    return report.exitStatus
+  }
+
+  private static func json(_ report: DescriptionCheckReport) -> [String: Any] {
+    [
+      "status": Int(report.exitStatus),
+      "hasFile": report.hasFile,
+      "frontMatterKeys": report.frontMatterKeys,
+      "tier": report.tier.map { $0.rawValue as Any } ?? NSNull(),
+      "tierSource": report.tierSource.map { $0.rawValue as Any } ?? NSNull(),
+      "sections": report.sections.map { row -> [String: Any] in
+        ["name": row.name, "level": row.level.rawValue, "present": row.isPresent, "hasContent": row.hasContent]
+      },
+      "otherSections": report.otherSections,
+      "footnotes": [
+        "undefined": report.footnotes.undefined, "unused": report.footnotes.unused,
+        "unclassified": report.footnotes.unclassified,
+      ],
+      "openQuestions": report.openQuestions.map { group -> [String: Any] in
+        [
+          "group": group.name.map { $0 as Any } ?? NSNull(), "standard": group.isStandard,
+          "empty": group.isEmpty, "items": group.items,
+        ]
+      },
+      "issues": report.issues.map { issue -> [String: Any] in
+        [
+          "area": issue.area.rawValue, "level": issue.level.rawValue,
+          "code": issue.code.map { $0.rawValue as Any } ?? NSNull(), "message": issue.message,
+        ]
+      },
+    ]
+  }
+
+  private func printReport(_ report: DescriptionCheckReport, io: CommandIO) {
+    if report.hasFile, !report.sections.isEmpty {
+      let source = report.tierSource.map { " (from \($0.rawValue))" } ?? ""
+      io.line("tier: \(report.tier?.rawValue ?? "none")\(source)")
+      let present = report.sections.filter(\.isPresent).map(\.name)
+      let absent = report.sections.filter { !$0.isPresent }.map(\.name)
+      io.line("sections: \(present.count) of \(report.sections.count)")
+      if !absent.isEmpty { io.line("  absent: \(absent.joined(separator: ", "))") }
+      if !report.otherSections.isEmpty { io.line("  other: \(report.otherSections.joined(separator: ", "))") }
+      io.line("open questions:\(report.openQuestions.isEmpty ? " none" : "")")
+      for group in report.openQuestions {
+        io.line("  \(group.name ?? "(no group)"): \(group.items.count)")
+        for item in group.items { io.line("    - \(item)") }
+      }
+    }
+    for issue in report.issues {
+      io.line("\(issue.level.rawValue)\(issue.code.map { " \($0.rawValue)" } ?? "") [\(issue.area.rawValue)]: \(issue.message)")
+    }
+    let errors = report.issues.filter { $0.level == .error }.count
+    io.line("\(errors) errors, \(report.issues.count - errors) warnings")
   }
 }
 

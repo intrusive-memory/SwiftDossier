@@ -103,7 +103,7 @@ public enum MemberHash {
   }
 
   /// A value in any other key, at any depth.
-  static func generalValue(_ node: Node) -> JSONValue {
+  package static func generalValue(_ node: Node) -> JSONValue {
     switch node {
     case .scalar(let scalar):
       // SPEC-GAP: §7: an explicit YAML tag on a plain scalar isn't mentioned, so tags are

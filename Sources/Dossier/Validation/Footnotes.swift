@@ -1,34 +1,30 @@
+import DossierCore
+
 /// §9.3's check of `CHARACTER.md`'s footnotes.
 enum Footnotes {
-  /// The labels referenced with no definition and defined with no reference, each sorted.
+  /// §9.3's classes. The format has no data file for these.
+  private static let classes = ["Stated", "Inferred", "Author"]
+
+  /// The labels referenced with no definition, defined with no reference, and defined without one
+  /// of §9.3's classes, each sorted. The last isn't `W-FOOTNOTE`, which §14 keeps for the other two.
   ///
   /// SPEC-GAP: §9.3: the text doesn't say a footnote in a code block or code span isn't one.
   /// Markdown's rule is followed, as §9.2's headings do. A definition's own text can hold a
   /// reference, which counts.
-  static func check(body: String) -> (undefined: [String], unused: [String]) {
+  static func check(body: String) -> (undefined: [String], unused: [String], unclassified: [String]) {
     var references: Set<String> = []
     var definitions: Set<String> = []
-    var fence: UInt8?
+    var unclassified: Set<String> = []
+    var fence = CodeFence()
     for rawLine in body.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
-      var line = Array(rawLine.utf8)
+      if fence.isCode(rawLine) { continue }
+      let line = removingCodeSpans(Array(rawLine.utf8))
       let indent = line.prefix { $0 == 0x20 }.count
-      if let marker = line.dropFirst(indent).first, marker == 0x60 || marker == 0x7E,
-        line.dropFirst(indent).prefix(3).count == 3,
-        line.dropFirst(indent).prefix(3).allSatisfy({ $0 == marker })
-      {
-        if fence == nil {
-          fence = marker
-        } else if fence == marker {
-          fence = nil
-        }
-        continue
-      }
-      if fence != nil { continue }
-      line = removingCodeSpans(line)
       var searchFrom = 0
       if indent <= 3, let (label, end) = label(in: line, at: indent), end < line.count, line[end] == 0x3A {
         definitions.insert(label)
         searchFrom = end + 1
+        if !hasClass(line[(end + 1)...]) { unclassified.insert(label) }
       }
       var index = searchFrom
       while index < line.count {
@@ -44,8 +40,25 @@ enum Footnotes {
     }
     return (
       references.subtracting(definitions).sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) },
-      definitions.subtracting(references).sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }
+      definitions.subtracting(references).sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) },
+      unclassified.sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }
     )
+  }
+
+  /// Whether a line is a footnote's definition, by the rule ``check(body:)`` reads them with.
+  static func isDefinition(_ line: some StringProtocol) -> Bool {
+    let bytes = Array(line.utf8)
+    let indent = bytes.prefix { $0 == 0x20 }.count
+    guard indent <= 3, let (_, end) = label(in: bytes, at: indent), end < bytes.count else { return false }
+    return bytes[end] == 0x3A
+  }
+
+  /// Whether a definition's text starts with `<class>.`.
+  private static func hasClass(_ text: ArraySlice<UInt8>) -> Bool {
+    let start = text.drop { $0 == 0x20 || $0 == 0x09 }
+    guard let dot = start.firstIndex(of: 0x2E) else { return false }
+    let word = String(decoding: start[start.startIndex..<dot], as: UTF8.self)
+    return classes.contains { $0.hasSameBytes(as: word) }
   }
 
   /// `[^label]` at an offset, and the offset after it.

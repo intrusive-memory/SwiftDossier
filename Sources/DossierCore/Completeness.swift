@@ -73,6 +73,24 @@ extension AssetKind {
   }
 }
 
+extension CastRole {
+  /// What `tiers.json` asks of `CHARACTER.md` for this tier, by §8.3's check row IDs.
+  ///
+  /// - Throws: ``DossierError/resourceUnreadable(_:)`` when the table can't be read or lacks a row.
+  package func descriptionLevels() throws -> (
+    full: CompletenessReport.Level, short: CompletenessReport.Level, pronunciation: CompletenessReport.Level
+  ) {
+    let rows = try TierTable.bundled.get().rows
+    func level(_ id: String) throws -> CompletenessReport.Level {
+      guard let text = rows.first(where: { $0.id == id })?.levels[rawValue],
+        let level = CompletenessReport.Level(rawValue: text)
+      else { throw DossierError.resourceUnreadable("tiers.json row \(id), tier \(rawValue)") }
+      return level
+    }
+    return (try level("description.full"), try level("description.short"), try level("pronunciation"))
+  }
+}
+
 extension DossierBundle {
   /// Completeness against the member's tier. `nil` when there's no member or it has no
   /// `role`, where completeness isn't defined (§8.3), and on version 1 (Appendix A).

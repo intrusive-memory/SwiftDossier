@@ -13,14 +13,14 @@ public struct DossierCommand: ParsableCommand {
       Every command takes --json: one object on standard output, errors as \
       {"error": {...}}, and a non-zero exit status.
 
-      Exit status: validate gives 0 clean, 1 warnings only, 2 errors. Every other \
+      Exit status: validate and check give 0 clean, 1 warnings only, 2 errors. Every other \
       command gives 0, or 1 when it fails. A bad command line gives 64. render and \
       migrate give 69: they are not available yet.
       """,
     subcommands: [
       CreateCommand.self, AddCommand.self, SelectCommand.self, RejectCommand.self,
       RemoveCommand.self, ListCommand.self, PromptCommand.self, ValidateCommand.self,
-      RefreshCommand.self, CandidatesCommand.self, FaceCommand.self,
+      RefreshCommand.self, CandidatesCommand.self, FaceCommand.self, CheckCommand.self,
       RenderCommand.self, MigrateCommand.self,
     ]
   )

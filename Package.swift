@@ -83,9 +83,11 @@ let package = Package(
     .target(
       name: "Dossier",
       // SwiftReparto directly: `CAST.md` is written only through it (SD-12).
+      // Yams directly: `CHARACTER.md`'s front matter is edited by key (§9.1).
       dependencies: [
         "DossierCore",
         .product(name: "SwiftReparto", package: "SwiftReparto"),
+        .product(name: "Yams", package: "Yams"),
       ],
       resources: [
         .copy("Resources/PINNED.sha256"),
