@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: accepted
-updated: 2026-10-31
+updated: 2026-11-01
 ---
 
 # SwiftDossier — Requirements
@@ -70,6 +70,7 @@ pins. Its page template, field list and design tokens are not written.
 | SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules, which include when a sample can't be adopted. Anything else stays unclassified and the command reports why. Orphan adoption follows §3 exactly. |
 | SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug. It doesn't change a member's DOSSIER-FORMAT §7 hash, with these exceptions, which lose data or change a path: a `voices` provider value of the wrong type is dropped, a provider-case collision keeps one value, and absolute paths under the project become relative. `migrate` and `create` report any of these before writing, and say so when the file was not yet normalized (`generate(parse(x)) != x`). They suggest `reparto canonicalize --apply` first, which also renames non-canonical members. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
 | SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and `$ref` to another of the pinned schemas (`$id`, `$schema`, `title` and `description` are ignored). `type` may be an array and `$ref` may be relative. An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
+| SD-14 | **Update status** (DOSSIER-FORMAT §5.7; needs dossier-format `v2.0.0-rc.4`). `withUpdate(label:_:)` holds a marker for the length of a block: it writes it atomically, renews it in the background before it expires, and removes it after the block's last manifest replacement, including when the block throws. A single mutation (SD-5) holds one unless the caller already does, so a sequence of mutations shows as one update. `updateStatus(at:)` in the read-only core answers §5.7's question for any reader, and the update fixtures in `conformance.json` test it. The CLI adds `dossier update run <bundle> -- <command>`, and `begin`, `renew` and `end` for an update that spans separate commands. A marker never blocks a write: it is a signal, not a lock. |
 
 ## 4. Face crop, validation, page
 
