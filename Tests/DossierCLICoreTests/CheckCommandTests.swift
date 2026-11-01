@@ -95,12 +95,18 @@ struct CheckCommandTests {
 
     let keyless = String(decoding: original, as: UTF8.self).replacingOccurrences(of: "type: character\n", with: "")
     try Data(keyless.utf8).write(to: file)
-    #expect(dossier(["check", project.path(bundleName)]).status == 2)
+    let missingKey = dossier(["check", project.path(bundleName), "--json"])
+    #expect(missingKey.status == 2)
+    let keyCodes = (try missingKey.object()["issues"] as? [[String: Any]])?.compactMap { $0["code"] as? String }
+    #expect(keyCodes == ["C-KEY-MISSING"])
+    #expect(dossier(["check", project.path(bundleName)]).stdout.contains("error C-KEY-MISSING [frontMatter]"))
 
     try FileManager.default.removeItem(at: file)
     let none = dossier(["check", project.path(bundleName), "--json"])
     #expect(none.status == 2)
     #expect(try none.object()["hasFile"] as? Bool == false)
+    let noneCodes = (try none.object()["issues"] as? [[String: Any]])?.compactMap { $0["code"] as? String }
+    #expect(noneCodes == ["C-NO-DESCRIPTION"])
     #expect(dossier(["check", project.path(bundleName)]).stdout.contains("no CHARACTER.md"))
   }
 

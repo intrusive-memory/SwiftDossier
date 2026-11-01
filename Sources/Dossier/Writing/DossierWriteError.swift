@@ -40,6 +40,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case fileNameNotAllowed(String)
   /// A file added under `images/` must be a PNG (§4).
   case notPNG(String)
+  /// A file with a PNG signature that isn't a well-formed PNG, so its metadata can't be removed.
+  case pngMalformed(String)
   /// A `lora` asset needs a `lora` object with a `version` (§8.4).
   case loraVersionMissing
   /// An asset already has this path. `select`, or `remove` it first.
@@ -52,8 +54,6 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case assetNotFound(String)
   /// A derived kind's input isn't available (§7).
   case missingDerivedInput(kind: String, role: String)
-  /// The reference sent for a role is no asset in the bundle, so `derivedFrom` can't name it.
-  case derivedInputNotInBundle(role: String, sha256: String)
   /// `delete()` only removes a `.dossier` directory holding a `manifest.json`.
   case notADossierDirectory(String)
   /// There is no selected portrait to take a face from.
@@ -108,14 +108,13 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .variantNotAllowed(let detail): return "Variant not allowed: \(detail)"
     case .fileNameNotAllowed(let name): return "File name not allowed: \(name)"
     case .notPNG(let path): return "Not a PNG: \(path)"
+    case .pngMalformed(let path): return "Not a well-formed PNG: \(path)"
     case .loraVersionMissing: return "A lora asset needs a lora object with an integer version"
     case .assetExists(let path): return "An asset already has the path \(path)"
     case .destinationExists(let path): return "A different file is already at \(path)"
     case .destinationNotInBundle(let path): return "\(path) leads through a symbolic link"
     case .assetNotFound(let path): return "No asset has the path \(path)"
     case .missingDerivedInput(let kind, let role): return "A \(kind) needs a \(role) input, and there is none"
-    case .derivedInputNotInBundle(let role, let sha256):
-      return "The \(role) reference sent (\(sha256)) is no asset in the bundle"
     case .notADossierDirectory(let path): return "Not a .dossier directory with a manifest: \(path)"
     case .noSelectedPortrait: return "There is no selected portrait to take a face from"
     case .faceBoxInvalid: return "A face box needs x and y of 0 or more, and a width and height above 0"

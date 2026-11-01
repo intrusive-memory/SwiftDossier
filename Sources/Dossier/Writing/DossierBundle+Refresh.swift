@@ -84,10 +84,11 @@ extension DossierBundle {
   /// An adopted `vox` is `candidate`, so a sample beside it stays unclassified until it's
   /// selected and this runs again.
   ///
-  /// SPEC-GAP: §5.6, §6: an adopted file's `provenance` needs a `provider`, and §5.6 gives none.
-  /// It's `import`, "an existing file brought in". `vox` gets no `models`: the file holds them
-  /// and this package doesn't read vox-format, so a `select` alone leaves samples unadoptable,
-  /// which the report says. `add` with `provenance` is how a `vox` gets its `models`.
+  /// An adopted file's `provenance.provider` is `import` (§5.6), and its bytes are never changed.
+  ///
+  /// SPEC-GAP: §5.6, §6: `vox` gets no `models`: the file holds them and this package doesn't read
+  /// vox-format, so a `select` alone leaves samples unadoptable, which the report says. `add` with
+  /// `provenance` is how a `vox` gets its `models`.
   ///
   /// - Parameters:
   ///   - castURL: The `CAST.md`, for orphan adoption. `nil` leaves it out.

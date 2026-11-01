@@ -46,25 +46,54 @@ private enum Synthetic {
 
   /// `png` with a record embedded as Vinetas does: an uncompressed `iTXt` before `IEND`.
   static func embedding(_ json: String, in png: Data) -> Data {
-    var chunk = Data("iTXt".utf8)
-    chunk.append(Data("vinetas".utf8))
-    chunk.append(contentsOf: [0, 0, 0, 0, 0])
-    chunk.append(Data(json.utf8))
+    var payload = Data("vinetas".utf8)
+    payload.append(contentsOf: [0, 0, 0, 0, 0])
+    payload.append(Data(json.utf8))
+    var output = png.prefix(png.count - 12)
+    output.append(chunk("iTXt", payload))
+    output.append(png.suffix(12))
+    return Data(output)
+  }
 
+  /// A whole PNG chunk: length, type, payload, CRC.
+  static func chunk(_ type: String, _ payload: Data) -> Data {
+    let body = Data(type.utf8) + payload
     var crc: UInt32 = 0xFFFF_FFFF
-    for byte in chunk {
+    for byte in body {
       crc ^= UInt32(byte)
       for _ in 0..<8 { crc = crc & 1 != 0 ? 0xEDB8_8320 ^ (crc >> 1) : crc >> 1 }
     }
     crc ^= 0xFFFF_FFFF
-
     func bigEndian(_ value: UInt32) -> Data { withUnsafeBytes(of: value.bigEndian) { Data($0) } }
-    var output = png.prefix(png.count - 12)
-    output.append(bigEndian(UInt32(chunk.count - 4)))
-    output.append(chunk)
-    output.append(bigEndian(crc))
-    output.append(png.suffix(12))
-    return Data(output)
+    return bigEndian(UInt32(payload.count)) + body + bigEndian(crc)
+  }
+
+  /// `png` with whole chunks put right after `IHDR`, which is always its first 33 bytes.
+  static func inserting(_ chunks: [Data], in png: Data) -> Data {
+    png.prefix(33) + chunks.reduce(Data(), +) + png.dropFirst(33)
+  }
+
+  /// A PNG's chunks as whole byte runs, with their types, in file order.
+  static func chunks(of png: Data) -> [(type: String, bytes: Data)] {
+    let bytes = [UInt8](png)
+    var found: [(type: String, bytes: Data)] = []
+    var offset = 8
+    while offset + 12 <= bytes.count {
+      let length = bytes[offset..<(offset + 4)].reduce(0) { $0 << 8 | Int($1) }
+      let end = offset + 12 + length
+      found.append((String(decoding: bytes[(offset + 4)..<(offset + 8)], as: UTF8.self), Data(bytes[offset..<end])))
+      offset = end
+    }
+    return found
+  }
+
+  /// A file already in the bundle, put there by another tool.
+  @discardableResult
+  static func fileInBundle(_ path: String, _ data: Data, _ bundle: DossierBundle) throws -> URL {
+    let url = bundle.url.appendingPathComponent(path)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try data.write(to: url)
+    return url
   }
 
   /// A file outside any bundle.
@@ -151,7 +180,7 @@ private func addPortrait(
   let data = try Synthetic.png(shade: shade)
   let source = try Synthetic.file("portrait-\(shade).png", data, in: root)
   let asset = try bundle.add(source, kind: .portrait, options: AddOptions(select: true))
-  return (asset.path, Checksum.sha256(data))
+  return (asset.path, Checksum.sha256(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path))))
 }
 
 @Suite("Writers (SD-5 to SD-10)")
@@ -168,17 +197,18 @@ struct WriterTests {
 
     let asset = try bundle.add(source, kind: .portrait)
 
-    let sha256 = Checksum.sha256(data)
+    let stored = try #require(PNGMetadata.stripped(data))
+    let sha256 = Checksum.sha256(stored)
     #expect(asset.path == "images/portrait-\(sha256.prefix(8)).png")
     #expect(asset.status == .candidate)
     #expect(asset.provenance.provider == "import")
-    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path)) == data)
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path)) == stored)
     #expect(try Data(contentsOf: source) == data)
     #expect(try FileManager.default.attributesOfItem(atPath: source.path)[.modificationDate] as? Date == before)
     #expect(bundle.manifest.files.count == 1)
     #expect(bundle.manifest.files[0].path == asset.path)
     #expect(bundle.manifest.files[0].sha256 == sha256)
-    #expect(bundle.manifest.files[0].sizeBytes == Int64(data.count))
+    #expect(bundle.manifest.files[0].sizeBytes == Int64(stored.count))
     try expectClean(bundle)
   }
 
@@ -287,10 +317,236 @@ struct WriterTests {
     let data = try Synthetic.png()
     let source = try Synthetic.file("image.png", data, in: root)
 
-    expectWriteError(.destinationNotInBundle("images/portrait-\(Checksum.sha256(data).prefix(8)).png")) {
+    let stored = try #require(PNGMetadata.stripped(data))
+    expectWriteError(.destinationNotInBundle("images/portrait-\(Checksum.sha256(stored).prefix(8)).png")) {
       try bundle.add(source, kind: .portrait)
     }
     #expect(try FileManager.default.contentsOfDirectory(atPath: elsewhere.path).isEmpty)
+  }
+
+  // MARK: add: metadata (§1, §4, SD-6)
+
+  @Test("SD-6: a PNG copied in loses its metadata chunks, and only those, byte for byte")
+  func addStripsMetadata() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let kept = [
+      Synthetic.chunk("iCCP", Data("profile\0\0invented".utf8)),
+      Synthetic.chunk("gAMA", Data([0, 0, 0xB1, 0x8F])),
+      Synthetic.chunk("sRGB", Data([0])),
+    ]
+    let absolute = "/Volumes/nowhere/invented/metadata.png"
+    let metadata = [
+      Synthetic.chunk("tEXt", Data("Comment\0\(absolute)".utf8)),
+      Synthetic.chunk("zTXt", Data("Comment\0\0\(absolute)".utf8)),
+      Synthetic.chunk("iTXt", Data("XML\0\0\0\0\0\(absolute)".utf8)),
+      Synthetic.chunk("eXIf", Data("MM\(absolute)".utf8)),
+      Synthetic.chunk("tIME", Data([0x07, 0xEA, 11, 1, 12, 0, 0])),
+    ]
+    let plain = try #require(PNGMetadata.stripped(try Synthetic.png()))
+    let data = Synthetic.embedding(
+      Synthetic.sidecar(references: [(absolute, String(repeating: "b", count: 64))]),
+      in: Synthetic.inserting(kept + metadata, in: plain))
+    let source = try Synthetic.file("meta.png", data, in: root)
+
+    let asset = try bundle.add(source, kind: .portrait)
+
+    // Read first, so the record reached the manifest.
+    #expect(asset.provenance.provider == "vinetas")
+    #expect(asset.provenance.model == "invented-4b")
+
+    let stored = try Data(contentsOf: bundle.url.appendingPathComponent(asset.path))
+    let storedChunks = Synthetic.chunks(of: stored)
+    let expected = Synthetic.chunks(of: data).filter { !["tEXt", "zTXt", "iTXt", "eXIf", "tIME"].contains($0.type) }
+    #expect(storedChunks.map(\.type) == expected.map(\.type))
+    #expect(storedChunks.map(\.bytes) == expected.map(\.bytes))
+    #expect(storedChunks.map(\.type).contains("iCCP") && storedChunks.map(\.type).contains("IDAT"))
+    #expect(stored.prefix(8) == data.prefix(8))
+
+    // The hash, size and name are the stripped bytes'.
+    let sha256 = Checksum.sha256(stored)
+    #expect(asset.path == "images/portrait-\(sha256.prefix(8)).png")
+    let entry = try #require(bundle.manifest.files.first { $0.path == asset.path })
+    #expect(entry.sha256 == sha256)
+    #expect(entry.sizeBytes == Int64(stored.count))
+
+    #expect(try Data(contentsOf: source) == data)
+    #expect(try Synthetic.allBytes(under: bundle.url).range(of: Data(absolute.utf8)) == nil)
+    try expectClean(bundle)
+  }
+
+  @Test("SD-6: a PNG with no metadata keeps its hash")
+  func addLeavesPlainPNG() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let plain = try #require(PNGMetadata.stripped(try Synthetic.png()))
+    let asset = try bundle.add(Synthetic.file("plain.png", plain, in: root), kind: .portrait)
+    #expect(asset.path == "images/portrait-\(Checksum.sha256(plain).prefix(8)).png")
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path)) == plain)
+    #expect(bundle.manifest.files[0].sha256 == Checksum.sha256(plain))
+  }
+
+  @Test("SD-6: a malformed PNG is refused and nothing is copied")
+  func addRefusesMalformedPNG() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let good = try Synthetic.png()
+    var overrun = good
+    overrun[11] = 0xFF  // IHDR's length.
+    let cases: [(String, Data)] = [
+      ("signature.png", good.prefix(8)),
+      ("truncated.png", good.prefix(good.count - 6)),
+      ("no-end.png", good.prefix(good.count - 12)),
+      ("trailing.png", good + Data("/Volumes/nowhere".utf8)),
+      ("overrun.png", overrun),
+      ("no-header.png", good.prefix(8) + good.suffix(12)),
+    ]
+    for (name, data) in cases {
+      let source = try Synthetic.file(name, data, in: root)
+      expectWriteError(.pngMalformed(source.path)) { try bundle.add(source, kind: .portrait) }
+    }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: bundle.url.path) == ["manifest.json"])
+  }
+
+  @Test("SD-6: an image that isn't a PNG is copied as it is; a PNG in source/ is stripped")
+  func addOutsideImages() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0]) + Data("Exif /Volumes/nowhere".utf8)
+    let photo = try bundle.add(Synthetic.file("photo.jpg", jpeg, in: root), kind: .sourcePhoto)
+    #expect(photo.path == "source/photo.jpg")
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(photo.path)) == jpeg)
+    let train = try bundle.add(
+      Synthetic.file("t.jpg", jpeg, in: root), kind: .training,
+      options: AddOptions(training: Synthetic.object(#"{"caption": "a tinker", "isSynthetic": true}"#)))
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(train.path)) == jpeg)
+
+    let tagged = Synthetic.embedding(Synthetic.sidecar(), in: try Synthetic.png())
+    let png = try bundle.add(Synthetic.file("photo.png", tagged, in: root), kind: .sourcePhoto)
+    #expect(png.path == "source/photo.png")
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(png.path)) == PNGMetadata.stripped(tagged))
+    #expect(png.provenance.provider == "vinetas")
+  }
+
+  @Test("SD-6: a file already in the bundle keeps its bytes and its name")
+  func addInPlace() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let data = Synthetic.embedding(
+      Synthetic.sidecar(references: [(Synthetic.absoluteSource, String(repeating: "b", count: 64))]),
+      in: try Synthetic.png())
+    let file = try Synthetic.fileInBundle("images/a free-form name.png", data, bundle)
+
+    let asset = try bundle.add(file, kind: .portrait)
+
+    #expect(asset.path == "images/a free-form name.png")
+    #expect(asset.provenance.model == "invented-4b")
+    #expect(try Data(contentsOf: file) == data)
+    #expect(bundle.manifest.files.map(\.path) == [asset.path])
+    #expect(bundle.manifest.files[0].sha256 == Checksum.sha256(data))
+
+    // Reached through a link that leads to it, it's still that file.
+    let link = root.appendingPathComponent("link.png")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+    expectWriteError(.assetExists(asset.path)) { try bundle.add(link, kind: .portrait) }
+
+    // What can't be an asset's path is refused.
+    let hidden = try Synthetic.fileInBundle(".hidden.png", try Synthetic.png(), bundle)
+    expectWriteError(.fileNameNotAllowed(".hidden.png")) { try bundle.add(hidden, kind: .portrait) }
+    expectWriteError(.fileNameNotAllowed("manifest.json")) {
+      try bundle.add(bundle.url.appendingPathComponent("manifest.json"), kind: .description)
+    }
+  }
+
+  // MARK: §5.2, §9.1, Appendix A: what the validator does
+
+  /// Writes a `files` entry into the manifest, keeping `manifestChecksum` right.
+  private func listFile(_ path: String, sha256: String, sizeBytes: Int64, in bundle: DossierBundle) throws {
+    let url = bundle.url.appendingPathComponent("manifest.json")
+    var manifest = try Manifest(data: try Data(contentsOf: url))
+    var files = manifest.files
+    files.append(FileEntry(path: path, sha256: sha256, sizeBytes: sizeBytes))
+    files.sort { $0.path.precedesInByteOrder($1.path) }
+    manifest.files = files
+    manifest.json["manifestChecksum"] = .string(Checksum.sorted(files.map(\.sha256)))
+    try manifest.encoded().write(to: url)
+  }
+
+  @Test("§5.2: a files entry for a symlink or manifest.json is E-FILE-MISSING")
+  func listedNonFiles() throws {
+    let root = try Synthetic.temporaryDirectory()
+    let hash = String(repeating: "a", count: 64)
+
+    let linked = try Synthetic.bundle(in: root)
+    let target = try Synthetic.file("target.txt", Data("target".utf8), in: root)
+    try FileManager.default.createSymbolicLink(at: linked.url.appendingPathComponent("link.txt"), withDestinationURL: target)
+    try listFile("link.txt", sha256: Checksum.sha256(Data("target".utf8)), sizeBytes: 6, in: linked)
+    #expect(try DossierBundle.validate(at: linked.url).findings.map(\.code) == [.fileMissing])
+
+    let other = try Synthetic.temporaryDirectory()
+    let listed = try Synthetic.bundle(in: other)
+    try listFile("manifest.json", sha256: hash, sizeBytes: 1, in: listed)
+    #expect(try DossierBundle.validate(at: listed.url).findings.map(\.code) == [.fileMissing])
+  }
+
+  @Test("§5.2: a listed hidden file is checked as normal")
+  func listedHiddenFile() throws {
+    let root = try Synthetic.temporaryDirectory()
+    let bundle = try Synthetic.bundle(in: root)
+    let data = Data("hidden".utf8)
+    let file = try Synthetic.fileInBundle(".hidden.txt", data, bundle)
+    try listFile(".hidden.txt", sha256: Checksum.sha256(data), sizeBytes: Int64(data.count), in: bundle)
+    #expect(try DossierBundle.validate(at: bundle.url).findings.isEmpty)
+
+    try Data("HIDDEN".utf8).write(to: file)
+    #expect(try DossierBundle.validate(at: bundle.url).findings.map(\.code) == [.fileHash])
+  }
+
+  @Test("§5.2: a manifest path compares with the name on disk as NFC, case-sensitively")
+  func listedNormalization() throws {
+    let root = try Synthetic.temporaryDirectory()
+    let bundle = try Synthetic.bundle(in: root)
+    let data = Data("note".utf8)
+    let decomposed = "Ine\u{301}s.txt"
+    try Synthetic.fileInBundle(decomposed, data, bundle)
+    try listFile("In\u{E9}s.txt", sha256: Checksum.sha256(data), sizeBytes: 4, in: bundle)
+    #expect(!(try DossierBundle.validate(at: bundle.url).findings.map(\.code).contains(.fileMissing)))
+
+    let other = try Synthetic.temporaryDirectory()
+    let cased = try Synthetic.bundle(in: other)
+    try Synthetic.fileInBundle("note.txt", data, cased)
+    try listFile("NOTE.txt", sha256: Checksum.sha256(data), sizeBytes: 4, in: cased)
+    #expect(try DossierBundle.validate(at: cased.url).findings.map(\.code).contains(.fileMissing))
+  }
+
+  @Test("Appendix A: two selected in a version 1 manifest is only W-V1")
+  func versionOneTwoSelected() throws {
+    let root = try Synthetic.temporaryDirectory()
+    let copy = root.appendingPathComponent("PELL ARDEN.dossier")
+    try FileManager.default.copyItem(
+      at: SpecTree.examples.appendingPathComponent("warnings/W-V1/characters/PELL ARDEN.dossier"), to: copy)
+    let url = copy.appendingPathComponent("manifest.json")
+    var manifest = try #require(try JSONValue.parse(Data(contentsOf: url)).objectValue)
+    let assets = try #require(manifest["assets"]?.arrayValue).map { value -> JSONValue in
+      guard var asset = value.objectValue, asset["path"]?.stringValue == "images/face.png" else { return value }
+      asset["kind"] = .string("portrait")
+      return .object(asset)
+    }
+    manifest["assets"] = .array(assets)
+    try Data(JSONValue.object(manifest).canonicalEncoded().utf8).write(to: url)
+
+    let codes = Set(try DossierBundle.validate(at: copy).findings.map(\.code))
+    // The rest are what conformance.json allows W-V1 itself.
+    #expect(codes.subtracting([.shape, .sidecar, .unclassified]) == [.v1])
+  }
+
+  @Test("§9.1: no character key in CHARACTER.md isn't E-NAME-MISMATCH")
+  func noCharacterKey() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    try bundle.add(
+      Synthetic.file("c.md", Data("---\ntype: character\n---\n# Text\n".utf8), in: root), kind: .description)
+    #expect(!(try DossierBundle.validate(at: bundle.url).findings.map(\.code).contains(.nameMismatch)))
   }
 
   // MARK: add: provenance
@@ -379,10 +635,10 @@ struct WriterTests {
     #expect(asset.provenance.model == "invented-4b")
     #expect(asset.createdAt == "2026-03-04T05:06:07Z")
     #expect(asset.provenance.references.first?.json["source"] == nil)
-    // SD-6: the file's bytes aren't changed, whatever they hold. The manifest's are the writer's.
-    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path)) == data)
-    let manifest = String(decoding: try Data(contentsOf: bundle.url.appendingPathComponent("manifest.json")), as: UTF8.self)
-    #expect(!manifest.contains(Synthetic.absoluteSource))
+    // SD-6: the source is as it was, and the record's absolute path is in no byte of the bundle.
+    #expect(try Data(contentsOf: source) == data)
+    #expect(try Synthetic.allBytes(under: bundle.url).range(of: Data(Synthetic.absoluteSource.utf8)) == nil)
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(asset.path)) == PNGMetadata.stripped(data))
     try expectClean(bundle)
 
     let sidecar = try Synthetic.file("other.json", Data(#"{"model": "from-the-sidecar"}"#.utf8), in: root)
@@ -493,6 +749,7 @@ struct WriterTests {
     let faceData = try Synthetic.png(width: 16, height: 16)
     let face = try bundle.add(
       Synthetic.file("f.png", faceData, in: root), kind: .face, options: AddOptions(select: true))
+    let faceHash = Checksum.sha256(try Data(contentsOf: bundle.url.appendingPathComponent(face.path)))
     #expect(face.derivedFrom.map(\.role) == ["portrait"])
     #expect(face.derivedFrom[0].path == portrait.path)
     #expect(face.derivedFrom[0].sha256 == portrait.sha256)
@@ -501,7 +758,7 @@ struct WriterTests {
       Synthetic.file("e.png", Synthetic.png(width: 16, height: 16, shade: 7), in: root), kind: .expression,
       options: AddOptions(variant: "happy", select: true))
     #expect(expression.derivedFrom.map(\.role) == ["face", "portrait"])
-    #expect(expression.derivedFrom[0].sha256 == Checksum.sha256(faceData))
+    #expect(expression.derivedFrom[0].sha256 == faceHash)
     #expect(expression.path.hasPrefix("images/expression-happy-"))
 
     // §7: a view lists its face only when it was sent.
@@ -512,7 +769,7 @@ struct WriterTests {
     #expect(plain.path.hasPrefix("images/view-front-"))
 
     let sidecar = try Synthetic.file(
-      "v.json", Data(Synthetic.sidecar(references: [("x", Checksum.sha256(faceData))]).utf8), in: root)
+      "v.json", Data(Synthetic.sidecar(references: [("x", faceHash)]).utf8), in: root)
     let withFace = try bundle.add(
       Synthetic.file("v2.png", Synthetic.png(shade: 12), in: root), kind: .view,
       options: AddOptions(variant: "profile", sidecar: sidecar, select: true))
@@ -590,14 +847,62 @@ struct WriterTests {
     #expect(face.derivedFrom[0].path == first.path)
     #expect(bundle.stale().map(\.path) == [face.path])
 
+  }
+
+  @Test("§7: bytes sent that have left the bundle keep their hash, with the selection's path")
+  func derivedFromLeftTheBundle() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let image = try Synthetic.file("g.png", Synthetic.png(width: 16, height: 16, shade: 2), in: root)
     let absent = String(repeating: "e", count: 64)
     let unknown = try Synthetic.file(
       "g.json", Data(Synthetic.sidecar(references: [("x", absent)]).utf8), in: root)
-    expectWriteError(.derivedInputNotInBundle(role: "portrait", sha256: absent)) {
-      try bundle.add(
-        Synthetic.file("g.png", Synthetic.png(width: 16, height: 16, shade: 2), in: root), kind: .face,
-        options: AddOptions(sidecar: unknown, referenceRoles: ["portrait"]))
+    let options = AddOptions(sidecar: unknown, referenceRoles: ["portrait"], select: true)
+
+    // §7 requires the input, and with no selection there's no path for it.
+    expectWriteError(.missingDerivedInput(kind: "face", role: "portrait")) {
+      try bundle.add(image, kind: .face, options: options)
     }
+    #expect(try FileManager.default.contentsOfDirectory(atPath: bundle.url.path) == ["manifest.json"])
+
+    let portrait = try addPortrait(to: &bundle, root: root)
+    let face = try bundle.add(image, kind: .face, options: options)
+    #expect(face.derivedFrom[0].sha256 == absent)
+    #expect(face.derivedFrom[0].path == portrait.path)
+    #expect(face.provenance.references[0].sha256 == absent)
+    #expect(face.provenance.references[0].path == portrait.path)
+    #expect(bundle.stale().map(\.path) == [face.path])
+    let codes = try DossierBundle.validate(at: bundle.url).findings.map(\.code)
+    #expect(codes.contains(.stale))
+    #expect(!codes.contains { $0.level == .error })
+  }
+
+  @Test("§6: a reference's path: the asset with the hash, else the role's selection, else none")
+  func referencePaths() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let portrait = try addPortrait(to: &bundle, root: root)
+    let front = try bundle.add(
+      Synthetic.file("front.png", Synthetic.png(shade: 3), in: root), kind: .view,
+      options: AddOptions(variant: "front", select: true))
+    let absent = String(repeating: "e", count: 64)
+    let record = #"""
+      {"references": [
+        {"sha256": "\#(portrait.sha256)", "role": "pose"},
+        {"sha256": "\#(absent)", "role": "portrait"},
+        {"sha256": "\#(absent)", "role": "view:front"},
+        {"sha256": "\#(absent)", "role": "view:back"},
+        {"sha256": "\#(absent)", "role": "pose"},
+        {"sha256": "\#(absent)"}
+      ]}
+      """#
+    let sidecar = try Synthetic.file("r.json", Data(record.utf8), in: root)
+    let asset = try bundle.add(
+      Synthetic.file("r.png", Synthetic.png(shade: 4), in: root), kind: .crowdRef, options: AddOptions(sidecar: sidecar))
+
+    let references = asset.provenance.references
+    #expect(references.map(\.path) == [portrait.path, portrait.path, front.path, nil, nil, nil])
+    #expect(references.dropFirst().allSatisfy { $0.sha256 == absent })
   }
 
   @Test("SD-10: a derived kind with no input is refused; explicit inputs are held to §7")

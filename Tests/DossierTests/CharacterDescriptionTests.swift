@@ -558,6 +558,9 @@ struct CharacterDescriptionTests {
     let noFile = try Fixture.bundle().checkDescription()
     #expect(!noFile.hasFile)
     #expect(noFile.exitStatus == 2)
+    #expect(noFile.issues.map(\.checkCode) == [.noDescription])
+    #expect(noFile.issues.map(\.codeText) == ["C-NO-DESCRIPTION"])
+    #expect(try DossierBundle.validate(at: Fixture.bundle().url).findings.isEmpty)
 
     let unusable = try Fixture.bundle()
     try Data([0xFF, 0xFE]).write(to: unusable.url.appendingPathComponent("CHARACTER.md"))
@@ -573,6 +576,21 @@ struct CharacterDescriptionTests {
       let report = try Fixture.bundle(description: text).checkDescription()
       #expect(report.exitStatus == 2, "\(text)")
       #expect(report.issues.contains { $0.level == .error && (needle.isEmpty || $0.message.contains(needle)) }, "\(text)")
+    }
+
+    // §14's codes, for a missing key alone, and none of them is validation's.
+    for (text, count) in [
+      ("## Logline\n", 2),
+      ("---\ncharacter: THE TINKER\n---\n", 1),
+      ("---\ntype: character\n---\n", 1),
+      ("---\ntype: ~\ncharacter: THE TINKER\n---\n", 1),
+      ("---\ntype: person\ncharacter: THE TINKER\n---\n", 0),
+      ("---\na: [unclosed\n---\n", 0),
+    ] {
+      let bundle = try Fixture.bundle(description: text)
+      let codes = try bundle.checkDescription().issues.compactMap(\.checkCode)
+      #expect(codes == Array(repeating: .keyMissing, count: count), "\(text)")
+      #expect(!(try DossierBundle.validate(at: bundle.url).findings.contains { $0.code.rawValue.hasPrefix("C-") }))
     }
 
     let mismatch = try Fixture.bundle(description: "---\ntype: character\ncharacter: THE MENDER\n---\n").checkDescription()

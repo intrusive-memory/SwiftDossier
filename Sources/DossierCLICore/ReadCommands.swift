@@ -232,7 +232,7 @@ struct CheckCommand: DossierSubcommand {
       "issues": report.issues.map { issue -> [String: Any] in
         [
           "area": issue.area.rawValue, "level": issue.level.rawValue,
-          "code": issue.code.map { $0.rawValue as Any } ?? NSNull(), "message": issue.message,
+          "code": issue.codeText.map { $0 as Any } ?? NSNull(), "message": issue.message,
         ]
       },
     ]
@@ -254,7 +254,7 @@ struct CheckCommand: DossierSubcommand {
       }
     }
     for issue in report.issues {
-      io.line("\(issue.level.rawValue)\(issue.code.map { " \($0.rawValue)" } ?? "") [\(issue.area.rawValue)]: \(issue.message)")
+      io.line("\(issue.level.rawValue)\(issue.codeText.map { " \($0)" } ?? "") [\(issue.area.rawValue)]: \(issue.message)")
     }
     let errors = report.issues.filter { $0.level == .error }.count
     io.line("\(errors) errors, \(report.issues.count - errors) warnings")

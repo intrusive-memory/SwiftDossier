@@ -231,8 +231,7 @@ private struct BundleValidation {
     if let member, normal(member.character) != reference {
       add(.nameMismatch, "The member is \(member.character) and the bundle is \(written ?? directoryName)")
     }
-    // SPEC-GAP: §9.1: a `CHARACTER.md` with no front-matter `character` has no §14 code, and
-    // nothing to compare, so it isn't reported.
+    // §9.1: a `CHARACTER.md` with no front-matter `character` has nothing to compare.
     if let described = bundle.description?.frontMatterText("character"), normal(described) != reference {
       add(
         .nameMismatch, "CHARACTER.md says \(described) and the bundle is \(written ?? directoryName)",
@@ -262,9 +261,8 @@ private struct BundleValidation {
 
   /// `E-FILE-MISSING`, `E-FILE-HASH`, `E-CHECKSUM`.
   ///
-  /// SPEC-GAP: §5.2: `files` shouldn't list a hidden file or `manifest.json`, and no code says
-  /// so. A hidden entry is checked against its file like any other; `manifest.json`, which
-  /// can't hold its own hash, has no file in the inventory and is `E-FILE-MISSING`.
+  /// §5.2: a listed hidden file is checked as normal. A symlink or `manifest.json` isn't in the
+  /// inventory, so an entry for one is `E-FILE-MISSING`.
   private mutating func checkFiles(_ manifest: Manifest, _ inventory: BundleInventory) {
     for entry in manifest.files {
       guard let path = entry.json["path"]?.stringValue, BundlePath.isValid(path) else { continue }
@@ -306,8 +304,7 @@ private struct BundleValidation {
       if asset.kind.isRetired {
         add(.kindRetired, "The retired kind \(asset.kind.rawValue)", path: asset.path)
       }
-      // SPEC-GAP: §5.4, Appendix A: version 1 keeps a variant in `label`, which is never a key,
-      // so its combinations can't be told apart. `E-MULTI-SELECTED` is version 2's.
+      // Appendix A: `E-MULTI-SELECTED` is version 2's.
       if asset.status == .selected {
         if !selections.insert(asset.selectionKey).inserted {
           let name = [asset.kind.rawValue, asset.variant, asset.kind == .voiceSample ? asset.model : nil]

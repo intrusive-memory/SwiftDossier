@@ -71,8 +71,9 @@ struct FoldedProvenance {
     for entry in extra?.entries ?? [] { json[entry.key] = entry.value }
   }
 
-  /// The record's `references`, each without `source`, with `path` where an asset in the bundle
-  /// has that hash, and `role` by position.
+  /// The record's `references`, each without `source`, with `role` by position, and with `path`
+  /// the asset that has that hash; when none has it and the role has a current selection, that
+  /// selection's; otherwise omitted (§6). The `sha256` stays what was sent.
   ///
   /// SPEC-GAP: SD-7, §6: SD-7 says a reference becomes `{sha256, path, role}`, and §6 also
   /// lists `originalWidth`, `originalHeight`, `effectiveWidth`, `effectiveHeight`. SD-7 says
@@ -98,14 +99,24 @@ struct FoldedProvenance {
           throw DossierWriteError.provenanceMalformed("a reference isn't an object")
         }
         reference["source"] = nil
-        if reference["path"] == nil, let sha256 = reference["sha256"]?.stringValue,
-          let asset = candidates.first(where: { scan.sha256(ofPath: $0.path)?.hasSameBytes(as: sha256) ?? false })
-        {
-          reference["path"] = .string(asset.path)
-        }
         if reference["role"] == nil, index < roles.count { reference["role"] = .string(roles[index]) }
+        if reference["path"] == nil, let sha256 = reference["sha256"]?.stringValue {
+          let asset =
+            candidates.first { scan.sha256(ofPath: $0.path)?.hasSameBytes(as: sha256) ?? false }
+            ?? reference["role"]?.stringValue.flatMap { Self.selection(forRole: $0, in: manifest) }
+          if let asset { reference["path"] = .string(asset.path) }
+        }
         return .object(reference)
       })
+  }
+
+  /// The current selection §6's role names: `portrait`, `face`, `view:<variant>`,
+  /// `expression:<variant>`. A tool's own word names none.
+  private static func selection(forRole role: String, in manifest: Manifest) -> Asset? {
+    let parts = role.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+    let kind = AssetKind(rawValue: parts[0])
+    let variant = parts.count > 1 ? parts[1] : nil
+    return manifest.assets.first { $0.status == .selected && $0.kind == kind && $0.variant == variant }
   }
 
   /// §6 names `loras[].path` a bundle path when it's this character's `lora` asset, and §1 has

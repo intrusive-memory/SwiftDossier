@@ -74,13 +74,16 @@ extension DossierBundle {
   /// (§4); voice files, source photos and training images keep their names; the others have
   /// the one name §4 gives them. Nothing is overwritten.
   ///
+  /// A PNG image copied in loses its metadata (§1) in the bundle's copy: its embedded record is
+  /// read first, every other chunk stays byte for byte, and the hash, size and `<sha8>` are the
+  /// stripped bytes'. A malformed one is refused. Other formats are copied as they are. A file
+  /// already in the bundle is never modified: it keeps its bytes and its name.
+  ///
   /// `derivedFrom` is §7's list, from the current selection. A reference whose role is an input's
   /// role says what was actually sent, so its hash is recorded instead, and the asset reads as
-  /// stale if that's no longer selected. A `view` lists `face` when a reference was the face.
-  ///
-  /// SPEC-GAP: §4, §6, SD-6: Vinetas embeds its record in the PNG, with each reference's `source`,
-  /// and §1 has no absolute path anywhere in a bundle. SD-6 and DF-18 say the file isn't modified,
-  /// so its bytes are copied as they are and that path stays in the image. The manifest has none.
+  /// stale if that's no longer selected. When those bytes have left the bundle, the path is that
+  /// of the role's current selection; with no selection the input is refused as missing. A `view`
+  /// lists `face` when a reference was the face.
   ///
   /// - Parameters:
   ///   - source: The file to copy.
@@ -99,9 +102,16 @@ extension DossierBundle {
     }
     guard !data.isEmpty else { throw DossierWriteError.zeroByteFiles([source.lastPathComponent]) }
 
-    let path = try Self.destination(
-      of: kind, sourceName: file.lastPathComponent, sha256: Checksum.sha256(data),
+    let inPlace = try bundlePath(ofFile: file)
+    var stored = data
+    if inPlace == nil, kind.isImage, VinetasPNG.isPNG(data) {
+      guard let stripped = PNGMetadata.stripped(data) else { throw DossierWriteError.pngMalformed(source.path) }
+      stored = stripped
+    }
+    let named = try Self.destination(
+      of: kind, sourceName: file.lastPathComponent, sha256: Checksum.sha256(stored),
       character: current.character, options: options)
+    let path = inPlace ?? named
     if path.hasPrefix("images/"), !VinetasPNG.isPNG(data) { throw DossierWriteError.notPNG(source.path) }
     if current.assets.contains(where: { $0.hasPath(path) }) { throw DossierWriteError.assetExists(path) }
 
@@ -110,7 +120,7 @@ extension DossierBundle {
       extra: options.provenance)
     let createdAt = try Self.createdAt(of: file, options: options, folded: folded)
 
-    let placed = try place(data, at: path)
+    let placed = try place(stored, at: path)
     do {
       var added: Asset?
       let member = member
@@ -269,6 +279,24 @@ extension DossierBundle {
     for index in assets.indices where assets[index].status == .selected && assets[index].selectionKey == key {
       assets[index].status = .candidate
     }
+  }
+
+  /// The bundle path of a file that's already in this bundle, or `nil` for one outside it.
+  ///
+  /// - Throws: ``DossierWriteError/fileNameNotAllowed(_:)`` for what can't be an asset's path:
+  ///   `manifest.json`, or a hidden file (§5.2).
+  private func bundlePath(ofFile file: URL) throws -> String? {
+    func canonical(_ url: URL) -> String {
+      (try? url.resourceValues(forKeys: [.canonicalPathKey]).canonicalPath) ?? url.path
+    }
+    let root = canonical(url.resolvingSymlinksInPath()) + "/"
+    let path = canonical(file)
+    guard path.hasPrefix(root) else { return nil }
+    let relative = String(path.dropFirst(root.count))
+    guard relative != "manifest.json", BundlePath.isValid(relative),
+      !relative.split(separator: "/").contains(where: { $0.hasPrefix(".") })
+    else { throw DossierWriteError.fileNameNotAllowed(relative) }
+    return relative
   }
 
   /// §4's path for a new file of a kind.
@@ -463,17 +491,18 @@ private enum DerivedInputs {
     }
   }
 
-  /// An input in the bundle: what was sent for that role if a reference says, else the selection.
+  /// An input with a role in the bundle: what was sent for that role if a reference says, else
+  /// the selection. Bytes sent that have left the bundle keep their hash, with the path of what
+  /// holds the role now, so a selected asset reads as stale (§7).
   private static func assetInput(
     _ role: String, kind: AssetKind, references: [ProvenanceReference], manifest: Manifest, scan: BundleScan
   ) throws -> DerivedInput {
     let current = selected(role, in: manifest)
     if let sent = references.first(where: { $0.role == role })?.sha256 {
       let candidates = (current.map { [$0] } ?? []) + manifest.assets.filter { $0.kind == AssetKind(rawValue: role) }
-      guard let asset = candidates.first(where: { scan.sha256(ofPath: $0.path)?.hasSameBytes(as: sent) ?? false }) else {
-        throw DossierWriteError.derivedInputNotInBundle(role: role, sha256: sent)
-      }
-      return DerivedInput(role: role, sha256: sent, path: asset.path)
+      let holder = candidates.first { scan.sha256(ofPath: $0.path)?.hasSameBytes(as: sent) ?? false } ?? current
+      guard let holder else { throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: role) }
+      return DerivedInput(role: role, sha256: sent, path: holder.path)
     }
     guard let current, let sha256 = scan.sha256(ofPath: current.path) else {
       throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: role)

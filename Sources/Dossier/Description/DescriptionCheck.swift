@@ -21,22 +21,39 @@ public struct DescriptionCheckReport: Sendable {
     case openQuestions
   }
 
+  /// §14's codes for a check only, outside validation: a validator never reports these.
+  public enum CheckCode: String, Sendable, Equatable, CaseIterable {
+    /// The bundle has no `CHARACTER.md`.
+    case noDescription = "C-NO-DESCRIPTION"
+    /// `CHARACTER.md` lacks a key §9.1 requires: `type` or `character`.
+    case keyMissing = "C-KEY-MISSING"
+  }
+
   /// One thing to say about the file.
   public struct Issue: Sendable, Equatable {
     /// The part of the file.
     public let area: Area
     /// How much it matters.
     public let level: Finding.Level
-    /// §14's code, or `nil` for what §14 has no code for.
+    /// §14's validation code, or `nil` for what has none.
     public let code: Finding.Code?
+    /// §14's code for a check only, or `nil` for what has none.
+    public let checkCode: CheckCode?
     /// For people.
     public let message: String
 
-    /// An issue. With a code, the level is the code's.
-    package init(_ area: Area, level: Finding.Level = .warning, code: Finding.Code? = nil, _ message: String) {
+    /// The stable code, of either kind, as it's written.
+    public var codeText: String? { code?.rawValue ?? checkCode?.rawValue }
+
+    /// An issue. With a code, the level is the code's. A check code is always an error.
+    package init(
+      _ area: Area, level: Finding.Level = .warning, code: Finding.Code? = nil, checkCode: CheckCode? = nil,
+      _ message: String
+    ) {
       self.area = area
-      self.level = code?.level ?? level
+      self.level = checkCode != nil ? .error : (code?.level ?? level)
       self.code = code
+      self.checkCode = checkCode
       self.message = message
     }
   }
@@ -98,11 +115,8 @@ extension DossierBundle {
   ///
   /// A problem with a key §9.1 requires, or with the file itself, is an error. §9.1's other types,
   /// missing or misplaced sections and bad footnotes are warnings, as §14 has `W-INCOMPLETE` and
-  /// `W-FOOTNOTE`.
-  ///
-  /// SPEC-GAP: §8.3, §9.1, §14: §14 has no code for a missing `CHARACTER.md` or a required key,
-  /// and a bundle can validate without either. Here they're errors with no code, because this
-  /// reports on that file and §9.1 marks the keys required.
+  /// `W-FOOTNOTE`. A missing file or required key has §14's `C-NO-DESCRIPTION` or `C-KEY-MISSING`,
+  /// which are a check's alone: a bundle with either can validate.
   ///
   /// SPEC-GAP: §8.3: a tier comes only from `CAST.md`, but §5's `dossier check <bundle>` names no
   /// `CAST.md`. Opened with no member, the copies stand in, as §9.1's "`CAST.md` wins" implies,
@@ -115,10 +129,10 @@ extension DossierBundle {
     do {
       description = try CharacterDescription.read(from: self)
     } catch {
-      return Self.emptyCheck(hasFile: true, message: error.localizedDescription)
+      return Self.emptyCheck(.init(.file, level: .error, error.localizedDescription), hasFile: true)
     }
     guard let description else {
-      return Self.emptyCheck(hasFile: false, message: "The bundle has no CHARACTER.md")
+      return Self.emptyCheck(.init(.file, checkCode: .noDescription, "The bundle has no CHARACTER.md"), hasFile: false)
     }
 
     var issues = checkFrontMatter(of: description)
@@ -146,11 +160,11 @@ extension DossierBundle {
       sections: rows, otherSections: others, footnotes: footnotes, openQuestions: questions, issues: issues)
   }
 
-  private static func emptyCheck(hasFile: Bool, message: String) -> DescriptionCheckReport {
+  private static func emptyCheck(_ issue: DescriptionCheckReport.Issue, hasFile: Bool) -> DescriptionCheckReport {
     DescriptionCheckReport(
       hasFile: hasFile, frontMatterKeys: [], tier: nil, tierSource: nil, sections: [], otherSections: [],
       footnotes: FootnoteReport(undefined: [], unused: [], unclassified: []), openQuestions: [],
-      issues: [.init(.file, level: .error, message)])
+      issues: [issue])
   }
 
   /// §9.1's table.
@@ -161,7 +175,9 @@ extension DossierBundle {
   private func checkFrontMatter(of description: CharacterDescription) -> [DescriptionCheckReport.Issue] {
     typealias Issue = DescriptionCheckReport.Issue
     guard description.hasFrontMatter else {
-      return [.init(.frontMatter, level: .error, "CHARACTER.md has no front matter")]
+      return ["type", "character"].map {
+        .init(.frontMatter, checkCode: .keyMissing, "CHARACTER.md has no front matter, and \($0) is required")
+      }
     }
     guard description.frontMatterProblem == nil, let mapping = try? description.frontMatterMapping() else {
       return [.init(.frontMatter, level: .error, description.frontMatterProblem ?? "The front matter can't be read")]
@@ -173,6 +189,12 @@ extension DossierBundle {
       if scalar.style == .plain, MemberHash.isNullText(scalar.string) { return nil }
       return scalar.string
     }
+    /// Not there, or there with a null value (§7's scalars).
+    func isAbsent(_ node: Node?) -> Bool {
+      guard let node else { return true }
+      if case .scalar(let scalar) = node { return text(.scalar(scalar)) == nil }
+      return false
+    }
     func isStringArray(_ node: Node) -> Bool {
       guard case .sequence(let sequence) = node else { return false }
       return sequence.allSatisfy { text($0) != nil }
@@ -182,8 +204,10 @@ extension DossierBundle {
       if !type.hasSameBytes(as: "character") {
         issues.append(.init(.frontMatter, level: .error, "type is \(type), and must be character"))
       }
+    } else if isAbsent(mapping["type"]) {
+      issues.append(.init(.frontMatter, checkCode: .keyMissing, "type is required, and must be character"))
     } else {
-      issues.append(.init(.frontMatter, level: .error, "type is required, and must be character"))
+      issues.append(.init(.frontMatter, level: .error, "type must be character"))
     }
     if let character = text(mapping["character"]) {
       let normal = character.precomposedStringWithCanonicalMapping
@@ -191,8 +215,10 @@ extension DossierBundle {
         issues.append(
           .init(.frontMatter, code: .nameMismatch, "CHARACTER.md says \(character) and the bundle is \(manifest.character)"))
       }
+    } else if isAbsent(mapping["character"]) {
+      issues.append(.init(.frontMatter, checkCode: .keyMissing, "character is required, and must be a string"))
     } else {
-      issues.append(.init(.frontMatter, level: .error, "character is required, and must be a string"))
+      issues.append(.init(.frontMatter, level: .error, "character must be a string"))
     }
 
     for key in ["age", "pronouns", "occupation", "artStyle", "sampleLine", "role"] {

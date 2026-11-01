@@ -200,26 +200,7 @@ extension DossierBundle {
     else { return nil }
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { return nil }
-    return strippingMetadata(from: output as Data)
-  }
-
-  private static let metadataChunks: Set<String> = ["eXIf", "tEXt", "zTXt", "iTXt", "tIME"]
-
-  private static func strippingMetadata(from png: Data) -> Data? {
-    let bytes = [UInt8](png)
-    guard bytes.count >= 8 else { return nil }
-    var result = Array(bytes[0..<8])
-    var offset = 8
-    while offset + 12 <= bytes.count {
-      let length = bytes[offset..<(offset + 4)].reduce(0) { $0 << 8 | Int($1) }
-      let end = offset + 12 + length
-      guard end <= bytes.count else { return nil }
-      if !metadataChunks.contains(String(decoding: bytes[(offset + 4)..<(offset + 8)], as: UTF8.self)) {
-        result += bytes[offset..<end]
-      }
-      offset = end
-    }
-    return Data(result)
+    return PNGMetadata.stripped(output as Data)
   }
 
   private static func toolObject() -> JSONObject {

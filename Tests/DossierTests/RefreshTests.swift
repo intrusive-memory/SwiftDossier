@@ -43,6 +43,7 @@ struct RefreshTests {
     #expect(report.adopted.first?.kind == .vox)
     #expect(report.adopted.first?.status == .candidate)
     #expect(report.adopted.first?.provenance.provider == "import")
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent("voice/\(character).vox")) == Data("bytes".utf8))
     #expect(report.unclassified.isEmpty)
     #expect(report.orphan == nil)
     try expectManifestValidates(bundle)
