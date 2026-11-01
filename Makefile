@@ -29,6 +29,15 @@ ifdef TEST_FILTER
 TEST_ONLY = -only-testing:$(shell scripts/test-filter.sh "$(TEST_FILTER)")
 endif
 
+# Optional: SPEC_DIR=<path> runs the tests against that dossier-format tree (a local clone on any
+# commit) in place of the fetched $(DOSSIER_FORMAT_REF) tag. `make fixtures` then neither fetches
+# nor touches anything, and the tree is read, never written. The pin above is unchanged. The
+# path reaches the test process as DOSSIER_SPEC_DIR (xcodebuild forwards TEST_RUNNER_*).
+ifneq ($(strip $(SPEC_DIR)),)
+SPEC_ABS = $(abspath $(SPEC_DIR))
+SPEC_ENV = TEST_RUNNER_DOSSIER_SPEC_DIR=$(SPEC_ABS)
+endif
+
 .PHONY: help build test test-ios fixtures release smoke install clean resolve acceptance
 
 .DEFAULT_GOAL := help
@@ -37,9 +46,16 @@ help:
 	@echo "SwiftDossier - available targets:"
 	@echo "  help        - Show this help message (default)"
 	@echo "  build       - Build every target for macOS (arm64)"
-	@echo "  test        - Run the test suite on macOS (arm64); honours TEST_FILTER; runs fixtures first"
-	@echo "  test-ios    - Run the test suite on the iPhone 17 simulator; runs fixtures first"
-	@echo "  fixtures    - Fetch dossier-format $(DOSSIER_FORMAT_REF) into $(FIXTURES_DIR)/"
+	@echo "  test        - Run the test suite on macOS (arm64); honours TEST_FILTER and SPEC_DIR; runs fixtures first"
+	@echo "  test-ios    - Run the test suite on the iPhone 17 simulator; honours SPEC_DIR; runs fixtures first"
+	@echo "  fixtures    - Fetch dossier-format $(DOSSIER_FORMAT_REF) into $(FIXTURES_DIR)/ (a no-op under SPEC_DIR)"
+	@echo ""
+	@echo "Options:"
+	@echo "  SPEC_DIR=<path>     test against that dossier-format tree instead of the pinned tag, e.g."
+	@echo "                      TEST_FILTER=ConformanceTests make test SPEC_DIR=../dossier-format"
+	@echo "                      Read-only; the pin ($(DOSSIER_FORMAT_REF)) and $(FIXTURES_DIR)/ are untouched."
+	@echo "                      The live PinnedResources comparison is skipped; PINNED.sha256 checks still run."
+	@echo "  TEST_FILTER=<name>  limit to a test target, Target/Suite, or bare suite name"
 	@echo "  release     - Release build of the dossier CLI and its resource bundles, copied to $(BIN_DIR)/"
 	@echo "  install     - Debug build of the dossier CLI and its resource bundles, copied to $(BIN_DIR)/"
 	@echo "  smoke       - Run bin/dossier from another directory on a conformance fixture (after release)"
@@ -58,7 +74,7 @@ build:
 	  $(ARCH)
 
 test: fixtures
-	xcodebuild test -scheme $(SCHEME) \
+	$(SPEC_ENV) xcodebuild test -scheme $(SCHEME) \
 	  -destination $(DESTINATION) \
 	  $(TEST_ONLY) \
 	  $(XCODE_FLAGS) \
@@ -66,7 +82,7 @@ test: fixtures
 	  $(ARCH)
 
 test-ios: fixtures
-	xcodebuild test -scheme $(SCHEME) \
+	$(SPEC_ENV) xcodebuild test -scheme $(SCHEME) \
 	  -destination $(IOS_DESTINATION) \
 	  $(TEST_ONLY) \
 	  $(XCODE_FLAGS) \
@@ -76,7 +92,10 @@ test-ios: fixtures
 # Shallow clone of the pinned tag. Skipped when the directory is already at the
 # ref. Never reads or writes any other dossier-format checkout.
 fixtures:
-	@if [ -d $(FIXTURES_DIR)/.git ] && \
+	@if [ -n "$(SPEC_ABS)" ]; then \
+		test -f "$(SPEC_ABS)/examples/conformance.json" || { echo "SPEC_DIR $(SPEC_ABS) has no examples/conformance.json"; exit 1; }; \
+		echo "SPEC_DIR=$(SPEC_ABS): using it in place of $(DOSSIER_FORMAT_REF); $(FIXTURES_DIR) untouched"; \
+	elif [ -d $(FIXTURES_DIR)/.git ] && \
 	   [ "$$(git -C $(FIXTURES_DIR) describe --tags --exact-match 2>/dev/null)" = "$(DOSSIER_FORMAT_REF)" ]; then \
 		echo "$(FIXTURES_DIR) already at $(DOSSIER_FORMAT_REF)"; \
 	else \

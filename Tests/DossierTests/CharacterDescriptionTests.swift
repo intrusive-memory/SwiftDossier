@@ -29,9 +29,7 @@ private enum Fixture {
 
     """
 
-  static let examples = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent(".dossier-format/examples")
+  static let examples = SpecTree.examples
 
   static func temporaryDirectory() throws -> URL {
     let url = FileManager.default.temporaryDirectory

@@ -341,9 +341,7 @@ enum SchemaEvaluatorTests {
 
   @Suite("SchemaEvaluator fixtures")
   struct Fixture {
-    private static let examples = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-      .appendingPathComponent(".dossier-format/examples")
+    private static let examples = SpecTree.examples
 
     /// Fails, never skips, when the fixtures are absent.
     private static func manifests(under directory: String, matching: (String) -> Bool = { _ in true })

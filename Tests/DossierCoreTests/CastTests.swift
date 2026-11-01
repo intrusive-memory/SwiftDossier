@@ -7,7 +7,10 @@ struct CastTests {
   @Test("Every E-CAST fixture is refused and every other CAST.md loads")
   func loadOverEveryFixture() throws {
     let conformance = try Fixtures.conformance()
-    #expect(conformance.fixtures.count == 96)
+    let listed = conformance.fixtures.map(\.path)
+    let onDisk = SpecTree.fixtureDirectories()
+    #expect(Set(listed).symmetricDifference(onDisk).sorted().isEmpty, "listed and on disk differ: \(Set(listed).symmetricDifference(onDisk).sorted())")
+    #expect(!listed.isEmpty)
     var refused = 0
     for entry in conformance.fixtures {
       let url = Fixtures.project(entry.path).appendingPathComponent("CAST.md")

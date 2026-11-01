@@ -7,6 +7,31 @@ import UniformTypeIdentifiers
 
 @testable import DossierCLICore
 
+/// The dossier-format tree the tests read: `.dossier-format/` (the pinned tag, fetched by
+/// `make fixtures`), or the directory in DOSSIER_SPEC_DIR when `make test SPEC_DIR=<path>` is used.
+enum SpecTree {
+  static let override: URL? = {
+    guard let path = ProcessInfo.processInfo.environment["DOSSIER_SPEC_DIR"], !path.isEmpty else { return nil }
+    return URL(fileURLWithPath: path, isDirectory: true)
+  }()
+  static var isOverridden: Bool { override != nil }
+  static let root: URL = override ?? URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent(".dossier-format")
+  static let examples = root.appendingPathComponent("examples")
+
+  /// An independent walk: every directory under examples/ that holds a CAST.md, relative to examples/.
+  static func fixtureDirectories() -> [String] {
+    let base = examples.resolvingSymlinksInPath().path
+    guard let walker = FileManager.default.enumerator(atPath: base) else { return [] }
+    var found: [String] = []
+    for case let relative as String in walker where relative.hasSuffix("/CAST.md") {
+      found.append(String(relative.dropLast("/CAST.md".count)))
+    }
+    return found.sorted()
+  }
+}
+
 /// A sink that keeps both channels, and can run a hook on each write.
 final class BufferSink: OutputSink, @unchecked Sendable {
   private let lock = NSLock()
@@ -68,9 +93,7 @@ struct TempProject {
 }
 
 enum FixturePaths {
-  static let root = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent(".dossier-format/examples")
+  static let root = SpecTree.examples
 }
 
 func syntheticPNG(width: Int = 18, height: Int = 32, shade: UInt8 = 40) throws -> Data {

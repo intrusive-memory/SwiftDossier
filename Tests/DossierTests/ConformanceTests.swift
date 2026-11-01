@@ -4,6 +4,31 @@ import Testing
 
 @testable import Dossier
 
+/// The dossier-format tree the tests read: `.dossier-format/` (the pinned tag, fetched by
+/// `make fixtures`), or the directory in DOSSIER_SPEC_DIR when `make test SPEC_DIR=<path>` is used.
+enum SpecTree {
+  static let override: URL? = {
+    guard let path = ProcessInfo.processInfo.environment["DOSSIER_SPEC_DIR"], !path.isEmpty else { return nil }
+    return URL(fileURLWithPath: path, isDirectory: true)
+  }()
+  static var isOverridden: Bool { override != nil }
+  static let root: URL = override ?? URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent(".dossier-format")
+  static let examples = root.appendingPathComponent("examples")
+
+  /// An independent walk: every directory under examples/ that holds a CAST.md, relative to examples/.
+  static func fixtureDirectories() -> [String] {
+    let base = examples.resolvingSymlinksInPath().path
+    guard let walker = FileManager.default.enumerator(atPath: base) else { return [] }
+    var found: [String] = []
+    for case let relative as String in walker where relative.hasSuffix("/CAST.md") {
+      found.append(String(relative.dropLast("/CAST.md".count)))
+    }
+    return found.sorted()
+  }
+}
+
 /// The pinned revision's fixtures. A missing `.dossier-format/` fails `everyFixtureIsPresent`
 /// rather than skipping it (`make test` fetches them).
 enum Conformance {
@@ -25,9 +50,7 @@ enum Conformance {
     let fixtures: [Entry]
   }
 
-  static let root = URL(fileURLWithPath: #filePath)
-    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    .appendingPathComponent(".dossier-format/examples")
+  static let root = SpecTree.examples
 
   static func document() throws -> Document {
     try JSONDecoder().decode(
@@ -49,14 +72,15 @@ enum Conformance {
 
 @Suite("Conformance (conformance.json)")
 struct ConformanceTests {
-  @Test("Every fixture conformance.json lists exists, and there are 96")
+  @Test("conformance.json lists exactly the fixture directories in examples/")
   func everyFixtureIsPresent() throws {
-    let fixtures = try Conformance.document().fixtures
-    #expect(fixtures.count == 96)
-    #expect(Conformance.entries.count == 96)
-    for entry in fixtures {
-      #expect(FileManager.default.fileExists(atPath: Conformance.castURL(of: entry.path).path), "\(entry.path)")
-    }
+    let listed = try Conformance.document().fixtures.map(\.path)
+    #expect(Set(listed).count == listed.count, "a path is listed twice")
+    #expect(!listed.isEmpty)
+    let onDisk = SpecTree.fixtureDirectories()
+    #expect(Set(listed).subtracting(onDisk).sorted().isEmpty, "listed but missing: \(Set(listed).subtracting(onDisk).sorted())")
+    #expect(Set(onDisk).subtracting(listed).sorted().isEmpty, "present but unlisted: \(Set(onDisk).subtracting(listed).sorted())")
+    #expect(Conformance.entries.count == listed.count)
   }
 
   @Test("A fixture produces what conformance.json says", arguments: Conformance.entries)

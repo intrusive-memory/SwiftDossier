@@ -39,6 +39,12 @@ struct PinnedResourcesTests {
   }
 
   @Test func bundledCopiesMatchPinnedRevisionWhenPresent() throws {
+    // Under SPEC_DIR the tree is not the pinned revision, so this comparison does not apply.
+    // The PINNED.sha256 checks above still run.
+    if SpecTree.isOverridden {
+      Issue.record("skipped: SPEC_DIR is set, so the spec tree is not the pinned revision; comparison against it does not apply", severity: .warning)
+      return
+    }
     let source = Self.repoRoot.appendingPathComponent(".dossier-format")
     guard FileManager.default.fileExists(atPath: source.path) else { return }
     let root = try #require(Self.bundle.resourceURL)
