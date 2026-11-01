@@ -233,7 +233,12 @@ struct UpdateEnvironment: Sendable {
   /// Starts calling `tick` every `interval` seconds, and returns how to stop.
   var startRenewal: @Sendable (_ interval: TimeInterval, _ tick: @escaping @Sendable () -> Void) -> @Sendable () -> Void = {
     interval, tick in
-    let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+    // Its own serial queue, never `.global()`: a global queue's work waits for a free core, so a
+    // render on every core at a higher QoS would stop renewals, and the marker would expire
+    // mid-update. A serial queue gets a thread regardless. A renewal is rare and brief, and being
+    // late is the one thing it can't be, hence the QoS.
+    let queue = DispatchQueue(label: "SwiftDossier.update-renewal", qos: .userInitiated)
+    let timer = DispatchSource.makeTimerSource(queue: queue)
     // The wall clock, so a renewal that a sleeping machine missed happens on waking.
     timer.schedule(wallDeadline: .now() + interval, repeating: interval, leeway: .milliseconds(Int(interval * 100)))
     timer.setEventHandler(handler: tick)
