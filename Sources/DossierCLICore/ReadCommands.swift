@@ -67,6 +67,9 @@ struct ValidateCommand: DossierSubcommand {
       dossier validate --cast CAST.md       every member's bundle, the pointers and orphans
       dossier validate <bundle> --cast CAST.md   the findings for that bundle, from the project
 
+      A page is compared with the template this tool carries: another template, older or \
+      newer, is W-STALE.
+
       Exits 0 when clean, 1 with warnings only, 2 with any error.
       """)
   static var failureStatus: Int32 { 2 }
@@ -100,15 +103,16 @@ struct ValidateCommand: DossierSubcommand {
   }
 
   func execute(io: CommandIO) throws -> Int32 {
+    let template = try DossierTemplate.current
     let report: ValidationReport
     var extra: [Line] = []
     switch (bundle, cast) {
     case (let bundle?, nil):
-      report = try DossierBundle.validate(at: fileURL(bundle))
+      report = try DossierBundle.validate(at: fileURL(bundle), template: template)
     case (nil, let cast?):
-      report = try DossierBundle.validate(cast: fileURL(cast))
+      report = try DossierBundle.validate(cast: fileURL(cast), template: template)
     case (let bundle?, let cast?):
-      (report, extra) = try bundleFromProject(bundle: fileURL(bundle), cast: fileURL(cast))
+      (report, extra) = try bundleFromProject(bundle: fileURL(bundle), cast: fileURL(cast), template: template)
     case (nil, nil):
       throw CLIFailure("usage", "give a bundle, --cast CAST.md, or both", status: 64)
     }
@@ -150,22 +154,24 @@ struct ValidateCommand: DossierSubcommand {
 
   /// §14 for one bundle with the member `CAST.md` gives it. A bundle no member points at is
   /// validated alone and reported as an orphan, as the project-wide run would.
-  private func bundleFromProject(bundle: URL, cast castURL: URL) throws -> (ValidationReport, [Line]) {
+  private func bundleFromProject(
+    bundle: URL, cast castURL: URL, template: PageTemplate
+  ) throws -> (ValidationReport, [Line]) {
     guard let cast = try? Cast.load(castURL) else {
       // The project run reports the unreadable CAST.md as E-CAST.
-      return (try DossierBundle.validate(cast: castURL), [])
+      return (try DossierBundle.validate(cast: castURL, template: template), [])
     }
     guard let member = castMember(pointingAt: bundle, in: cast) else {
-      let alone = try DossierBundle.validate(at: bundle)
+      let alone = try DossierBundle.validate(at: bundle, template: template)
       let orphan = Line(
         code: Finding.Code.orphan.rawValue, level: Finding.Code.orphan.level.rawValue,
         message: "No CAST.md member points at \(bundle.lastPathComponent)", path: nil)
       return (alone, [orphan])
     }
     guard let opened = try? DossierBundle.open(at: bundle, member: member) else {
-      return (try DossierBundle.validate(at: bundle), [])
+      return (try DossierBundle.validate(at: bundle, template: template), [])
     }
-    return (try opened.validate(), [])
+    return (try opened.validate(template: template), [])
   }
 }
 
@@ -271,7 +277,7 @@ struct RenderCommand: DossierSubcommand {
   func execute(io: CommandIO) throws -> Int32 {
     throw CLIFailure(
       "not-available",
-      "render is not available: it waits on the dossier-format page template, which is not published yet",
+      "render is not available: this version carries the page template but has no renderer for it yet",
       status: 69)
   }
 }

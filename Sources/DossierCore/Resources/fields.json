@@ -1,0 +1,936 @@
+{
+  "$comment": "The field list: DF-47, with DF-49 (document order), DF-50 (keys are anchors), DF-51 (other characters are plain text) and DF-52 (selected assets only, missing rows, integrity banner, provenance per tab); docs/DOSSIER-FORMAT.md §11. Read-only page content only. Every key, tab keys included, is the anchor and element id of that thing on the page. Renderers lay out in this order and add, drop or reorder nothing. The 'kind' values are DF-47's, spelled as in 'kinds'. 'page.before' comes before the tabs and 'page.after' follows them, on every tab and in print. emptyText null means the element stays on the page with no content and takes no space. Other keys: 'labelVisible' false keeps the label for assistive technology only; 'textStyle' and 'labelStyle' name data/tokens.json 'type' entries (default for labels: 'label'); 'group' places a Profile field in data/tokens.json layout.profile.",
+  "formatVersion": 2,
+  "kinds": [
+    "text",
+    "longText",
+    "list",
+    "image",
+    "imageSet",
+    "audio"
+  ],
+  "sources": {
+    "record": "A top-level key of the embedded record (§11).",
+    "frontMatter": "A key of CHARACTER.md's front matter (§9.1; record.frontMatter). A list value is a list's items.",
+    "section": "CHARACTER.md's body (§9.2; record.body): the body of every ## heading matching 'section' by §9.2's rule, in body order. A parenthetical on a matched heading is shown as written above that body, and the label doesn't change. The text is Markdown. Footnote references become marks that lead to page.sources. Bold names stay bold plain text. Empty means no matching heading, or only whitespace under it.",
+    "castMember": "A key of the CAST.md member (§3; record.castMember). Empty when the record has no member.",
+    "asset": "The selected asset for ('kind', 'variant') (the lookup in §8.1, record.manifest.assets). 'value' is one of the values below. Empty when no asset is selected or the value is absent.",
+    "assets": "Every selected asset of 'kind', one row each, in 'order'.",
+    "items": "The value is the field's 'items', each with its own key, label, source and empty text, in order.",
+    "join": "'parts' read in order, with empty ones left out, joined by 'separator'. Empty when all are.",
+    "provenance": "For each selected asset of 'kinds', in the manifest's assets order, its 'parts' with empty ones left out, joined by ' · '. Assets are joined by '; ', all on one line under the tab (§6). Empty when no asset is selected.",
+    "findings": "The validator's findings (§14) at render time over the bundle without the page, as the embedded manifest describes it (§11), so the page being replaced is never among them.",
+    "tiers": "data/tiers.json at the CAST.md member's role (§8.3). A member with no role has no completeness, so page.completeness shows its empty text and page.missing is empty.",
+    "footnotes": "The footnotes of CHARACTER.md's body (§9.3)."
+  },
+  "values": {
+    "path": "The asset's bundle path: its image or audio data as a page copy (DF-43) on an image or audio field, the path as text on a text field.",
+    "file": "The last segment of the asset's path.",
+    "date": "The first 10 characters of the asset's createdAt.",
+    "variant": "The asset's variant.",
+    "model": "The asset's model.",
+    "sampleText": "The asset's sampleText.",
+    "provenance.<key>": "That key of the asset's provenance (§6). A list is joined by ', '.",
+    "derivedFrom": "A part with 'derivedFrom' names a role in the asset's derivedFrom (§7) and reads the last segment of that record's path.",
+    "frontMatter": "A part with 'frontMatter' reads that key of CHARACTER.md's front matter (§9.1); a dot goes into an object.",
+    "literal": "A part with 'literal' is that text.",
+    "whenPresent": "A part with 'whenPresent' and 'whenAbsent' shows one of those texts, by whether the value exists.",
+    "prefix": "Text put before the part's value when it has one."
+  },
+  "page": {
+    "before": [
+      {
+        "key": "page.integrity",
+        "label": "Integrity",
+        "kind": "list",
+        "emptyText": null,
+        "source": {
+          "from": "findings",
+          "levels": [
+            "error"
+          ],
+          "codes": [
+            "W-STALE"
+          ],
+          "item": "One item per finding of DOSSIER-FORMAT §14 that is an error, or W-STALE on a selected asset: the code, then what it names."
+        },
+        "labelVisible": false,
+        "textStyle": "detail",
+        "role": "banner"
+      },
+      {
+        "key": "page.face",
+        "label": "Face",
+        "kind": "image",
+        "emptyText": null,
+        "source": {
+          "from": "asset",
+          "kind": "face",
+          "value": "path"
+        },
+        "labelVisible": false
+      },
+      {
+        "key": "page.name",
+        "label": "Name",
+        "kind": "text",
+        "emptyText": "No name",
+        "source": {
+          "from": "record",
+          "key": "character"
+        },
+        "labelVisible": false,
+        "textStyle": "name"
+      },
+      {
+        "key": "page.tier",
+        "label": "Tier",
+        "kind": "text",
+        "emptyText": null,
+        "source": {
+          "from": "castMember",
+          "key": "role"
+        },
+        "labelVisible": false,
+        "textStyle": "badge"
+      },
+      {
+        "key": "page.completeness",
+        "label": "Completeness",
+        "kind": "text",
+        "emptyText": "Completeness needs a role",
+        "source": {
+          "from": "tiers",
+          "show": "count",
+          "item": "n/N: N is the rows of data/tiers.json that are required for the CAST.md member's role; n is how many of them are satisfied (§8.3). The dossier row counts as satisfied, since this page is that asset and the embedded manifest leaves it out (§11)."
+        },
+        "labelVisible": false,
+        "textStyle": "score"
+      },
+      {
+        "key": "page.facts",
+        "label": "Facts",
+        "kind": "text",
+        "emptyText": null,
+        "source": {
+          "from": "join",
+          "separator": " · ",
+          "parts": [
+            {
+              "from": "frontMatter",
+              "key": "age"
+            },
+            {
+              "from": "frontMatter",
+              "key": "pronouns"
+            },
+            {
+              "from": "frontMatter",
+              "key": "occupation"
+            }
+          ]
+        },
+        "labelVisible": false,
+        "textStyle": "facts"
+      },
+      {
+        "key": "page.missing",
+        "label": "Missing",
+        "kind": "list",
+        "emptyText": null,
+        "source": {
+          "from": "tiers",
+          "show": "missing",
+          "item": "The label of each required row (data/tiers.json, the member's role) that isn't satisfied, in the table's order. The dossier row is never listed."
+        },
+        "textStyle": "detail"
+      }
+    ],
+    "after": [
+      {
+        "key": "page.sources",
+        "label": "Sources",
+        "kind": "list",
+        "emptyText": "No sources",
+        "source": {
+          "from": "footnotes",
+          "item": "One item per footnote definition (§9.3), in the order each label is first referenced in the CHARACTER.md body: the class, then the text."
+        },
+        "textStyle": "longDetail"
+      }
+    ]
+  },
+  "tabs": [
+    {
+      "key": "profile",
+      "label": "Profile",
+      "fields": [
+        {
+          "key": "profile.name",
+          "label": "Name",
+          "kind": "text",
+          "emptyText": "No name",
+          "source": {
+            "from": "record",
+            "key": "character"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.role",
+          "label": "Role",
+          "kind": "text",
+          "emptyText": "No role",
+          "source": {
+            "from": "castMember",
+            "key": "role"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.age",
+          "label": "Age",
+          "kind": "text",
+          "emptyText": "No age",
+          "source": {
+            "from": "frontMatter",
+            "key": "age"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.pronouns",
+          "label": "Pronouns",
+          "kind": "text",
+          "emptyText": "No pronouns",
+          "source": {
+            "from": "frontMatter",
+            "key": "pronouns"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.occupation",
+          "label": "Occupation",
+          "kind": "text",
+          "emptyText": "No occupation",
+          "source": {
+            "from": "frontMatter",
+            "key": "occupation"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.languages",
+          "label": "Languages",
+          "kind": "list",
+          "emptyText": "No languages",
+          "source": {
+            "from": "frontMatter",
+            "key": "languages"
+          },
+          "group": "facts",
+          "textStyle": "value"
+        },
+        {
+          "key": "profile.logline",
+          "label": "Logline",
+          "kind": "longText",
+          "emptyText": "No logline",
+          "source": {
+            "from": "section",
+            "section": "Logline"
+          },
+          "group": "summary",
+          "textStyle": "lead"
+        },
+        {
+          "key": "profile.sampleLine",
+          "label": "Sample line",
+          "kind": "text",
+          "emptyText": "No sample line",
+          "source": {
+            "from": "frontMatter",
+            "key": "sampleLine"
+          },
+          "group": "summary",
+          "textStyle": "quote",
+          "wrap": [
+            "“",
+            "”"
+          ]
+        },
+        {
+          "key": "profile.appearance",
+          "label": "Appearance",
+          "kind": "longText",
+          "emptyText": "No appearance notes",
+          "source": {
+            "from": "section",
+            "section": "Appearance"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.personality",
+          "label": "Personality",
+          "kind": "longText",
+          "emptyText": "No personality notes",
+          "source": {
+            "from": "section",
+            "section": "Personality"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.backstory",
+          "label": "Backstory",
+          "kind": "longText",
+          "emptyText": "No backstory",
+          "source": {
+            "from": "section",
+            "section": "Backstory"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.arc",
+          "label": "Arc",
+          "kind": "longText",
+          "emptyText": "No arc",
+          "source": {
+            "from": "section",
+            "section": "Arc"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.relationships",
+          "label": "Relationships",
+          "kind": "longText",
+          "emptyText": "No relationships",
+          "source": {
+            "from": "section",
+            "section": "Relationships"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.voiceAndSpeech",
+          "label": "Voice & Speech",
+          "kind": "longText",
+          "emptyText": "No voice notes",
+          "source": {
+            "from": "section",
+            "section": "Voice & Speech"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.wardrobe",
+          "label": "Wardrobe",
+          "kind": "longText",
+          "emptyText": "No wardrobe notes",
+          "source": {
+            "from": "section",
+            "section": "Wardrobe"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.canon",
+          "label": "Canon",
+          "kind": "list",
+          "emptyText": "No canon facts",
+          "source": {
+            "from": "section",
+            "section": "Canon & Guardrails",
+            "item": "Each paragraph or list item of the section is one item. Its source, shown beside it, is the class of each footnote it cites (§9.3), in order; with none cited, nothing is shown."
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "detail"
+        },
+        {
+          "key": "profile.openQuestions",
+          "label": "Open questions",
+          "kind": "longText",
+          "emptyText": "No open questions",
+          "source": {
+            "from": "section",
+            "section": "Open Questions"
+          },
+          "group": "sections",
+          "labelStyle": "sectionTitle",
+          "textStyle": "body"
+        },
+        {
+          "key": "profile.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "description"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "frontMatter": "draft.generatedBy",
+                "prefix": "drafted by "
+              },
+              {
+                "frontMatter": "draft.reviewedAt",
+                "prefix": "reviewed "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "portrait",
+      "label": "Portrait",
+      "fields": [
+        {
+          "key": "portrait.image",
+          "label": "Portrait",
+          "kind": "image",
+          "emptyText": "Not yet",
+          "source": {
+            "from": "asset",
+            "kind": "portrait",
+            "value": "path"
+          },
+          "labelVisible": false,
+          "caption": {
+            "separator": " · ",
+            "parts": [
+              {
+                "value": "provenance.round"
+              },
+              {
+                "value": "provenance.seed",
+                "prefix": "s"
+              },
+              {
+                "literal": "selected"
+              }
+            ]
+          }
+        },
+        {
+          "key": "portrait.prompt",
+          "label": "Prompt",
+          "kind": "longText",
+          "emptyText": "No prompt recorded",
+          "source": {
+            "from": "asset",
+            "kind": "portrait",
+            "value": "provenance.prompt"
+          },
+          "textStyle": "longDetail"
+        },
+        {
+          "key": "portrait.artStyle",
+          "label": "Art style",
+          "kind": "text",
+          "emptyText": "No art style",
+          "source": {
+            "from": "frontMatter",
+            "key": "artStyle"
+          },
+          "textStyle": "longDetail"
+        },
+        {
+          "key": "portrait.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "portrait"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "value": "provenance.model"
+              },
+              {
+                "value": "provenance.seed",
+                "prefix": "seed "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "face",
+      "label": "Face",
+      "fields": [
+        {
+          "key": "face.portrait",
+          "label": "Portrait with face crop box",
+          "kind": "image",
+          "emptyText": "Not yet",
+          "source": {
+            "from": "asset",
+            "kind": "portrait",
+            "value": "path"
+          },
+          "labelVisible": false,
+          "overlay": {
+            "source": {
+              "from": "asset",
+              "kind": "face",
+              "value": "provenance.box"
+            },
+            "shape": "The crop that DOSSIER-FORMAT §8.5 computes from the box, scaled from source pixels to the image as shown.",
+            "whenAbsent": "No overlay. A detected crop records no box (§6)."
+          }
+        },
+        {
+          "key": "face.crop",
+          "label": "Face crop",
+          "kind": "image",
+          "emptyText": "Not yet",
+          "source": {
+            "from": "asset",
+            "kind": "face",
+            "value": "path"
+          },
+          "labelVisible": false,
+          "caption": {
+            "separator": " · ",
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.box",
+                "whenPresent": "hand-set",
+                "whenAbsent": "detected"
+              }
+            ]
+          }
+        },
+        {
+          "key": "face.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "face"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "derivedFrom": "portrait",
+                "prefix": "derived from "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "views",
+      "label": "Views",
+      "fields": [
+        {
+          "key": "views.set",
+          "label": "Views",
+          "kind": "imageSet",
+          "emptyText": null,
+          "source": {
+            "from": "items"
+          },
+          "labelVisible": false,
+          "items": [
+            {
+              "key": "views.front",
+              "label": "Front",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "view",
+                "variant": "front",
+                "value": "path"
+              }
+            },
+            {
+              "key": "views.threeQuarter",
+              "label": "¾ · primary",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "portrait",
+                "value": "path"
+              },
+              "note": "The portrait"
+            },
+            {
+              "key": "views.profile",
+              "label": "Profile",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "view",
+                "variant": "profile",
+                "value": "path"
+              },
+              "note": "Faces screen-left"
+            },
+            {
+              "key": "views.back",
+              "label": "Back",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "view",
+                "variant": "back",
+                "value": "path"
+              }
+            }
+          ]
+        },
+        {
+          "key": "views.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "view"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "value": "provenance.model"
+              },
+              {
+                "value": "provenance.seed",
+                "prefix": "seed "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "expressions",
+      "label": "Expressions",
+      "fields": [
+        {
+          "key": "expressions.set",
+          "label": "Expressions",
+          "kind": "imageSet",
+          "emptyText": null,
+          "source": {
+            "from": "items"
+          },
+          "labelVisible": false,
+          "items": [
+            {
+              "key": "expressions.neutral",
+              "label": "neutral · face crop",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "face",
+                "value": "path"
+              }
+            },
+            {
+              "key": "expressions.happy",
+              "label": "happy",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "expression",
+                "variant": "happy",
+                "value": "path"
+              }
+            },
+            {
+              "key": "expressions.sad",
+              "label": "sad",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "expression",
+                "variant": "sad",
+                "value": "path"
+              }
+            },
+            {
+              "key": "expressions.frightened",
+              "label": "frightened",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "expression",
+                "variant": "frightened",
+                "value": "path"
+              }
+            },
+            {
+              "key": "expressions.mad",
+              "label": "mad",
+              "emptyText": "Not yet",
+              "source": {
+                "from": "asset",
+                "kind": "expression",
+                "variant": "mad",
+                "value": "path"
+              }
+            }
+          ]
+        },
+        {
+          "key": "expressions.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "expression"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "value": "provenance.model"
+              },
+              {
+                "value": "provenance.seed",
+                "prefix": "seed "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "voice",
+      "label": "Voice",
+      "fields": [
+        {
+          "key": "voice.prompt",
+          "label": "Voice prompt",
+          "kind": "longText",
+          "emptyText": "No voice prompt",
+          "source": {
+            "from": "castMember",
+            "key": "voicePrompt"
+          },
+          "textStyle": "bodyPrimary"
+        },
+        {
+          "key": "voice.vox",
+          "label": "Locked voice",
+          "kind": "text",
+          "emptyText": "No locked voice",
+          "source": {
+            "from": "asset",
+            "kind": "vox",
+            "value": "path"
+          },
+          "textStyle": "mono"
+        },
+        {
+          "key": "voice.models",
+          "label": "Models",
+          "kind": "list",
+          "emptyText": "No models recorded",
+          "source": {
+            "from": "asset",
+            "kind": "vox",
+            "value": "provenance.models"
+          },
+          "textStyle": "detail"
+        },
+        {
+          "key": "voice.pronunciation",
+          "label": "Pronunciation",
+          "kind": "longText",
+          "emptyText": "No pronunciation notes",
+          "source": {
+            "from": "section",
+            "section": "Pronunciation"
+          },
+          "textStyle": "detail"
+        },
+        {
+          "key": "voice.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "vox"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "value": "provenance.models"
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    },
+    {
+      "key": "samples",
+      "label": "Samples",
+      "fields": [
+        {
+          "key": "samples.lines",
+          "label": "Samples",
+          "kind": "audio",
+          "emptyText": "No samples yet",
+          "source": {
+            "from": "assets",
+            "kind": "voiceSample",
+            "order": "The neutral variant first, then the others, each in the manifest's assets order."
+          },
+          "labelVisible": false,
+          "row": {
+            "audio": "path",
+            "title": "variant",
+            "note": {
+              "separator": " · ",
+              "parts": [
+                {
+                  "value": "model"
+                },
+                {
+                  "value": "provenance.instruct"
+                }
+              ]
+            },
+            "text": "sampleText"
+          }
+        },
+        {
+          "key": "samples.provenance",
+          "label": "Provenance",
+          "kind": "text",
+          "emptyText": "Nothing generated yet",
+          "source": {
+            "from": "provenance",
+            "kinds": [
+              "voiceSample"
+            ],
+            "parts": [
+              {
+                "value": "file"
+              },
+              {
+                "value": "provenance.provider"
+              },
+              {
+                "value": "model"
+              },
+              {
+                "derivedFrom": "vox",
+                "prefix": "from "
+              },
+              {
+                "value": "date"
+              }
+            ]
+          },
+          "labelVisible": false,
+          "textStyle": "monoSmall"
+        }
+      ]
+    }
+  ]
+}

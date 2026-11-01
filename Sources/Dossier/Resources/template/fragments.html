@@ -1,0 +1,40 @@
+<!-- fragment: tabLink -->
+<a class="tab-link t-tab" href="#{{key}}" data-tab-link="{{key}}">{{label}}</a>
+<!-- fragment: tab -->
+<section class="tab-panel" id="{{key}}" data-key="{{key}}" data-kind="tab" aria-label="{{label}}"><h2 class="tab-heading t-sectionTitle">{{label}}</h2><div class="tab-body">{{fields}}</div></section>
+<!-- fragment: group -->
+<div class="field-group" data-group="{{group}}">{{fields}}</div>
+<!-- fragment: field -->
+<dossier-field id="{{key}}" data-key="{{key}}" data-kind="{{kind}}" data-state="{{state}}"><span class="field-label t-{{labelStyle}}{{labelHidden}}">{{label}}</span><div class="field-value t-{{textStyle}}">{{value}}</div></dossier-field>
+<!-- fragment: image -->
+<dossier-field id="{{key}}" data-key="{{key}}" data-kind="image" data-state="{{state}}"><span class="field-label t-{{labelStyle}}{{labelHidden}}">{{label}}</span><figure class="image"><div class="image-frame">{{value}}</div>{{caption}}</figure></dossier-field>
+<!-- fragment: caption -->
+<figcaption class="image-caption t-monoSmall">{{text}}</figcaption>
+<!-- fragment: imageSet -->
+<dossier-image-set id="{{key}}" data-key="{{key}}" data-kind="imageSet" data-state="{{state}}"><span class="field-label t-{{labelStyle}}{{labelHidden}}">{{label}}</span><div class="image-grid">{{items}}</div></dossier-image-set>
+<!-- fragment: imageItem -->
+<dossier-field id="{{key}}" data-key="{{key}}" data-kind="image" data-state="{{state}}"><figure class="image"><div class="image-frame">{{value}}</div><figcaption class="item-caption"><span class="t-captionLabel">{{label}}</span>{{note}}</figcaption></figure></dossier-field>
+<!-- fragment: itemNote -->
+<span class="t-captionNote">{{text}}</span>
+<!-- fragment: img -->
+<img alt="{{label}}" src="{{src}}" width="{{width}}" height="{{height}}">
+<!-- fragment: overlay -->
+<div class="crop-overlay" style="left:{{left}}%;top:{{top}}%;width:{{size}}%" aria-hidden="true"></div>
+<!-- fragment: imageMissing -->
+<span class="image-missing">{{text}}</span>
+<!-- fragment: audio -->
+<dossier-audio id="{{key}}" data-key="{{key}}" data-kind="audio" data-state="{{state}}"><span class="field-label t-{{labelStyle}}{{labelHidden}}">{{label}}</span>{{value}}</dossier-audio>
+<!-- fragment: audioRow -->
+<div class="sample-row"><audio controls preload="none" aria-label="{{title}}" src="{{src}}"></audio><div class="sample-text"><span class="t-sampleTitle">{{title}} <span class="t-sampleNote">{{note}}</span></span><span class="t-sampleText">{{text}}</span></div></div>
+<!-- fragment: audioEmpty -->
+<div class="field-value t-body">{{text}}</div>
+<!-- fragment: list -->
+<ul>{{items}}</ul>
+<!-- fragment: listItem -->
+<li>{{text}}</li>
+<!-- fragment: canonItem -->
+<li><span class="canon-claim">{{text}}</span><span class="canon-source t-captionNote">{{source}}</span></li>
+<!-- fragment: parenthetical -->
+<p class="parenthetical t-facts">{{text}}</p>
+<!-- fragment: mark -->
+<sup class="mark"><a href="#page.sources">{{number}}</a></sup>

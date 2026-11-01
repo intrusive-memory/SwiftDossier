@@ -28,14 +28,15 @@ the two.
 
 dossier-format's specification, schemas, tier table, conformance fixtures, page
 template, field list and design tokens are written and tagged **`v2.0.0-rc.5`**
-(2026-11-01), the revision this package pins. The template, field list and tokens
-are copied as resources when the renderer is built (§8 phase 3); until then a
-validator carries no template (§4).
+(2026-11-01), the revision this package pins. All of them are copied as resources:
+the field list in `DossierCore`, the template and tokens in `Dossier`. The `dossier`
+CLI carries that template when it validates (§4); the renderer that fills it is
+§8 phase 3.
 
 | # | Rule |
 |---|------|
 | SD-1 | **`docs/DOSSIER-FORMAT.md` is the specification.** Where it is silent, raise the question in dossier-format; don't decide it here. |
-| SD-2 | **Data files are consumed, never restated:** `schemas/*.json`, `data/tiers.json`, `data/review.json`, and later `data/fields.json`, the tokens and the template, copied as resources from a pinned dossier-format revision. A test fails if the copies differ from that revision. |
+| SD-2 | **Data files are consumed, never restated:** `schemas/*.json`, `data/tiers.json`, `data/review.json`, `data/fields.json`, `data/tokens.json` and the template, copied as resources from a pinned dossier-format revision. A test fails if the copies differ from that revision. |
 | SD-3 | **Every manifest this package writes validates** against `schemas/manifest-v2.schema.json`; every v1 fixture validates against `manifest-v1.schema.json`. The v1 fixtures are `examples/warnings/W-V1*`. `E-SCHEMA` comes from the schema files, through SD-13's evaluator; the rules are not restated in Swift (SD-2). |
 | SD-4 | **Fixtures are synthetic.** This repository is public (§10 Q1), so nothing from a private project is copied into it: no images, descriptions, CAST.md or manifests from podcast-granville or any other podcast. Tests use dossier-format's `examples/` and its `conformance.json`, which includes synthetic v1 bundles of both Appendix A shapes (v1 manifest in a `.dossier` directory or a plain one, sidecars, retired kinds, path-order checksum). Real projects are checked by `make acceptance PROJECT=<path>`, which runs against a local checkout, skips when it is absent, and never runs in CI. |
 
@@ -44,7 +45,7 @@ validator carries no template (§4).
 | Target | Depends on | Contains |
 |--------|------------|----------|
 | `DossierCore` | Foundation, CryptoKit, SwiftReparto, Yams | Read-only. `Cast.load(_:)` (discovery from CAST.md, DOSSIER-FORMAT §3), `DossierBundle.open(at:)`, `Manifest`, `Asset`, `AssetKind`, `assets(kind:variant:)`, `selectedAsset(kind:variant:)`, `sampleURL(variant:)`, `identityPrompt`, `artStyle` (CHARACTER.md front matter, UD20), `pageURL`, `completeness(tier:)`, `stale()`, `DossierTabs`. No writers. Linked by the Vinetas app. |
-| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate(template:)`, `validate(cast:template:)`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
+| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate(template:)`, `validate(cast:template:)`, `DossierTemplate`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
 | `DossierCLICore` | `Dossier`, ArgumentParser | Command logic, unit-testable without a subprocess. Not a product (SwiftReparto D-6). |
 | `dossier` | `DossierCLICore` | The executable (§5). |
 
@@ -86,8 +87,9 @@ validator carries no template (§4).
   code (`E-…`, `W-…`) and the §8.3 completeness report, tier rows read from
   `data/tiers.json` and check rows implemented by ID. `validate(cast:template:)`
   adds the CAST.md checks and orphans. The template compared against (§11) is a
-  parameter, here and on `stale()`: `nil` until a template ships, the bundled one
-  after, and the one `conformance.json` names in tests. Exit status: 0 clean,
+  parameter, here and on `stale()`: `nil` makes no comparison, the CLI passes the
+  bundled one (`DossierTemplate.current`), and tests pass the one `conformance.json`
+  names. Exit status: 0 clean,
   1 warnings only, 2 errors.
 - **Page (DOSSIER-FORMAT §11):** `renderPage()` writes `<CHARACTER>-dossier.html`
   from CHARACTER.md, the manifest, the CAST.md member and the selected
@@ -150,7 +152,7 @@ first (SD-1).
    those. Tests against the synthetic fixtures (SD-4).
 2. **Face crop and `check`.**
 3. **Page renderer** with the dossier-format template, which is in the pinned
-   tag and is copied as resources in this phase (SD-2). `dossier render` waits
+   tag and already copied as resources (SD-2). `dossier render` waits
    for it: there is no bridge (Q2). **`render_dossier.py` must not
    be run on a v2 bundle;** it rewrites the manifest with a path-order checksum.
 4. **Migration,** for any remaining v1 bundle. Appendix A's order is settled, but

@@ -1,0 +1,11 @@
+{
+  "$comment": "DF-43: the one place the page copies' sizes are set. Keys are asset kinds. Voice samples and fonts are embedded as they are.",
+  "format": "jpeg",
+  "quality": 80,
+  "sizes": {
+    "portrait": { "width": 720, "height": 1280 },
+    "view": { "width": 720, "height": 1280 },
+    "face": { "width": 512, "height": 512 },
+    "expression": { "width": 512, "height": 512 }
+  }
+}

@@ -8,7 +8,7 @@ extension DossierBundle {
   /// ``validate(cast:template:)``. With none they can't be: a tier and a voice come from
   /// `CAST.md` (§8.2, §8.3).
   ///
-  /// - Parameter template: The current template. `nil` makes no template comparison (§11).
+  /// - Parameter template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public func validate(template: PageTemplate? = nil) throws -> ValidationReport {
     try Self.validate(directory: url, member: member, template: template)
@@ -19,7 +19,7 @@ extension DossierBundle {
   ///
   /// - Parameters:
   ///   - url: The directory that should hold `manifest.json`.
-  ///   - template: The current template. `nil` makes no template comparison (§11).
+  ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public static func validate(at url: URL, template: PageTemplate? = nil) throws -> ValidationReport {
     try validate(directory: url.standardizedFileURL, member: nil, template: template)
@@ -30,7 +30,7 @@ extension DossierBundle {
   ///
   /// - Parameters:
   ///   - castURL: The `CAST.md` file.
-  ///   - template: The current template. `nil` makes no template comparison (§11).
+  ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public static func validate(cast castURL: URL, template: PageTemplate? = nil) throws -> ValidationReport {
     let cast: Cast

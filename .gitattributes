@@ -1,0 +1,2 @@
+# template/README.md rule 1 hashes these bytes, so git must never convert them.
+Sources/Dossier/Resources/template/** -text

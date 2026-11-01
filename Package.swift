@@ -78,6 +78,7 @@ let package = Package(
         .copy("Resources/PINNED.sha256"),
         .copy("Resources/tiers.json"),
         .copy("Resources/review.json"),
+        .copy("Resources/fields.json"),
       ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
@@ -93,6 +94,9 @@ let package = Package(
       resources: [
         .copy("Resources/PINNED.sha256"),
         .copy("Resources/schemas"),
+        // `.copy` matters most here: `template/README.md` rule 1 hashes these bytes.
+        .copy("Resources/template"),
+        .copy("Resources/data"),
       ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
