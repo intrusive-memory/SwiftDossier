@@ -61,6 +61,18 @@ struct TierTable: Decodable, Sendable {
   }()
 }
 
+extension AssetKind {
+  /// The variants `tiers.json` lists for this kind, the standard set `W-VARIANT` measures
+  /// against (§8.1). `nil` when it lists none.
+  ///
+  /// - Throws: ``DossierError/resourceUnreadable(_:)`` when the table can't be read.
+  package func standardVariants() throws -> [String]? {
+    try TierTable.bundled.get().rows.first { row in
+      row.variants != nil && row.kind.map(AssetKind.init(rawValue:)) == self
+    }?.variants
+  }
+}
+
 extension DossierBundle {
   /// Completeness against the member's tier. `nil` when there's no member or it has no
   /// `role`, where completeness isn't defined (§8.3), and on version 1 (Appendix A).
