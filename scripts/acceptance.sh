@@ -791,8 +791,7 @@ def item5():
     with open(source, "w", encoding="utf-8") as file:
         file.write("print(\"linked\")\n")
     macos = next(entry["version"] for entry in root_dump["platforms"] if entry["platformName"] == "macos")
-    # -profile-generate: xcodebuild instruments these objects, and they need that runtime.
-    linked = run_quiet(["xcrun", "swiftc", "-profile-generate", "-target", f"arm64-apple-macos{macos}", source, *objects, "-o", binary])
+    linked = run_quiet(["xcrun", "swiftc", "-target", f"arm64-apple-macos{macos}", source, *objects, "-o", binary])
     if linked.returncode != 0:
         print(f"  link of the closure's objects alone: failed (status {linked.returncode})")
         failures.append("the closure doesn't link on its own")

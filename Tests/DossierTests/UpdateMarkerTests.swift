@@ -126,7 +126,8 @@ struct WithUpdateTests {
       try temp.bundle.withUpdate(label: "rendering") { bundle in
         #expect(temp.hiddenNames == [".update-the-id.json"], "the temporary name is gone")
         let object = try temp.marker("the-id")
-        // SPEC-PIN: §5.7's table, by hand; the schema isn't in the pinned tag. See UpdateMarkerStore.
+        #expect(
+          try SchemaEvaluator.pinned().validate(.object(object), against: "update-marker.schema.json").isEmpty)
         #expect(Set(object.keys) == ["writer", "startedAt", "expiresAt", "label"])
         #expect(object["writer"]?.stringValue == "SwiftDossier")
         #expect(object["startedAt"]?.stringValue == timestamp(start))
@@ -140,6 +141,19 @@ struct WithUpdateTests {
     #expect(!temp.bundle.updateStatus(at: start).isUpdating)
     #expect(harness.events.first == .wrote(id: "the-id"))
     #expect(harness.events.last == .removed(id: "the-id"))
+  }
+
+  @Test("A marker that fails the schema is refused, and nothing is written")
+  func schemaRefusal() throws {
+    let temp = try TemporaryBundle()
+    var object = UpdateMarkerStore.object(
+      writer: "tool", startedAt: Date(timeIntervalSince1970: 0),
+      expiresAt: Date(timeIntervalSince1970: 60), label: nil)
+    object["expiresAt"] = .string("not a timestamp")
+    #expect(throws: DossierWriteError.self) {
+      try UpdateMarkerStore.write(object, id: "bad", in: temp.bundle.url)
+    }
+    #expect(temp.hiddenNames.isEmpty)
   }
 
   @Test("A temporary name never matches the pattern, and a label is one line or none")
@@ -661,12 +675,18 @@ struct SpanningUpdateTests {
     #expect(throws: DossierWriteError.updateMarkerNotFound(begun.id)) { try temp.bundle.renewUpdate(id: begun.id) }
   }
 
-  @Test("Renewing keeps keys this writer doesn't know, and refuses what isn't an object")
+  @Test("Renewing keeps keys this writer doesn't know, and refuses what isn't a marker")
   func renewContent() throws {
     let temp = try TemporaryBundle()
-    try temp.put(".update-a.json", #"{"expiresAt": "2026-01-01T00:00:00Z", "fromElsewhere": {"x": 1}}"#)
+    try temp.put(
+      ".update-a.json",
+      #"{"writer": "t", "startedAt": "2026-01-01T00:00:00Z", "expiresAt": "2026-01-01T00:00:00Z", "fromElsewhere": {"x": 1}}"#)
     try temp.bundle.renewUpdate(id: "a", now: Self.now)
     #expect(try temp.marker("a")["fromElsewhere"]?.objectValue?["x"]?.intValue == 1)
+    let incomplete = #"{"expiresAt": "2026-01-01T00:00:00Z"}"#
+    try temp.put(".update-c.json", incomplete)
+    #expect(throws: DossierWriteError.self) { try temp.bundle.renewUpdate(id: "c", now: Self.now) }
+    #expect(try String(contentsOf: temp.url.appendingPathComponent(".update-c.json"), encoding: .utf8) == incomplete)
     let garbled = Data("{".utf8)
     try garbled.write(to: temp.url.appendingPathComponent(".update-b.json"))
     #expect(throws: DossierWriteError.updateMarkerUnreadable("b")) { try temp.bundle.renewUpdate(id: "b", now: Self.now) }

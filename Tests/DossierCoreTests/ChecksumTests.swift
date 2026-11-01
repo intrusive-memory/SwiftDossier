@@ -34,7 +34,7 @@ struct ChecksumTests {
       #expect(manifest.computedChecksum == manifest.manifestChecksum, "\(entry.path)")
       verified += 1
     }
-    #expect(verified == 89)
+    #expect(verified == 97)
   }
 
   @Test("The two E-CHECKSUM fixtures fail, including a path-order sum in a v2 manifest")

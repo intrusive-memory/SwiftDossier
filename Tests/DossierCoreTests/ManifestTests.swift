@@ -30,7 +30,7 @@ struct ManifestTests {
       reencoded += 1
     }
     // Every manifest.json under examples/, less not-JSON, not-object and E-VERSION.
-    #expect(reencoded == 94)
+    #expect(reencoded == 102)
   }
 
   @Test("Unknown top-level, asset and provenance keys survive a re-encode")

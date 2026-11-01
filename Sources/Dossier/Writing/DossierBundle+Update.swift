@@ -117,11 +117,8 @@ extension DossierBundle {
 
 /// Writing what §5.7 calls a marker.
 ///
-/// SPEC-PIN: `schemas/update-marker.schema.json` isn't in the pinned `v2.0.0-rc.3`, and SD-2's
-/// resources stay as published, so what's written here is checked in `UpdateMarkerTests`, by hand,
-/// against §5.7's table. When the pin moves to a tag that has it: copy it to `Resources/schemas`,
-/// list it in `PINNED.sha256`, and check `object(...)`'s result with `SchemaEvaluator` here, as
-/// `ManifestWriter` does (SD-3). The evaluator needs `$defs` and a `#/` `$ref` for that.
+/// Every marker written validates against `schemas/update-marker.schema.json`, as every manifest
+/// does against its own (SD-3).
 enum UpdateMarkerStore {
   /// The `writer` of a marker from the library.
   static let writerName = ManifestWriter.generatorName
@@ -160,6 +157,7 @@ enum UpdateMarkerStore {
   /// Writes a temporary file and renames it into place (§5.7). It isn't synced: a marker a crash
   /// has emptied is unreadable, so not active, which is what a crash should leave.
   static func write(_ object: JSONObject, id: String, in bundle: URL) throws {
+    try checkSchema(object)
     let temporary = bundle.appendingPathComponent(temporaryName(forID: id))
     let destination = bundle.appendingPathComponent(UpdateMarker.name(forID: id))
     defer { unlink(temporary.path) }
@@ -170,6 +168,21 @@ enum UpdateMarkerStore {
     }
     guard rename(temporary.path, destination.path) == 0 else {
       throw DossierWriteError.updateMarkerFailed(String(cString: strerror(errno)))
+    }
+  }
+
+  /// A marker this package writes has to pass §5.7's schema, whoever chose its contents.
+  private static func checkSchema(_ object: JSONObject) throws {
+    let violations: [SchemaViolation]
+    do {
+      violations = try SchemaEvaluator.bundledSchemas.get()
+        .validate(.object(object), against: "update-marker.schema.json")
+    } catch {
+      throw DossierWriteError.updateMarkerFailed(error.localizedDescription)
+    }
+    guard violations.isEmpty else {
+      throw DossierWriteError.updateMarkerFailed(
+        violations.map { "\($0.path.isEmpty ? "/" : $0.path): \($0.message)" }.joined(separator: "; "))
     }
   }
 

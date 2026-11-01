@@ -26,11 +26,11 @@ the two.
 
 ## 1. The specification
 
-dossier-format's specification, schemas, tier table and conformance fixtures
-are written and tagged **`v2.0.0-rc.3`** (2026-10-31), the revision this package
-pins. Its page template, field list and design tokens are not written.
-The rules of rc.5 are implemented ahead of this pin, and conformance on them is
-run with `make test SPEC_DIR=<dossier-format clone>`.
+dossier-format's specification, schemas, tier table, conformance fixtures, page
+template, field list and design tokens are written and tagged **`v2.0.0-rc.5`**
+(2026-11-01), the revision this package pins. The template, field list and tokens
+are copied as resources when the renderer is built (§8 phase 3); until then a
+validator carries no template (§4).
 
 | # | Rule |
 |---|------|
@@ -71,8 +71,8 @@ run with `make test SPEC_DIR=<dossier-format clone>`.
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
 | SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules, which include when a sample can't be adopted. Anything else stays unclassified and the command reports why. Orphan adoption follows §3 exactly. |
 | SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug. It doesn't change a member's DOSSIER-FORMAT §7 hash, with these exceptions, which lose data or change a path: a `voices` provider value of the wrong type is dropped, a provider-case collision keeps one value, and absolute paths under the project become relative. `migrate` and `create` report any of these before writing, and say so when the file was not yet normalized (`generate(parse(x)) != x`). They suggest `reparto canonicalize --apply` first, which also renames non-canonical members. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
-| SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and `$ref` to another of the pinned schemas (`$id`, `$schema`, `title` and `description` are ignored). `type` may be an array and `$ref` may be relative. An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
-| SD-14 | **Update status** (DOSSIER-FORMAT §5.7; needs dossier-format `v2.0.0-rc.4`). `withUpdate(label:_:)` holds a marker for the length of a block: it writes it atomically, renews it in the background before it expires, and removes it after the block's last manifest replacement, including when the block throws. A single mutation (SD-5) holds one unless the caller already does, so a sequence of mutations shows as one update. `updateStatus(at:)` in the read-only core answers §5.7's question for any reader, and the update fixtures in `conformance.json` test it. The CLI adds `dossier update run <bundle> -- <command>`, and `begin`, `renew` and `end` for an update that spans separate commands. A marker never blocks a write: it is a signal, not a lock. |
+| SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, `$defs`, and `$ref`, to another of the pinned schemas or a `#/` pointer into its own (`$id`, `$schema`, `title` and `description` are ignored). `type` may be an array and `$ref` may be relative. An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
+| SD-14 | **Update status** (DOSSIER-FORMAT §5.7). `withUpdate(label:_:)` holds a marker for the length of a block: it writes it atomically, renews it in the background before it expires, and removes it after the block's last manifest replacement, including when the block throws. A single mutation (SD-5) holds one unless the caller already does, so a sequence of mutations shows as one update. `updateStatus(at:)` in the read-only core answers §5.7's question for any reader, and the update fixtures in `conformance.json` test it. The CLI adds `dossier update run <bundle> -- <command>`, and `begin`, `renew` and `end` for an update that spans separate commands. A marker never blocks a write: it is a signal, not a lock. |
 
 ## 4. Face crop, validation, page
 
@@ -149,9 +149,9 @@ first (SD-1).
    select, reject, remove, list, prompt, refresh, validate; the CLI for
    those. Tests against the synthetic fixtures (SD-4).
 2. **Face crop and `check`.**
-3. **Page renderer** with the dossier-format template (blocked on the
-   template, SD-2). `dossier render` waits for it: there is no bridge (Q2). The
-   template's mission follows phase 1 directly. **`render_dossier.py` must not
+3. **Page renderer** with the dossier-format template, which is in the pinned
+   tag and is copied as resources in this phase (SD-2). `dossier render` waits
+   for it: there is no bridge (Q2). **`render_dossier.py` must not
    be run on a v2 bundle;** it rewrites the manifest with a path-order checksum.
 4. **Migration,** for any remaining v1 bundle. Appendix A's order is settled, but
    not yet every field: a v1 asset can lack what v2 requires, reference paths
