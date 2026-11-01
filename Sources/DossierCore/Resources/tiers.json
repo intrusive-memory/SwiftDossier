@@ -1,0 +1,292 @@
+{
+  "$comment": "docs/DOSSIER-FORMAT.md §8.3. Rows are 'asset' (a selected asset of the kind; with 'variants', one selected per variant) or 'check' (defined by ID in §8.3). Cells: required | recommended | none.",
+  "formatVersion": 2,
+  "tiers": [
+    "lead",
+    "supporting",
+    "guest",
+    "narrator",
+    "costar",
+    "underfive",
+    "background"
+  ],
+  "major": [
+    "lead",
+    "supporting",
+    "guest",
+    "narrator"
+  ],
+  "rows": [
+    {
+      "id": "description.full",
+      "type": "check",
+      "label": "CHARACTER.md, full",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "none",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "description.short",
+      "type": "check",
+      "label": "CHARACTER.md, short",
+      "levels": {
+        "lead": "none",
+        "supporting": "none",
+        "guest": "none",
+        "narrator": "none",
+        "costar": "required",
+        "underfive": "required",
+        "background": "none"
+      }
+    },
+    {
+      "id": "portrait",
+      "type": "asset",
+      "label": "Portrait",
+      "kind": "portrait",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "recommended",
+        "costar": "required",
+        "underfive": "recommended",
+        "background": "none"
+      }
+    },
+    {
+      "id": "face",
+      "type": "asset",
+      "label": "Face crop",
+      "kind": "face",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "recommended",
+        "costar": "required",
+        "underfive": "recommended",
+        "background": "none"
+      }
+    },
+    {
+      "id": "views",
+      "type": "asset",
+      "label": "Views (front, profile, back)",
+      "kind": "view",
+      "variants": [
+        "front",
+        "profile",
+        "back"
+      ],
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "none",
+        "costar": "recommended",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "expressions",
+      "type": "asset",
+      "label": "Expressions",
+      "kind": "expression",
+      "variants": [
+        "happy",
+        "sad",
+        "frightened",
+        "mad"
+      ],
+      "levels": {
+        "lead": "required",
+        "supporting": "recommended",
+        "guest": "recommended",
+        "narrator": "none",
+        "costar": "none",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "sourcePhoto",
+      "type": "asset",
+      "label": "Source photo",
+      "kind": "sourcePhoto",
+      "levels": {
+        "lead": "recommended",
+        "supporting": "recommended",
+        "guest": "recommended",
+        "narrator": "recommended",
+        "costar": "recommended",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "lora",
+      "type": "asset",
+      "label": "Character LoRA",
+      "kind": "lora",
+      "levels": {
+        "lead": "recommended",
+        "supporting": "none",
+        "guest": "none",
+        "narrator": "none",
+        "costar": "none",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "training.withLora",
+      "type": "check",
+      "label": "Training set (when a LoRA exists)",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "required",
+        "background": "required"
+      }
+    },
+    {
+      "id": "crowdRef",
+      "type": "asset",
+      "label": "Crowd reference",
+      "kind": "crowdRef",
+      "levels": {
+        "lead": "none",
+        "supporting": "none",
+        "guest": "none",
+        "narrator": "none",
+        "costar": "none",
+        "underfive": "none",
+        "background": "recommended"
+      }
+    },
+    {
+      "id": "voicePrompt",
+      "type": "check",
+      "label": "Voice prompt (CAST.md)",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "required",
+        "background": "none"
+      }
+    },
+    {
+      "id": "vox.1.7b",
+      "type": "check",
+      "label": ".vox, 1.7B",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "required",
+        "background": "none"
+      }
+    },
+    {
+      "id": "vox.0.6b",
+      "type": "check",
+      "label": ".vox, 0.6B",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "recommended",
+        "background": "none"
+      }
+    },
+    {
+      "id": "sample.neutral.1.7b",
+      "type": "check",
+      "label": "Voice sample, neutral (1.7B)",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "required",
+        "background": "none"
+      }
+    },
+    {
+      "id": "sample.neutral.0.6b",
+      "type": "check",
+      "label": "Voice sample, neutral (0.6B)",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "recommended",
+        "background": "none"
+      }
+    },
+    {
+      "id": "sample.range",
+      "type": "check",
+      "label": "Voice samples, range (3 or more)",
+      "levels": {
+        "lead": "required",
+        "supporting": "recommended",
+        "guest": "recommended",
+        "narrator": "recommended",
+        "costar": "none",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "pronunciation",
+      "type": "check",
+      "label": "Pronunciation",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "recommended",
+        "narrator": "required",
+        "costar": "none",
+        "underfive": "none",
+        "background": "none"
+      }
+    },
+    {
+      "id": "dossier",
+      "type": "asset",
+      "label": "Dossier page",
+      "kind": "dossier",
+      "levels": {
+        "lead": "required",
+        "supporting": "required",
+        "guest": "required",
+        "narrator": "required",
+        "costar": "required",
+        "underfive": "required",
+        "background": "none"
+      }
+    }
+  ]
+}

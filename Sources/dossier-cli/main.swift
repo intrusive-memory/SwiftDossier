@@ -1,0 +1,3 @@
+import DossierCLICore
+
+DossierCommand.main()

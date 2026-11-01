@@ -1,0 +1,41 @@
+name: Tests
+
+# Both jobs run a `make` target; the scheme, destinations, arch pins and the
+# dossier-format pin are defined once, in the Makefile. If a destination stops
+# resolving on the runner image, change the Makefile, never this file.
+
+on:
+  pull_request:
+    branches: [main, development]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-macos:
+    # Branch-protection context: renaming this silently drops the gate.
+    name: Test on macOS
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Resolve package dependencies
+        run: make resolve
+
+      - name: Test
+        run: make test
+
+  test-ios:
+    # Branch-protection context, as above.
+    name: Test on iOS Simulator
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Test
+        run: make test-ios

@@ -6,3 +6,4 @@ xcuserdata/
 *.profraw
 Package.resolved
 /bin/
+.dossier-format/

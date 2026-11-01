@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intrusive-memory.github.io/dossier-format/schemas/manifest-v1.schema.json",
+  "title": "dossier manifest, version 1 (read only)",
+  "description": "docs/DOSSIER-FORMAT.md Appendix A. Readers MAY read it; writers MUST NOT write it.",
+  "type": "object",
+  "required": [
+    "manifestVersion",
+    "character",
+    "updatedAt",
+    "files",
+    "assets",
+    "manifestChecksum"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 1
+    },
+    "character": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "enum": [
+        "lead",
+        "supporting",
+        "guest",
+        "narrator",
+        "costar",
+        "underfive",
+        "background"
+      ]
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "generator": {
+      "type": "object"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "sizeBytes"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "status"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!/)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+          },
+          "kind": {
+            "enum": [
+              "description",
+              "portrait",
+              "vox",
+              "voiceSample",
+              "dossier",
+              "sourcePhoto",
+              "lora",
+              "training",
+              "crowdRef",
+              "turnaround",
+              "faceSheet",
+              "expressions",
+              "wardrobe",
+              "palette"
+            ]
+          },
+          "status": {
+            "enum": [
+              "selected",
+              "candidate",
+              "rejected"
+            ]
+          },
+          "variant": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "tool": {
+                "type": "string"
+              },
+              "references": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "derivedFrom": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            ]
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "passed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "notes": {
+                "type": "string"
+              }
+            }
+          },
+          "sampleText": {
+            "type": "string"
+          },
+          "lora": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "manifestChecksum": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

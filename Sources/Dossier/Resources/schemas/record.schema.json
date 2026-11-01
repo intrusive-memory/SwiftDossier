@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intrusive-memory.github.io/dossier-format/schemas/record.schema.json",
+  "title": "The dossier page's embedded record",
+  "description": "docs/DOSSIER-FORMAT.md §11: the content of <script type=\"application/json\" id=\"character-record\">.",
+  "type": "object",
+  "required": [
+    "formatVersion",
+    "character",
+    "frontMatter",
+    "body",
+    "manifest"
+  ],
+  "properties": {
+    "formatVersion": {
+      "const": 2
+    },
+    "character": {
+      "type": "string"
+    },
+    "castMember": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "frontMatter": {
+      "type": "object"
+    },
+    "body": {
+      "type": "string"
+    },
+    "manifest": {
+      "$ref": "manifest-v2.schema.json"
+    }
+  }
+}
