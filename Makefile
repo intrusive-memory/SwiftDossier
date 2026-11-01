@@ -29,7 +29,7 @@ ifdef TEST_FILTER
 TEST_ONLY = -only-testing:$(shell scripts/test-filter.sh "$(TEST_FILTER)")
 endif
 
-.PHONY: help build test test-ios fixtures release install clean resolve acceptance
+.PHONY: help build test test-ios fixtures release smoke install clean resolve acceptance
 
 .DEFAULT_GOAL := help
 
@@ -40,8 +40,9 @@ help:
 	@echo "  test        - Run the test suite on macOS (arm64); honours TEST_FILTER; runs fixtures first"
 	@echo "  test-ios    - Run the test suite on the iPhone 17 simulator; runs fixtures first"
 	@echo "  fixtures    - Fetch dossier-format $(DOSSIER_FORMAT_REF) into $(FIXTURES_DIR)/"
-	@echo "  release     - Release build of the dossier CLI, copied to $(BIN_DIR)/"
-	@echo "  install     - Debug build of the dossier CLI, copied to $(BIN_DIR)/"
+	@echo "  release     - Release build of the dossier CLI and its resource bundles, copied to $(BIN_DIR)/"
+	@echo "  install     - Debug build of the dossier CLI and its resource bundles, copied to $(BIN_DIR)/"
+	@echo "  smoke       - Run bin/dossier from another directory on a conformance fixture (after release)"
 	@echo "  clean       - Remove build artifacts, $(BIN_DIR)/, and DerivedData"
 	@echo "  resolve     - Resolve package dependencies"
 	@echo "  acceptance  - Acceptance run (stub; Sortie 10 fills it)"
@@ -94,11 +95,21 @@ release: resolve
 	@PRODUCT_DIR=$$(ls -td $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Release 2>/dev/null | head -1); \
 	if [ -n "$$PRODUCT_DIR" ] && [ -x "$$PRODUCT_DIR/$(BINARY)" ]; then \
 		cp "$$PRODUCT_DIR/$(BINARY)" $(BIN_DIR)/; \
-		echo "Installed $(BINARY) to $(BIN_DIR)/ (Release)"; \
+		rm -rf $(BIN_DIR)/*.bundle; \
+		cp -R "$$PRODUCT_DIR"/*.bundle $(BIN_DIR)/; \
+		echo "Installed $(BINARY) and its resource bundles to $(BIN_DIR)/ (Release)"; \
 	else \
 		echo "Error: could not find $(BINARY) in $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Release"; \
 		exit 1; \
 	fi
+
+# Runs the released binary from a directory that is not this one, so a resource bundle it
+# only finds through a build-tree path fails here. Needs `make release` and `make fixtures`.
+smoke:
+	@FIX="$$(cd $(FIXTURES_DIR)/examples/valid/complete-lead && pwd)"; BIN="$$(cd $(BIN_DIR) && pwd)/$(BINARY)"; \
+	cd "$$(mktemp -d)" && \
+	"$$BIN" validate "$$FIX/characters/WREN HALLOWAY.dossier" --cast "$$FIX/CAST.md" --json >/dev/null && \
+	echo "smoke: $(BINARY) found its resources and validated the fixture"
 
 install: resolve
 	xcodebuild build -scheme $(CLI_SCHEME) \
@@ -109,7 +120,9 @@ install: resolve
 	@PRODUCT_DIR=$$(ls -td $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Debug 2>/dev/null | head -1); \
 	if [ -n "$$PRODUCT_DIR" ] && [ -x "$$PRODUCT_DIR/$(BINARY)" ]; then \
 		cp "$$PRODUCT_DIR/$(BINARY)" $(BIN_DIR)/; \
-		echo "Installed $(BINARY) to $(BIN_DIR)/ (Debug)"; \
+		rm -rf $(BIN_DIR)/*.bundle; \
+		cp -R "$$PRODUCT_DIR"/*.bundle $(BIN_DIR)/; \
+		echo "Installed $(BINARY) and its resource bundles to $(BIN_DIR)/ (Debug)"; \
 	else \
 		echo "Error: could not find $(BINARY) in $(DERIVED_DATA)/SwiftDossier-*/Build/Products/Debug"; \
 		exit 1; \

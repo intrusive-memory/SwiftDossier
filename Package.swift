@@ -124,7 +124,11 @@ let package = Package(
     ),
     .testTarget(
       name: "DossierCLICoreTests",
-      dependencies: ["DossierCLICore"],
+      dependencies: [
+        "DossierCLICore",
+        "Dossier",
+        "DossierCore",
+      ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
   ],

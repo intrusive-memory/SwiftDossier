@@ -1,3 +1,4 @@
 import DossierCLICore
+import Foundation
 
-DossierCommand.main()
+exit(DossierCLI.run(Array(CommandLine.arguments.dropFirst()), sink: ConsoleOutputSink()))

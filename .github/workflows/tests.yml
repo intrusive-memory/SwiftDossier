@@ -28,6 +28,11 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Release smoke
+        # The released binary, run from another directory on a conformance fixture:
+        # catches resource bundles it can't find once it leaves the build tree.
+        run: make release && make smoke
+
   test-ios:
     # Branch-protection context, as above.
     name: Test on iOS Simulator
