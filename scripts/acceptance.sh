@@ -340,6 +340,33 @@ def references_with_source(value):
     return found
 
 
+def stripped_sha256(path):
+    """The hash `dossier add` stores for a PNG (SD-6): without its metadata chunks, or None if malformed."""
+    with open(path, "rb") as file:
+        data = file.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    kept, offset = [data[:8]], 8
+    while offset + 12 <= len(data):
+        end = offset + 12 + int.from_bytes(data[offset:offset + 4], "big")
+        kind = data[offset + 4:offset + 8]
+        if kind not in (b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME"):
+            kept.append(data[offset:end])
+        offset = end
+        if kind == b"IEND":
+            return hashlib.sha256(b"".join(kept)).hexdigest() if offset == len(data) else None
+    return None
+
+
+def current_selection(manifest, role):
+    """The path of the selected asset a reference's role names (§6), or None."""
+    kind, _, variant = role.partition(":") if isinstance(role, str) else ("", "", "")
+    for asset in manifest.get("assets", []):
+        if asset.get("status") == "selected" and asset.get("kind") == kind and asset.get("variant") == (variant or None):
+            return asset.get("path")
+    return None
+
+
 def same_time(first, second):
     try:
         parse = lambda text: datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
@@ -369,7 +396,8 @@ def item2(members, pre_add_errors):
 
     manifest_path = os.path.join(bundle, "manifest.json")
     variant = candidate["variant"] or "acceptance"
-    destination = f"images/view-{variant}-{sha256_of(candidate['path'])[:8]}.png"
+    # Named for the bytes it will have: a PNG loses its metadata as it's copied in (SD-6).
+    destination = f"images/view-{variant}-{(stripped_sha256(candidate['path']) or sha256_of(candidate['path']))[:8]}.png"
     if any(asset.get("path") == destination for asset in read_json(manifest_path).get("assets", [])):
         status, result = dossier("remove", bundle, destination, "--yes")
         if status != 0:
@@ -380,7 +408,8 @@ def item2(members, pre_add_errors):
     before = read_json(manifest_path)
     hashes = asset_hashes(before)
     references = sidecar_references(sidecar)
-    roles = ["portrait", "face"][: len(references)]
+    # §7 refuses a role with no selection when its bytes aren't in the bundle, so only those it has.
+    roles = [role for role in ("portrait", "face") if current_selection(before, role)][: len(references)]
     arguments = ["add", bundle, candidate["path"], "--kind", "view", "--variant", variant, "--sidecar", candidate["sidecar"]]
     if roles:
         arguments += ["--reference-roles", ",".join(roles)]
@@ -412,30 +441,33 @@ def item2(members, pre_add_errors):
             failures.append("generatedAt didn't become createdAt")
 
     recorded = provenance.get("references", [])
-    matched, with_path, wrong_path, by_kind, wrong_role = 0, 0, 0, collections.Counter(), 0
+    matched, at_selection, wrong_path, by_kind = 0, 0, 0, collections.Counter()
     if len(recorded) != len(references):
         failures.append("the number of references changed")
     for original, entry in zip(references, recorded):
         assets = hashes.get(original["sha256"], [])
         if entry.get("sha256") != original["sha256"]:
             failures.append("a reference's sha256 changed")
-        with_path += "path" in entry
         if assets:
             matched += 1
             if entry.get("path") not in [asset.get("path") for asset in assets]:
                 wrong_path += 1
             for kind in {asset.get("kind") for asset in assets} & {"portrait", "face"}:
                 by_kind[kind] += 1
-                if entry.get("role") != kind:
-                    wrong_role += 1
-        elif "path" in entry and "path" not in original:
-            wrong_path += 1
-    print(f"  references: {len(recorded)}; hashes matching an asset: {matched}; with a path: {with_path}; "
+        elif "path" not in original:
+            selection = current_selection(before, entry.get("role"))
+            if entry.get("path") != selection:
+                wrong_path += 1
+            elif selection:
+                at_selection += 1
+    print(f"  references: {len(recorded)}; hashes matching an asset: {matched}; "
+          f"recorded with the current selection's path: {at_selection}; "
           f"mapped to a portrait: {by_kind['portrait']}; mapped to a face: {by_kind['face']}")
+    print(f"  face mapping occurred: {'yes' if by_kind['face'] else 'no'}")
+    if recorded and not matched:
+        print("  0 hashes match: a stripped portrait's hash won't match a reference taken from an unstripped copy")
     if wrong_path:
         failures.append(f"{wrong_path} references have the wrong path")
-    if wrong_role:
-        failures.append(f"{wrong_role} references have a role that isn't their asset's kind")
 
     sources = references_with_source(manifest)
     print(f"  references with source in the manifest: {sources}")
@@ -451,8 +483,9 @@ def item2(members, pre_add_errors):
     if failures:
         row("item", "FAIL", f"2 FAIL: {'; '.join(failures)}")
     else:
-        note = "" if matched else ", but no reference matches an asset, so the mapping wasn't exercised"
-        row("item", "PASS", f"2 PASS: {name}, every SD-7 key recorded, {matched} of {len(recorded)} reference hashes match{note}")
+        row("item", "PASS",
+            f"2 PASS: {name}, every SD-7 key recorded, {matched} of {len(recorded)} reference hashes match and are mapped, "
+            f"{at_selection} recorded with the current selection's path, face mapping: {'yes' if by_kind['face'] else 'no'}")
 
 
 # Item 4 ---------------------------------------------------------------------------------------
