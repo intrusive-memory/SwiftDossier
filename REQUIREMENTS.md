@@ -27,7 +27,7 @@ the two.
 ## 1. The specification
 
 dossier-format's specification, schemas, tier table and conformance fixtures
-are written and tagged **`v2.0.0-rc.2`** (2026-10-31), the revision this package
+are written and tagged **`v2.0.0-rc.3`** (2026-10-31), the revision this package
 pins. Its page template, field list and design tokens are not written.
 
 | # | Rule |
@@ -42,7 +42,7 @@ pins. Its page template, field list and design tokens are not written.
 | Target | Depends on | Contains |
 |--------|------------|----------|
 | `DossierCore` | Foundation, CryptoKit, SwiftReparto, Yams | Read-only. `Cast.load(_:)` (discovery from CAST.md, DOSSIER-FORMAT §3), `DossierBundle.open(at:)`, `Manifest`, `Asset`, `AssetKind`, `assets(kind:variant:)`, `selectedAsset(kind:variant:)`, `sampleURL(variant:)`, `identityPrompt`, `artStyle` (CHARACTER.md front matter, UD20), `pageURL`, `completeness(tier:)`, `stale()`, `DossierTabs`. No writers. Linked by the Vinetas app. |
-| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate()`, `validate(cast:)`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
+| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate(template:)`, `validate(cast:template:)`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
 | `DossierCLICore` | `Dossier`, ArgumentParser | Command logic, unit-testable without a subprocess. Not a product (SwiftReparto D-6). |
 | `dossier` | `DossierCLICore` | The executable (§5). |
 
@@ -67,9 +67,9 @@ pins. Its page template, field list and design tokens are not written.
 | SD-8 | **`select`** demotes the previous `selected` of the same `kind` + `variant` to `candidate`; for a `voiceSample`, of the same `kind` + `variant` + `model` (DOSSIER-FORMAT §5.4). `--select` on `add` does both in one write. |
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
-| SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules (`voice/<CHARACTER>.vox` → `vox`; `voice/sample-<variant>[-<model>].m4a` → `voiceSample`, with `model` from the suffix or the vox default). Anything else stays unclassified. Orphan adoption follows §3 exactly. |
-| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug, and data never changes. `migrate` and `create` say so when the file was not yet normalized (`generate(parse(x)) != x`), and suggest `reparto canonicalize --apply` first. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
-| SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and `$ref` to another of the pinned schemas (`$id`, `$schema`, `title` and `description` are ignored). An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
+| SD-11 | **`refresh`** adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules, which include when a sample can't be adopted. Anything else stays unclassified and the command reports why. Orphan adoption follows §3 exactly. |
+| SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug. It doesn't change a member's DOSSIER-FORMAT §7 hash, with these exceptions, which lose data or change a path: a `voices` provider value of the wrong type is dropped, a provider-case collision keeps one value, and absolute paths under the project become relative. `migrate` and `create` report any of these before writing, and say so when the file was not yet normalized (`generate(parse(x)) != x`). They suggest `reparto canonicalize --apply` first, which also renames non-canonical members. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
+| SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, and `$ref` to another of the pinned schemas (`$id`, `$schema`, `title` and `description` are ignored). `type` may be an array and `$ref` may be relative. An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
 
 ## 4. Face crop, validation, page
 
@@ -81,8 +81,11 @@ pins. Its page template, field list and design tokens are not written.
   Personaje `tools/face_crop.swift`.
 - **Validation (DOSSIER-FORMAT §14):** read-only, every finding with its
   code (`E-…`, `W-…`) and the §8.3 completeness report, tier rows read from
-  `data/tiers.json` and check rows implemented by ID. `validate(cast:)` adds the CAST.md checks and
-  orphans. Exit status: 0 clean, 1 warnings only, 2 errors.
+  `data/tiers.json` and check rows implemented by ID. `validate(cast:template:)`
+  adds the CAST.md checks and orphans. The template compared against (§11) is a
+  parameter, here and on `stale()`: `nil` until a template ships, the bundled one
+  after, and the one `conformance.json` names in tests. Exit status: 0 clean,
+  1 warnings only, 2 errors.
 - **Page (DOSSIER-FORMAT §11):** `renderPage()` writes `<CHARACTER>-dossier.html`
   from CHARACTER.md, the manifest, the CAST.md member and the selected
   originals, through the dossier-format template. Page copies are made with
@@ -116,9 +119,9 @@ dossier migrate  characters/SHANE --cast CAST.md [--apply]   # dry run by defaul
 ## 6. Migration (`dossier migrate`)
 
 Implements DOSSIER-FORMAT Appendix A, per bundle, dry run by default listing
-every change; `--apply` performs it. The synthetic v1 bundles (SD-4) are the test fixtures;
-Granville's nine bundles (version 1 contents in `.dossier` directories) are
-the local acceptance run. The steps, in order:
+every change; `--apply` performs it. The synthetic v1 bundles (SD-4) are the test fixtures.
+Granville's nine are already on version 2, so a local acceptance run uses the
+version 1 manifests on its `experiment/gemini-voices` branch. The steps, in order:
 rename `<NAME>/` to `<NAME>.dossier/` if needed; fold sidecars into
 provenance (references mapped by sha256, absolute paths dropped; round and
 seed from the old file name into `provenance.round` / `provenance.seed`);
@@ -147,7 +150,10 @@ first (SD-1).
    template, SD-2). `dossier render` waits for it: there is no bridge (Q2). The
    template's mission follows phase 1 directly. **`render_dossier.py` must not
    be run on a v2 bundle;** it rewrites the manifest with a path-order checksum.
-4. **Migration,** for any remaining v1 bundle. Granville's nine are already on
+4. **Migration,** for any remaining v1 bundle. Appendix A's order is settled, but
+   not yet every field: a v1 asset can lack what v2 requires, reference paths
+   aren't updated after a rename, and `rejected` assets have no stated
+   destination. Those go to dossier-format first (SD-1), before this phase starts. Granville's nine are already on
    manifest v2 (`dossier/v2-migration`, by a one-off script, 2026-10-22), so
    nothing else waits on this phase. Reading v1 stays in phase 1.
 
@@ -166,8 +172,8 @@ checkout (SD-4); they are not part of CI.
 4. On a copy of Granville's CAST.md that Reparto has written once
    (`reparto canonicalize --apply`), `dossier create` changes only the lines
    for the member it touches, and so does `dossier migrate --apply` on a
-   synthetic v1 bundle added to that copy. On the unnormalized copy, they change
-   no member's data.
+   synthetic v1 bundle added to that copy. On the unnormalized copy, no member's
+   §7 hash changes, apart from the exceptions SD-12 reports.
 5. `DossierCore` builds and links without `Vision`, `ImageIO` or
    ArgumentParser.
 
