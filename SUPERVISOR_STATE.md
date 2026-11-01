@@ -19,3 +19,4 @@ Mission = scope of work; sortie = one agent's atomic task.
 ## Decisions Log
 | Timestamp | Sortie | Decision | Rationale |
 |-----------|--------|----------|-----------|
+| 2026-11-01 | - | Mission work moved to a scratch clone | Another session shared the primary checkout (`docs/update-status`, SD-14). Primary returned to `development` with RECON_REPORT.md untracked as found |
