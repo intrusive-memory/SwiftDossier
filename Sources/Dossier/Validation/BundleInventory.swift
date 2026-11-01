@@ -26,7 +26,7 @@ struct BundleInventory {
   // SPEC-GAP: §5.2: how a manifest path compares with a name on disk isn't said. They're
   // compared as NFC strings, as §3 compares paths, because a filesystem may store either
   // form. The comparison is case-sensitive, so the result doesn't depend on the filesystem.
-  private static func key(_ path: String) -> [UInt8] {
+  static func key(_ path: String) -> [UInt8] {
     Array(path.precomposedStringWithCanonicalMapping.utf8)
   }
 

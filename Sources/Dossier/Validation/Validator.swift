@@ -127,7 +127,7 @@ extension DossierBundle {
 
 extension SchemaEvaluator {
   /// The pinned schemas, loaded once.
-  fileprivate static let bundledSchemas = Result<SchemaEvaluator, any Error> { try SchemaEvaluator.pinned() }
+  static let bundledSchemas = Result<SchemaEvaluator, any Error> { try SchemaEvaluator.pinned() }
 }
 
 /// One bundle's checks. Reads the disk, and writes nothing.
@@ -309,10 +309,10 @@ private struct BundleValidation {
       // SPEC-GAP: §5.4, Appendix A: version 1 keeps a variant in `label`, which is never a key,
       // so its combinations can't be told apart. `E-MULTI-SELECTED` is version 2's.
       if asset.status == .selected {
-        var key = [asset.kind.rawValue, asset.variant ?? ""]
-        if asset.kind == .voiceSample { key.append(asset.model ?? "") }
-        if !selections.insert(Array(key.joined(separator: "\0").utf8)).inserted {
-          add(.multiSelected, "More than one selected \(key.joined(separator: " "))", path: asset.path)
+        if !selections.insert(asset.selectionKey).inserted {
+          let name = [asset.kind.rawValue, asset.variant, asset.kind == .voiceSample ? asset.model : nil]
+            .compactMap { $0 }.joined(separator: " ")
+          add(.multiSelected, "More than one selected \(name)", path: asset.path)
         }
       }
     }
