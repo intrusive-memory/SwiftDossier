@@ -120,41 +120,43 @@ extension DossierBundle {
       extra: options.provenance)
     let createdAt = try Self.createdAt(of: file, options: options, folded: folded)
 
-    let placed = try place(stored, at: path)
-    do {
-      var added: Asset?
-      let member = member
-      let manifest = try writer.update { manifest, scan in
-        try folded.resolveReferences(roles: options.referenceRoles, manifest: manifest, scan: scan)
-        folded.resolveLoras(manifest: manifest)
-        let provenance = Provenance(json: folded.json)
-        var asset = Asset(
-          path: path, kind: kind, status: options.select ? .selected : .candidate, createdAt: createdAt,
-          provenance: provenance)
-        asset.variant = options.variant
-        asset.model = options.model
-        asset.sampleText = options.sampleText
-        asset.language = options.language
-        asset.label = options.label
-        asset.lora = options.lora
-        asset.training = options.training
-        if let inputs = try DerivedInputs.resolve(
-          kind: kind, path: path, explicit: options.derivedFrom, references: provenance.references,
-          template: options.template, member: member, manifest: manifest, scan: scan)
-        {
-          asset.derivedFrom = inputs
+    return try UpdateHolding.holding(bundle: url, label: "add \(path)") {
+      let placed = try place(stored, at: path)
+      do {
+        var added: Asset?
+        let member = member
+        let manifest = try writer.update { manifest, scan in
+          try folded.resolveReferences(roles: options.referenceRoles, manifest: manifest, scan: scan)
+          folded.resolveLoras(manifest: manifest)
+          let provenance = Provenance(json: folded.json)
+          var asset = Asset(
+            path: path, kind: kind, status: options.select ? .selected : .candidate, createdAt: createdAt,
+            provenance: provenance)
+          asset.variant = options.variant
+          asset.model = options.model
+          asset.sampleText = options.sampleText
+          asset.language = options.language
+          asset.label = options.label
+          asset.lora = options.lora
+          asset.training = options.training
+          if let inputs = try DerivedInputs.resolve(
+            kind: kind, path: path, explicit: options.derivedFrom, references: provenance.references,
+            template: options.template, member: member, manifest: manifest, scan: scan)
+          {
+            asset.derivedFrom = inputs
+          }
+          var assets = manifest.assets
+          if options.select { Self.demoteSelection(of: asset.selectionKey, in: &assets) }
+          assets.append(asset)
+          manifest.assets = assets
+          added = asset
         }
-        var assets = manifest.assets
-        if options.select { Self.demoteSelection(of: asset.selectionKey, in: &assets) }
-        assets.append(asset)
-        manifest.assets = assets
-        added = asset
+        self = DossierBundle(url: url, manifest: manifest, member: member)
+        return added!
+      } catch {
+        placed.undo()
+        throw error
       }
-      self = DossierBundle(url: url, manifest: manifest, member: member)
-      return added!
-    } catch {
-      placed.undo()
-      throw error
     }
   }
 
@@ -191,12 +193,14 @@ extension DossierBundle {
       self = DossierBundle(url: url, manifest: current, member: member)
       return
     }
-    let manifest = try writer.update { manifest, _ in
-      var prompts = manifest.prompts ?? Manifest.Prompts(json: JSONObject())
-      prompts.json[key.rawValue] = .string(text)
-      manifest.prompts = prompts
+    try UpdateHolding.holding(bundle: url, label: "set the \(key.rawValue) prompt") {
+      let manifest = try writer.update { manifest, _ in
+        var prompts = manifest.prompts ?? Manifest.Prompts(json: JSONObject())
+        prompts.json[key.rawValue] = .string(text)
+        manifest.prompts = prompts
+      }
+      self = DossierBundle(url: url, manifest: manifest, member: member)
     }
-    self = DossierBundle(url: url, manifest: manifest, member: member)
   }
 
   /// Deletes one asset and its file (SD-9). Assets derived from it stay, and read as stale (§7).
@@ -218,21 +222,23 @@ extension DossierBundle {
     let aside = file.map {
       $0.url.deletingLastPathComponent().appendingPathComponent(".removing-\(UUID().uuidString)")
     }
-    if let file, let aside { try manager.moveItem(at: file.url, to: aside) }
-    let manifest: Manifest
-    do {
-      manifest = try writer.update { manifest, _ in
-        var assets = manifest.assets
-        assets.removeAll { $0.hasPath(path) }
-        manifest.assets = assets
+    try UpdateHolding.holding(bundle: url, label: "remove \(asset.path)") {
+      if let file, let aside { try manager.moveItem(at: file.url, to: aside) }
+      let manifest: Manifest
+      do {
+        manifest = try writer.update { manifest, _ in
+          var assets = manifest.assets
+          assets.removeAll { $0.hasPath(path) }
+          manifest.assets = assets
+        }
+      } catch {
+        if let file, let aside { try? manager.moveItem(at: aside, to: file.url) }
+        throw error
       }
-    } catch {
-      if let file, let aside { try? manager.moveItem(at: aside, to: file.url) }
-      throw error
+      // Written. A file that won't go now is hidden, so it's outside §5.2's inventory.
+      if let aside { try? manager.removeItem(at: aside) }
+      self = DossierBundle(url: url, manifest: manifest, member: member)
     }
-    // Written. A file that won't go now is hidden, so it's outside §5.2's inventory.
-    if let aside { try? manager.removeItem(at: aside) }
-    self = DossierBundle(url: url, manifest: manifest, member: member)
   }
 
   /// Deletes the whole bundle (SD-9). `CAST.md` isn't changed, so a member pointing here now
@@ -261,18 +267,20 @@ extension DossierBundle {
       return target
     }
 
-    var written = target
-    let manifest = try writer.update { manifest, _ in
-      var assets = manifest.assets
-      if status == .selected { Self.demoteSelection(of: target.selectionKey, in: &assets) }
-      if let index = assets.firstIndex(where: { $0.hasPath(path) }) {
-        assets[index].status = status
-        written = assets[index]
+    return try UpdateHolding.holding(bundle: url, label: "mark \(target.path) \(status.rawValue)") {
+      var written = target
+      let manifest = try writer.update { manifest, _ in
+        var assets = manifest.assets
+        if status == .selected { Self.demoteSelection(of: target.selectionKey, in: &assets) }
+        if let index = assets.firstIndex(where: { $0.hasPath(path) }) {
+          assets[index].status = status
+          written = assets[index]
+        }
+        manifest.assets = assets
       }
-      manifest.assets = assets
+      self = DossierBundle(url: url, manifest: manifest, member: member)
+      return written
     }
-    self = DossierBundle(url: url, manifest: manifest, member: member)
-    return written
   }
 
   private static func demoteSelection(of key: [UInt8], in assets: inout [Asset]) {

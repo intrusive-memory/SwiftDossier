@@ -76,15 +76,15 @@ enum JSONOut {
 public enum DossierCLI {
   /// Runs the command line `arguments` (without the executable's name).
   ///
-  /// - Returns: The exit status. `validate` gives 0 clean, 1 warnings only, 2 errors; the
-  ///   other commands give 0 or 1; a bad command line gives ArgumentParser's own status.
+  /// - Returns: The exit status. `validate` gives 0 clean, 1 warnings only, 2 errors; `update run`
+  ///   its command's; the other commands give 0 or 1; a bad command line gives ArgumentParser's own.
   public static func run(_ arguments: [String], sink: any OutputSink) -> Int32 {
     let json = arguments.prefix { $0 != "--" }.contains("--json")
     var failureStatus: Int32 = 1
     do {
       let parsed = try DossierCommand.parseAsRoot(arguments)
       guard let command = parsed as? any DossierSubcommand else {
-        sink.writeOutput(DossierCommand.helpMessage() + "\n")
+        sink.writeOutput(DossierCommand.helpMessage(for: type(of: parsed)) + "\n")
         return 0
       }
       failureStatus = type(of: command).failureStatus

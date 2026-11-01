@@ -302,19 +302,22 @@ public struct CharacterDescription: Sendable {
     let isListed = current.files.contains { $0.path == Self.fileName && $0.sha256 == Checksum.sha256(bytes) }
     if isSameText, isListed { return }
 
-    if !isSameText { try Self.replace(destination, with: bytes) }
-    do {
-      let manifest = try writer.update { _, _ in }
-      bundle = DossierBundle(url: bundle.url, manifest: manifest, member: bundle.member)
-    } catch {
-      if !isSameText {
-        if let prior {
-          try? Self.replace(destination, with: prior)
-        } else {
-          try? manager.removeItem(at: destination)
+    let target = bundle.url
+    try UpdateHolding.holding(bundle: target, label: "write \(Self.fileName)") {
+      if !isSameText { try Self.replace(destination, with: bytes) }
+      do {
+        let manifest = try writer.update { _, _ in }
+        bundle = DossierBundle(url: bundle.url, manifest: manifest, member: bundle.member)
+      } catch {
+        if !isSameText {
+          if let prior {
+            try? Self.replace(destination, with: prior)
+          } else {
+            try? manager.removeItem(at: destination)
+          }
         }
+        throw error
       }
-      throw error
     }
   }
 

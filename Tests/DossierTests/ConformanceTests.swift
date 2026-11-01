@@ -40,6 +40,13 @@ enum Conformance {
     let mayAlso: [String]
     let complete: Bool?
     let missingRequired: [String]?
+    /// `examples/README.md`: `at` is the time to use as `now`, and `updating` is §5.7's answer.
+    let updateStatus: UpdateAssertion?
+
+    struct UpdateAssertion: Decodable, Sendable {
+      let at: String
+      let updating: Bool
+    }
 
     var testDescription: String { path }
   }
@@ -67,6 +74,28 @@ enum Conformance {
 
   static func castURL(of path: String) -> URL {
     root.appendingPathComponent(path).appendingPathComponent("CAST.md")
+  }
+
+  /// Every directory under examples/ named `update-*`, relative to it.
+  static func updateFixtureDirectories() -> [String] {
+    let base = root.resolvingSymlinksInPath()
+    guard let walker = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isDirectoryKey]) else {
+      return []
+    }
+    var found: [String] = []
+    for case let url as URL in walker
+    where url.lastPathComponent.hasPrefix("update-")
+      && (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    {
+      found.append(String(url.resolvingSymlinksInPath().path.dropFirst(base.path.count + 1)))
+    }
+    return found.sorted()
+  }
+
+  /// The `update-*` fixtures with no entry asserting `updateStatus`.
+  static func unasserted(updateFixtures: [String], entries: [Entry]) -> [String] {
+    let asserted = Set(entries.filter { $0.updateStatus != nil }.map(\.path))
+    return updateFixtures.filter { !asserted.contains($0) }
   }
 }
 
@@ -107,6 +136,38 @@ struct ConformanceTests {
       #expect(found.report.isComplete == complete)
       #expect(found.report.missingRequired == entry.missingRequired?.sorted())
     }
+
+    if let assertion = entry.updateStatus {
+      let now = try #require(UpdateMarker.date(fromTimestamp: assertion.at), "updateStatus.at: \(assertion.at)")
+      let bundle = try DossierBundle.open(
+        at: Conformance.root.appendingPathComponent(entry.path).appendingPathComponent(entry.bundle))
+      #expect(bundle.updateStatus(at: now).isUpdating == assertion.updating)
+    }
+  }
+
+  // At the rc.3 pin there's no such fixture, and the assertion in `fixture` doesn't run:
+  // `UpdateStatusTests` has the rule. A tree with them can't pass without asserting them.
+  @Test("An update-* fixture has an updateStatus entry")
+  func updateFixturesAreAsserted() throws {
+    let entries = try Conformance.document().fixtures
+    let unasserted = Conformance.unasserted(
+      updateFixtures: Conformance.updateFixtureDirectories(), entries: entries)
+    #expect(unasserted.isEmpty, "update fixtures nothing asserts: \(unasserted)")
+  }
+
+  @Test("The check above finds an update-* fixture with no updateStatus")
+  func updateFixtureCheckBites() throws {
+    let plain = try JSONDecoder().decode(
+      Conformance.Entry.self,
+      from: Data(#"{"path": "valid/update-a", "bundle": "b", "verdict": "valid", "codes": [], "mayAlso": []}"#.utf8))
+    #expect(plain.updateStatus == nil)
+    #expect(Conformance.unasserted(updateFixtures: ["valid/update-a"], entries: [plain]) == ["valid/update-a"])
+    let asserted = try JSONDecoder().decode(
+      Conformance.Entry.self,
+      from: Data(
+        #"{"path": "valid/update-a", "bundle": "b", "verdict": "valid", "codes": [], "mayAlso": [], "updateStatus": {"at": "2026-10-19T17:00:00Z", "updating": true}}"#
+          .utf8))
+    #expect(Conformance.unasserted(updateFixtures: ["valid/update-a"], entries: [asserted]).isEmpty)
   }
 
   @Test("§14: a validator changes nothing")

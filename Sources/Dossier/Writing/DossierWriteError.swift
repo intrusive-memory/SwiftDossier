@@ -85,6 +85,16 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case bundleOutsideCastDirectory(String)
   /// `CAST.md` couldn't be written. A bundle made for the write was removed.
   case castWriteFailed(String)
+  /// A marker's id isn't one or more ASCII letters, digits or hyphens (§5.7).
+  case updateIDNotAllowed(String)
+  /// The bundle has no marker with this id (§5.7).
+  case updateMarkerNotFound(String)
+  /// The marker isn't a JSON object, so it can't be renewed (§5.7).
+  case updateMarkerUnreadable(String)
+  /// A marker's lifetime is above 0 and no more than 3600 seconds (§5.7).
+  case updateLifetimeNotAllowed(TimeInterval)
+  /// A marker couldn't be written or removed.
+  case updateMarkerFailed(String)
 
   /// A description of the failure, for people.
   public var errorDescription: String? {
@@ -133,6 +143,11 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .memberPointsElsewhere(let member, let pointer): return "\(member) already points at \(pointer)"
     case .bundleOutsideCastDirectory(let path): return "\(path) isn't under the directory holding CAST.md"
     case .castWriteFailed(let detail): return "CAST.md couldn't be written: \(detail)"
+    case .updateIDNotAllowed(let id): return "\(id) isn't an update id: it needs ASCII letters, digits or hyphens"
+    case .updateMarkerNotFound(let id): return "The bundle has no update marker with the id \(id)"
+    case .updateMarkerUnreadable(let id): return "The update marker \(id) isn't a JSON object"
+    case .updateLifetimeNotAllowed(let seconds): return "\(seconds) seconds isn't above 0 and at most 3600"
+    case .updateMarkerFailed(let detail): return "The update marker couldn't be changed: \(detail)"
     }
   }
 }

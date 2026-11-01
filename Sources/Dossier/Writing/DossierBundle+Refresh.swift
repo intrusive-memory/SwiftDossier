@@ -111,19 +111,26 @@ extension DossierBundle {
 
     var manifest = current
     var adopted: [Asset] = []
-    if !plan.adoptions.isEmpty {
-      manifest = try writer.update { manifest, scan in
-        adopted = try plan.adoptions.map { try $0.asset(scan: scan) }
-        manifest.assets = manifest.assets + adopted
+    var member = member
+    // Nothing to change holds no marker.
+    let write = {
+      if !plan.adoptions.isEmpty {
+        manifest = try writer.update { manifest, scan in
+          adopted = try plan.adoptions.map { try $0.asset(scan: scan) }
+          manifest.assets = manifest.assets + adopted
+        }
+      }
+      if let castFile, let orphan {
+        if let document = orphan.document { try castFile.write(document) }
+        if let name = orphan.memberName {
+          member = (try? Cast.load(castFile.url))?.members.first { $0.character.hasSameBytes(as: name) } ?? member
+        }
       }
     }
-
-    var member = member
-    if let castFile, let orphan {
-      if let document = orphan.document { try castFile.write(document) }
-      if let name = orphan.memberName {
-        member = (try? Cast.load(castFile.url))?.members.first { $0.character.hasSameBytes(as: name) } ?? member
-      }
+    if plan.adoptions.isEmpty && orphan?.document == nil {
+      try write()
+    } else {
+      try UpdateHolding.holding(bundle: url, label: "refresh", write)
     }
     self = DossierBundle(url: url, manifest: manifest, member: member)
     return RefreshReport(
