@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftDossier — Agent Instructions
-updated: 2026-10-19
+updated: 2026-11-01
 ---
 
 # AGENTS.md
@@ -21,7 +21,7 @@ The Swift implementation of dossier-format: read, write, validate, migrate and r
 - **Builds and tests** go through the Makefile and `xcodebuild` (XcodeBuildMCP
   locally). Never `swift build` or `swift test`.
   `make help` lists the targets: `build`, `test` (honours `TEST_FILTER=<regex>`),
-  `test-ios`, `fixtures`, `release`, `install`, `clean`, `resolve`, `acceptance`.
+  `test-ios`, `fixtures`, `release`, `smoke`, `install`, `clean`, `resolve`, `acceptance`.
   `make fixtures` clones dossier-format at `DOSSIER_FORMAT_REF` (defined only in
   the Makefile) into the gitignored `.dossier-format/`; `make test` and
   `make test-ios` run it first. `scripts/pin-resources.sh` regenerates the

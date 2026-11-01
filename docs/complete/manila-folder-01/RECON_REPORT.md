@@ -1,12 +1,14 @@
 ---
 type: recon-report
-state: current
 requirements_file: REQUIREMENTS.md
 requirements_sha256: 1eca678060f63ef4e3a6ac836efc20f90a8f325afcd5ea4d58292ba87c2cf5d6
 project_head: 1938da4
 search_root: ~/Projects
 generated: 2026-10-31
 verdict: CLEAR
+state: completed
+updated: 2026-11-01
+mission: manila-folder-01
 ---
 
 # RECON_REPORT.md — SwiftDossier

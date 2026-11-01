@@ -1,7 +1,8 @@
 ---
 type: mission-brief
-state: incomplete
+state: completed
 updated: 2026-11-01
+mission: manila-folder-01
 ---
 
 # OPERATION MANILA FOLDER, iteration 1: brief

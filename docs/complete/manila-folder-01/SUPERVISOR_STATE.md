@@ -1,5 +1,8 @@
 ---
 type: docs
+state: completed
+updated: 2026-11-01
+mission: manila-folder-01
 ---
 # SUPERVISOR_STATE.md — OPERATION MANILA FOLDER
 
