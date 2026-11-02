@@ -154,7 +154,7 @@
         "emptyText": "No sources",
         "source": {
           "from": "footnotes",
-          "item": "One item per footnote definition (§9.3), in the order each label is first referenced in the CHARACTER.md body: the class, then the text."
+          "item": "One item per footnote definition (§9.3), in the order each label is first referenced in the CHARACTER.md body, then those never cited, in file order: the class, then the text."
         },
         "textStyle": "longDetail"
       }

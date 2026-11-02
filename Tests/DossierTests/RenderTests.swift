@@ -682,7 +682,10 @@ struct ConformancePageTests {
 
   @Test("The fixture list has pages, and the comparison has something to compare")
   func hasPages() {
-    #expect(Self.withPages.filter(Self.isAsFilled).count >= 8)
+    let compared = Self.withPages.filter(Self.isAsFilled).map(\.path)
+    #expect(compared.count >= 9)
+    // Field rule 2's fixture: uncited definitions and an undefined mark, on the page.
+    #expect(compared.contains("warnings/W-FOOTNOTE-on-page"))
   }
 
   @Test("A page as filled is what the renderer gives, apart from image payloads", arguments: withPages.filter(isAsFilled))

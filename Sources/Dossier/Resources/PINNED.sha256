@@ -1,4 +1,4 @@
-# dossier-format v2.0.0-rc.5
+# dossier-format v2.0.0-rc.6
 cdb4a97d92296505b5e2a0d6b34a0f5fd5c5b5b30dac3805a8f122cb201bc270  schemas/manifest-v1.schema.json
 0f51df482416e52dd37ed28fb4ba68fa8bdafc86cf50739207e48168279d4d24  schemas/manifest-v2.schema.json
 6f46bc94e10353aa4a5ad83b0c03a6ef987a8a3db656dfafee7d57c0cbeabef9  schemas/record.schema.json

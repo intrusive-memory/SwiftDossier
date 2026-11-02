@@ -79,12 +79,9 @@ enum PageText {
   }
 }
 
-/// The footnotes of a `CHARACTER.md` body as the page shows them (field rule 2, §9.3).
-///
-/// SPEC-PIN: field rule 2 and the fill section are read as on dossier-format's unmerged branch
-/// `docs/footnote-rule`, not as in the pinned `v2.0.0-rc.5`: a definition never cited comes after
-/// those that are, in file order, and a reference with no definition stays plain text. Remove this
-/// note when the pin moves to rc.6. rc.5's text doesn't say where either goes.
+/// The footnotes of a `CHARACTER.md` body as the page shows them (field rule 2, §9.3): a definition
+/// never cited comes after those that are, in file order, and a reference with no definition stays
+/// plain text.
 struct PageFootnotes {
   private let definitions: [(label: String, text: String)]
   private let numbers: [String: Int]
