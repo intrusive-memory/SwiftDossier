@@ -89,6 +89,9 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case pageRecordInvalid([String])
   /// A file changed while the page was being made, so it no longer describes the bundle.
   case bundleChangedDuringRender
+  /// A file doesn't match its `files` entry, `E-FILE-HASH` or `E-FILE-MISSING` (§11), so a render
+  /// refuses: its rescan would record the new hash and clear the finding. Nothing was written.
+  case renderRefusedByIntegrity([String])
   /// A marker's id isn't one or more ASCII letters, digits or hyphens (§5.7).
   case updateIDNotAllowed(String)
   /// The bundle has no marker with this id (§5.7).
@@ -148,6 +151,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .bundleOutsideCastDirectory(let path): return "\(path) isn't under the directory holding CAST.md"
     case .castWriteFailed(let detail): return "CAST.md couldn't be written: \(detail)"
     case .pageRecordInvalid(let details): return "The page's record fails its schema: \(details.joined(separator: "; "))"
+    case .renderRefusedByIntegrity(let findings):
+      return "Can't render: \(findings.joined(separator: "; ")). Nothing was changed."
     case .bundleChangedDuringRender: return "A file in the bundle changed during the render; run it again"
     case .updateIDNotAllowed(let id): return "\(id) isn't an update id: it needs ASCII letters, digits or hyphens"
     case .updateMarkerNotFound(let id): return "The bundle has no update marker with the id \(id)"

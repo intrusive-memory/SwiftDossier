@@ -53,6 +53,14 @@ extension DossierBundle {
     let replaced = current.assets.filter { $0.kind == .dossier }.map(\.path)
     let pages = replaced + [pagePath]
 
+    // §11: a render's rescan would record a changed file's new hash, so a re-render could clear the
+    // finding. It refuses first, with nothing written. The page being replaced isn't considered.
+    let banner = try Self.bannerFindings(of: current, at: url, pages: pages, member: member, template: template)
+    let broken = banner.filter { $0.code == .fileHash || $0.code == .fileMissing }
+    guard broken.isEmpty else {
+      throw DossierWriteError.renderRefusedByIntegrity(broken.map { "\($0.code.rawValue) \($0.path ?? "")" })
+    }
+
     let scan = try BundleScan(bundle: url, excluding: pages)
     let embedded = Self.embeddedManifest(of: current, scan: scan)
     let view = DossierBundle(url: url, manifest: embedded, member: member)
@@ -74,7 +82,6 @@ extension DossierBundle {
       throw DossierWriteError.pageRecordInvalid(violations.map { "\($0.path.isEmpty ? "/" : $0.path): \($0.message)" })
     }
 
-    let banner = try Self.bannerFindings(of: current, at: url, pages: pages, member: member, template: template)
     let filler = try PageFiller(
       bundle: view, record: record, findings: banner, document: document, template: template, excluding: pages)
     let bytes = Data(try filler.html().utf8)
@@ -148,10 +155,7 @@ extension DossierBundle {
   /// bytes no longer match what's recorded. A checksum that was right stays right; a wrong one
   /// stays wrong, which is `E-CHECKSUM`.
   ///
-  /// SPEC-GAP: field rule 5, SD-5: "as the embedded manifest describes it" can't be taken quite
-  /// literally, since that manifest is a rescan and can't show `E-FILE-HASH`. Such a finding is on
-  /// this page, and the write's rescan then records the new hash, as every write does (§5.6), so
-  /// the next render won't have it: those two renders have different inputs.
+  /// A render refuses `E-FILE-HASH` and `E-FILE-MISSING` (§11), so neither reaches a banner.
   private static func bannerFindings(
     of current: Manifest, at url: URL, pages: [String], member: Cast.Member, template: PageTemplate
   ) throws -> [Finding] {

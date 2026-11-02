@@ -463,15 +463,45 @@ struct RenderTests {
     let items = PageReader.matches(of: "<li>([^<]*)</li>", in: try reader.element(key: "page.integrity"))
     #expect(items == ["W-STALE \(stale.path)"])
 
-    // A page is stale now (its description changed), but the next render doesn't say so.
-    let description = project.bundleURL.appendingPathComponent("CHARACTER.md")
-    try Data(synthetic(body: fullBody + "\nMore.\n").utf8).write(to: description)
+  }
+
+  @Test("§11: E-FILE-HASH refuses a render, with nothing changed, and a re-render can't clear it")
+  func refusesAChangedFile() throws {
+    let project = try RenderProject(description: synthetic(body: fullBody))
+    try project.addImage(.portrait)
+    try render(project)
+    try Data(synthetic(body: fullBody + "\nMore.\n").utf8)
+      .write(to: project.bundleURL.appendingPathComponent("CHARACTER.md"))
+    let before = try project.tree()
+    #expect(try validationCodes(project).contains("E-FILE-HASH"))
+    #expect(throws: DossierWriteError.renderRefusedByIntegrity(["E-FILE-HASH CHARACTER.md"])) { try render(project) }
+    #expect(try project.tree() == before)
+    #expect(try validationCodes(project).contains("E-FILE-HASH"), "still reported")
+  }
+
+  @Test("§11: E-FILE-MISSING refuses a render, with nothing changed")
+  func refusesAMissingFile() throws {
+    let project = try RenderProject(description: synthetic(body: fullBody))
+    let portrait = try project.addImage(.portrait)
+    try FileManager.default.removeItem(at: project.bundleURL.appendingPathComponent(portrait.path))
+    let before = try project.tree()
+    #expect(throws: DossierWriteError.renderRefusedByIntegrity(["E-FILE-MISSING \(portrait.path)"])) { try render(project) }
+    #expect(try project.tree() == before)
+  }
+
+  @Test("§11: the page being replaced can't refuse its own render, and a clean bundle renders")
+  func ownPageDoesNotRefuse() throws {
+    let project = try RenderProject(description: synthetic(body: fullBody))
+    try project.addImage(.portrait)
+    try render(project)
+    let page = try Data(contentsOf: project.pageURL)
+    try Data("<!doctype html>edited".utf8).write(to: project.pageURL)
     #expect(try validationCodes(project).contains("E-FILE-HASH"))
     try render(project)
-    let next = PageReader(text: try project.page())
-    let listed = PageReader.matches(of: "<li>([^<]*)</li>", in: try next.element(key: "page.integrity"))
-    #expect(listed == ["E-FILE-HASH CHARACTER.md", "W-STALE \(stale.path)"])
-    #expect(try next.state(key: "page.integrity") == "filled")
+    #expect(try Data(contentsOf: project.pageURL) == page)
+    try FileManager.default.removeItem(at: project.pageURL)
+    try render(project)
+    #expect(try Data(contentsOf: project.pageURL) == page)
   }
 
   @Test("A clean bundle's banner is absent, whatever the page being replaced says")
@@ -545,8 +575,9 @@ struct RenderTests {
     let portrait = try project.addImage(.portrait)
     let file = project.bundleURL.appendingPathComponent(portrait.path)
     try Data("not an image".utf8).write(to: file)
-    let before = try project.tree()
     var bundle = try project.open()
+    try bundle.setPrompt(.subject, "person")  // A write records the file's hash, so it isn't E-FILE-HASH.
+    let before = try project.tree()
     #expect(throws: DossierWriteError.imageUnreadable(portrait.path)) { try bundle.renderPage() }
     #expect(try project.tree() == before)
   }

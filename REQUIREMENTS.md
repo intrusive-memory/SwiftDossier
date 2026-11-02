@@ -94,6 +94,8 @@ CLI carries that template when it validates and renders (§4); `renderPage()` fi
   from CHARACTER.md, the manifest, the CAST.md member and the selected
   originals, through the dossier-format template. Page copies are made with
   ImageIO at fixed settings and embedded as `data:` URIs; nothing is stored.
+  A bundle with `E-FILE-HASH` or `E-FILE-MISSING` is refused, with nothing changed
+  (DOSSIER-FORMAT §11), so a re-render can't clear an integrity banner.
   Output is deterministic: a test renders the same bundle twice and compares
   bytes. It needs the bundle's `CAST.md` member (§7's `castMember` input), so a bundle opened
   with none is refused, and it runs as one update (SD-14). A failed render leaves the
