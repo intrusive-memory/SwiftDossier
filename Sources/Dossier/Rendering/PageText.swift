@@ -129,13 +129,22 @@ struct PageFootnotes {
 struct PageMarkdown {
   enum Block {
     case heading([Line])
-    case item([Line])
+    /// A list item, and the quote directly after its text, which is part of it (rule 3).
+    case item([Line], quote: [Line]?)
     case paragraph([Line])
+    case quote([Line])
 
+    /// The block's own text: not an item's quote, which `**` and `*` don't span into.
     var lines: [Line] {
       switch self {
-      case .heading(let lines), .item(let lines), .paragraph(let lines): return lines
+      case .heading(let lines), .item(let lines, _), .paragraph(let lines), .quote(let lines): return lines
       }
+    }
+
+    /// The text and the quote of an item, in order.
+    var allLines: [Line] {
+      if case .item(let lines, let quote?) = self { return lines + quote }
+      return lines
     }
   }
 
@@ -153,15 +162,23 @@ struct PageMarkdown {
   var markSeparator: (() throws -> String)? = nil
 
   /// A section's text as blocks. A footnote's definition isn't text here: it's shown only in
-  /// `page.sources` (field rule 2).
+  /// `page.sources` (field rule 2). Rule 3 has no code fences, so a fence is literal text and its
+  /// lines are read like any others. All a fence changes is that it holds no definitions or
+  /// references (§9.3).
   static func blocks(of content: String) -> [Block] {
     var found: [Block] = []
     var paragraph: [Line] = []
-    /// The list item a line break continues (rule 3).
+    /// The list item, and that item's quote, that a line break continues (rule 3).
     var item: [Line]?
+    var itemQuote: [Line]?
+    /// The top-level quote that a line break continues.
+    var quote: [Line]?
     func flush() {
-      if let open = item { found.append(.item(open)) }
+      if let open = item { found.append(.item(open, quote: itemQuote)) }
       item = nil
+      itemQuote = nil
+      if let open = quote { found.append(.quote(open)) }
+      quote = nil
       if !paragraph.isEmpty { found.append(.paragraph(paragraph)) }
       paragraph = []
     }
@@ -170,29 +187,57 @@ struct PageMarkdown {
       let line = String(rawLine)
       let isCode = fence.isCode(line)
       if !isCode, Footnotes.isDefinition(line) {
-        if item != nil { flush() }
+        if item != nil || quote != nil { flush() }
         continue
       }
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-      if isCode {
-        if item != nil { flush() }
-        if !trimmed.isEmpty { paragraph.append(Line(text: trimmed, isCode: true)) } else { flush() }
+      let text = Line(text: trimmed, isCode: isCode)
+      if trimmed.isEmpty || isRule(line) {
+        flush()
       } else if line.hasPrefix("### ") {
         flush()
-        found.append(.heading([Line(text: String(line.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: false)]))
+        found.append(.heading([Line(text: String(line.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: isCode)]))
       } else if line.hasPrefix("- ") {
         flush()
-        item = [Line(text: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: false)]
-      } else if trimmed.isEmpty {
-        flush()
+        item = [Line(text: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: isCode)]
+      } else if let content = quoteContent(of: line) {
+        let held = Line(text: content, isCode: isCode)
+        if item != nil {
+          itemQuote = (itemQuote ?? []) + [held]
+        } else if quote != nil {
+          quote?.append(held)
+        } else {
+          flush()
+          quote = [held]
+        }
+      } else if itemQuote != nil {
+        itemQuote?.append(text)
+      } else if quote != nil {
+        quote?.append(text)
       } else if item != nil {
-        item?.append(Line(text: trimmed, isCode: false))
+        item?.append(text)
       } else {
-        paragraph.append(Line(text: trimmed, isCode: false))
+        paragraph.append(text)
       }
     }
     flush()
     return found
+  }
+
+  /// A line that is only `---`, spaces aside (rule 3).
+  private static func isRule(_ line: String) -> Bool {
+    let start = line.drop { $0 == " " }
+    var rest = start
+    while rest.last == " " { rest.removeLast() }
+    return rest == "---"
+  }
+
+  /// What a quote line holds, or `nil` when the line isn't one: its first non-space character is
+  /// `>` (rule 3).
+  private static func quoteContent(of line: String) -> String? {
+    let start = line.drop { $0 == " " }
+    guard start.first == ">" else { return nil }
+    return start.dropFirst().trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// Whether a section's text, once its definitions are gone, has anything but whitespace.
@@ -208,31 +253,44 @@ struct PageMarkdown {
       if isItem, !inList { out += "<ul>" }
       if !isItem, inList { out += "</ul>" }
       inList = isItem
-      let element: String
       switch block {
-      case .heading: element = "h4"
-      case .item: element = "li"
-      case .paragraph: element = "p"
+      case .heading(let lines): out += "<h4>\(try inline(lines))</h4>"
+      case .item: out += "<li>\(try content(of: block))</li>"
+      case .paragraph: out += "<p>\(try content(of: block))</p>"
+      case .quote: out += try content(of: block)
       }
-      out += "<\(element)>\(try inline(block.lines))</\(element)>"
     }
     if inList { out += "</ul>" }
     return out
   }
 
-  /// Rule 1's items: each paragraph or list item, with the classes of the footnotes it cites.
+  /// Field rule 1's items: each paragraph, list item or top-level quote, with the classes of the
+  /// footnotes it cites, quote included.
   func canonItems(_ blocks: [Block]) throws -> [(text: String, source: String)] {
     try blocks.compactMap { block in
       if case .heading = block { return nil }
       var classes: [String] = []
-      for line in block.lines where !line.isCode {
+      for line in block.allLines where !line.isCode {
         for segment in Footnotes.segments(ofLine: line.text) {
           if case .reference(let label, _) = segment, let found = footnotes.footnoteClass(of: label) {
             classes.append(found)
           }
         }
       }
-      return (try inline(block.lines), classes.joined(separator: ", "))
+      return (try content(of: block), classes.joined(separator: ", "))
+    }
+  }
+
+  /// A paragraph's or an item's markup, or a quote's whole element. An item's quote comes after its
+  /// text, and each is inline text of its own, so no pair of delimiters joins them (rule 3).
+  private func content(of block: Block) throws -> String {
+    switch block {
+    case .heading(let lines), .paragraph(let lines), .item(let lines, quote: nil):
+      return try inline(lines)
+    case .item(let lines, let quote?):
+      return try inline(lines) + "<blockquote>\(try inline(quote))</blockquote>"
+    case .quote(let lines):
+      return "<blockquote>\(try inline(lines))</blockquote>"
     }
   }
 

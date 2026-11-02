@@ -859,6 +859,183 @@ struct RenderedTextTests {
     #expect(try elements("li", in: page).contains("A ** pair"))
   }
 
+  /// The text a person reads in the page's paragraphs, items and quotes.
+  private func shown(in page: String) throws -> String {
+    try (elements("p", in: page) + elements("li", in: page) + elements("blockquote", in: page)).joined(separator: "\n")
+  }
+
+  @Test("A `---` line is dropped, and ends the block it follows")
+  func ruleLines() throws {
+    let page = try page(
+      """
+      ## Personality
+
+      A paragraph
+      ---
+      and another.
+
+      - An item
+        ---
+      and a paragraph after it.
+
+      > A quote
+         ---\u{20}
+      and one more paragraph.
+
+      ```
+      ---
+      ```
+      """)
+    let paragraphs = try elements("p", in: page)
+    for block in ["A paragraph", "and another.", "and a paragraph after it.", "and one more paragraph."] {
+      #expect(paragraphs.contains(block), "\(block)")
+    }
+    #expect(try elements("li", in: page).contains("An item"))
+    #expect(try elements("blockquote", in: page) == ["A quote"])
+    #expect(try !shown(in: page).contains("---"))
+  }
+
+  @Test("Field rule 3: a section with only `---` lines is empty")
+  func sectionOfRules() throws {
+    let page = try page("## Personality\n\n---\n\n  ---\n\n## Canon & Guardrails\n\n---\n")
+    let reader = PageReader(text: page)
+    for key in ["profile.personality", "profile.canon"] {
+      #expect(try reader.state(key: key) != "filled", "\(key)")
+    }
+  }
+
+  @Test("Quote lines and a line with no `>` after them are one blockquote")
+  func oneQuote() throws {
+    let page = try page(
+      """
+      ## Personality
+
+      A paragraph.
+      > The first line,
+      >the second
+        > and the third,
+      and a lazy line.
+
+      > Another quote.
+      > ### Not a heading
+      > - Not an item
+      """)
+    #expect(page.contains("<p>A paragraph.</p><blockquote>The first line,\nthe second\nand the third,\nand a lazy line.</blockquote>"))
+    #expect(page.contains("<blockquote>Another quote.\n### Not a heading\n- Not an item</blockquote>"))
+    #expect(try elements("blockquote", in: page).count == 2)
+  }
+
+  @Test("A blank line, a heading, an item or a definition ends a quote")
+  func quoteEnds() throws {
+    let page = try page(
+      """
+      ## Personality
+
+      > One.
+
+      After a blank.
+
+      > Two.
+      ### A heading
+      > Three.
+      - An item.
+
+      > Four.
+      [^a]: Author. A source, 2026-11-01.
+      After a definition.
+      """)
+    #expect(try elements("blockquote", in: page) == ["One.", "Two.", "Three.", "Four."])
+    #expect(try elements("p", in: page).contains("After a blank."))
+    #expect(try elements("p", in: page).contains("After a definition."))
+    #expect(try elements("li", in: page).contains("An item."))
+    #expect(try elements("h4", in: page).contains("A heading"))
+  }
+
+  @Test("A quote directly after an item's text is inside the item, at any indentation")
+  func quoteInItem() throws {
+    let page = try page(
+      """
+      ## Personality
+
+      - **The item's text
+      wraps** once.
+          > In the item,
+      and lazily.
+      - Second.
+      > Also in an item.
+
+      > Not in an item.
+      """)
+    #expect(page.contains("<ul><li><strong>The item&#x27;s text\nwraps</strong> once.<blockquote>In the item,\nand lazily.</blockquote></li><li>Second.<blockquote>Also in an item.</blockquote></li></ul><blockquote>Not in an item.</blockquote>"))
+  }
+
+  @Test("`**` and `*` don't span from an item's text into its quote")
+  func noSpanIntoQuote() throws {
+    let page = try page("## Personality\n\n- **Bold start\n> end** of it\n- One *start\n> end* of it")
+    #expect(page.contains("<li>**Bold start<blockquote>end** of it</blockquote></li>"))
+    #expect(page.contains("<li>One *start<blockquote>end* of it</blockquote></li>"))
+  }
+
+  @Test("A `>` elsewhere in a line is literal")
+  func midLine() throws {
+    let page = try page("## Personality\n\nOne > two.\n\n- Three > four.")
+    #expect(page.contains("<p>One &gt; two.</p>"))
+    #expect(page.contains("<li>Three &gt; four.</li>"))
+    #expect(try elements("blockquote", in: page).isEmpty)
+  }
+
+  @Test("HTML in a quote is escaped")
+  func escapedQuote() throws {
+    let page = try page("## Personality\n\n> 1 < 2 & <b>this</b> isn't markup.")
+    #expect(page.contains("<blockquote>1 &lt; 2 &amp; &lt;b&gt;this&lt;/b&gt; isn&#x27;t markup.</blockquote>"))
+  }
+
+  @Test("Marks, bold and emphasis work in a quote, and bold may cross its line break")
+  func marksInQuote() throws {
+    let page = try page("## Personality\n\n> **Bold\n> over a break** and *em*.[^a]\n\n[^a]: Author. A source, 2026-11-01.")
+    #expect(page.contains("<blockquote><strong>Bold\nover a break</strong> and <em>em</em>.<sup class=\"mark\"><a href=\"#page.sources\">1</a></sup></blockquote>"))
+  }
+
+  @Test("Field rule 1: a top-level quote is a canon item, and an item's quote is part of it")
+  func canonQuotes() throws {
+    let page = try page(
+      """
+      ## Canon & Guardrails
+
+      - A claim.[^a]
+      > Its quote.[^b]
+
+      > A quote of its own.[^b]
+
+      [^a]: Author. A source, 2026-11-01.
+      [^b]: Stated. nowhere/invented.fountain:1.
+      """)
+    let canon = try PageReader(text: page).element(key: "profile.canon")
+    let mark = { (number: Int) in "<sup class=\"mark\"><a href=\"#page.sources\">\(number)</a></sup>" }
+    #expect(canon.components(separatedBy: "canon-claim").count == 3)
+    #expect(canon.contains("A claim.\(mark(1))<blockquote>Its quote.\(mark(2))</blockquote>"))
+    #expect(canon.contains("<blockquote>A quote of its own.\(mark(2))</blockquote>"))
+    #expect(PageReader.matches(of: "canon-source[^>]*>([^<]*)<", in: canon) == ["Author, Stated", "Stated"])
+  }
+
+  // SPEC-PIN: at rc.6 `fields.json` has `page.sources` in `page.after`, and from rc.7 on the Profile
+  // tab with `page.after` empty, so what it's held to comes from the pinned file. Once the pin is at
+  // rc.7, assert the Profile tab and the empty footer outright.
+  @Test("`page.sources` is where `fields.json` puts it, and `page.after` may be empty")
+  func sourcesPlacement() throws {
+    let page = PageReader(text: try page("## Personality\n\nCited.[^a]\n\n[^a]: Author. A source, 2026-11-01."))
+    let tabs = try DossierTabs.bundled()
+    let footer = try #require(PageReader.matches(of: "(?s)<footer class=\"page-after\">(.*)</footer>", in: page.markup).first)
+    #expect(footer.isEmpty == tabs.pageAfter.isEmpty)
+    #expect(footer.contains("id=\"page.sources\"") == tabs.pageAfter.contains { $0.key == "page.sources" })
+    for tab in tabs.tabs {
+      let panel = try #require(PageReader.matches(of: "(?s)<section class=\"tab-panel\" id=\"\(tab.key)\".*?</section>", in: page.markup, group: 0).first)
+      #expect(panel.contains("id=\"page.sources\"") == tab.fields.contains { $0.key == "page.sources" }, "\(tab.key)")
+    }
+    #expect(page.attributes("id").filter { $0 == "page.sources" }.count == 1)
+    #expect(try page.element(key: "page.sources").contains("Author. A source, 2026-11-01."))
+  }
+
   private func marks(_ text: String, separator: Bool = true) throws -> String {
     let notes = "\n\n[^a]: Author. One, 2026-11-01.\n[^b]: Author. Two, 2026-11-01.\n"
     let markdown = PageMarkdown(

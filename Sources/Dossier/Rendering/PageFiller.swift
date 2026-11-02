@@ -233,6 +233,8 @@ final class PageFiller {
     return out
   }
 
+  // SPEC-PIN: an item's quote is a `<blockquote>`, and rc.6's `canonItem` holds its text in a
+  // `<span>`, which shouldn't hold one. rc.7's fragment has a `<div>`, so this needs nothing then.
   /// Field rule 1.
   private func canonMarkup(_ source: JSONObject) throws -> String? {
     guard let section = source["section"]?.stringValue else { throw malformed("a section source names no section") }

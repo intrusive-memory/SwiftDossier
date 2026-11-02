@@ -515,8 +515,12 @@ def prepare_item3():
 
 
 def page_text_check(page, description):
-    """Each list item and paragraph of CHARACTER.md's body, whole in one element of the page: what a
-    person reads, against what was written. Returns (blocks, blocks not whole, literal ** shown)."""
+    """Each list item, paragraph and quote of CHARACTER.md's body, whole in one element of the page:
+    what a person reads, against what was written, by template rule 3. A quote is looked for in the
+    <blockquote>s, and everything else in the other elements, with those quotes taken out.
+
+    Returns (blocks, blocks not whole, literal ** shown, literal --- shown, literal leading > shown).
+    The last two leave out what the source itself has as text: `- > x`, `> > x`, `- ---`, `> ---`."""
     import html
     import re
     def plain(text):
@@ -524,29 +528,59 @@ def page_text_check(page, description):
         return " ".join(html.unescape(text).split())
     with open(description, encoding="utf-8") as handle:
         body = handle.read().split("---\n", 2)[-1]
-    found, current = [], None
+    found, current, open_kind = [], None, None  # open_kind: "text", or "quote" when a line continues one.
+    written_rules, written_quotes = 0, 0
+    def note(text):
+        nonlocal written_rules, written_quotes
+        written_rules += text == "---"
+        written_quotes += text.startswith(">")
+    def close():
+        nonlocal current, open_kind
+        if current is not None:
+            found.append((open_kind, current))
+        current, open_kind = None, None
     for line in body.split("\n"):
-        if re.match(r" {0,3}\[\^[^\]]+\]:", line) or line.startswith("#") or not line.strip():
-            if current:
-                found.append(current)
-            current = None
+        stripped = line.strip(" ")
+        if re.match(r" {0,3}\[\^[^\]]+\]:", line) or line.startswith("#") or not line.strip() or stripped == "---":
+            close()
         elif line.startswith("- "):
-            if current:
-                found.append(current)
-            current = line[2:]
+            close()
+            current, open_kind = line[2:], "text"
+            note(current.strip())
+        elif stripped.startswith(">"):
+            content = stripped[1:].strip()
+            note(content)
+            if open_kind == "quote":
+                current += " " + content
+            else:
+                close()
+                current, open_kind = content, "quote"
+        elif current is not None:
+            current += " " + line.strip()
         else:
-            current = (current + " " + line.strip()) if current else line.strip()
-    if current:
-        found.append(current)
+            current, open_kind = line.strip(), "text"
+    close()
     with open(page, encoding="utf-8") as handle:
         document = handle.read()
     document = re.sub(r"<script.*?</script>|<style.*?</style>", "", document, flags=re.S)
     document = re.sub(r'<sup class="mark">.*?</sup>', "", document, flags=re.S)
-    shown = [plain(re.sub(r"<[^>]+>", "", inner)) for inner in re.findall(r"<(?:li|p|span)[^>]*>(.*?)</(?:li|p|span)>", document, flags=re.S)]
-    blocks = [plain(block) for block in found if plain(block)]
-    lost = sum(1 for block in blocks if block not in shown and not any(block in text for text in shown))
-    literal = sum(re.sub(r"<[^>]+>", "", inner).count("**") for inner in re.findall(r"<(?:li|p)[^>]*>(.*?)</(?:li|p)>", document, flags=re.S))
-    return len(blocks), lost, literal
+    quote_element = r"<blockquote[^>]*>(.*?)</blockquote>"
+    quotes = re.findall(quote_element, document, flags=re.S)
+    document = re.sub(quote_element, "", document, flags=re.S)
+    without_tags = lambda inner: re.sub(r"<[^>]+>", "", inner)
+    shown = [plain(without_tags(inner)) for inner in re.findall(r"<(?:li|p|span)[^>]*>(.*?)</(?:li|p|span)>", document, flags=re.S)]
+    shown_quotes = [plain(without_tags(inner)) for inner in quotes]
+    blocks = [(kind, plain(block)) for kind, block in found if plain(block)]
+    lost = 0
+    for kind, block in blocks:
+        pool = shown_quotes if kind == "quote" else shown
+        lost += block not in pool and not any(block in text for text in pool)
+    read = [without_tags(inner) for inner in re.findall(r"<(?:li|p)[^>]*>(.*?)</(?:li|p)>", document, flags=re.S)] + [without_tags(inner) for inner in quotes]
+    literal = sum(text.count("**") for text in read)
+    read_lines = [line.strip() for text in read for line in html.unescape(text).split("\n")]
+    rules = max(0, sum(line == "---" for line in read_lines) - written_rules)
+    leading = max(0, sum(line.startswith(">") for line in read_lines) - written_quotes)
+    return len(blocks), lost, literal, rules, leading
 
 
 def item3(members, members_ok, copy):
@@ -598,10 +632,14 @@ def item3(members, members_ok, copy):
                 notes = f"  OVER 3 MB TARGET (DF-53, {LEAD_TARGET})"
             else:
                 notes = f"  within the 3 MB target (DF-53, {LEAD_TARGET})"
-        blocks, lost, literal = page_text_check(page, os.path.join(bundle, "CHARACTER.md"))
-        notes += f"  text: {blocks - lost} of {blocks} source blocks whole, literal ** {literal}"
+        blocks, lost, literal, rules, leading = page_text_check(page, os.path.join(bundle, "CHARACTER.md"))
+        notes += f"  text: {blocks - lost} of {blocks} source blocks whole, literal ** {literal}, literal --- {rules}, literal leading > {leading}"
         if lost:
             problems.append(f"{lost} source blocks aren't whole in one element")
+        if rules:
+            problems.append(f"{rules} literal --- shown")
+        if leading:
+            problems.append(f"{leading} literal leading > shown")
         print(f"  {name}  {size} bytes  role {role or 'none'}{notes}  {'FAIL  ' + '; '.join(problems) if problems else 'PASS'}")
         failed += bool(problems)
         if pages_out:

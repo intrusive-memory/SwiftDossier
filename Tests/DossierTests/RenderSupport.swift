@@ -153,11 +153,11 @@ struct PageReader {
     Self.matches(of: " \(name)=\"([^\"]*)\"", in: markup)
   }
 
-  static func matches(of pattern: String, in text: String) -> [String] {
+  static func matches(of pattern: String, in text: String, group: Int = 1) -> [String] {
     guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
     let whole = NSRange(text.startIndex..., in: text)
     return regex.matches(in: text, range: whole).compactMap { match in
-      Range(match.range(at: 1), in: text).map { String(text[$0]) }
+      Range(match.range(at: group), in: text).map { String(text[$0]) }
     }
   }
 
