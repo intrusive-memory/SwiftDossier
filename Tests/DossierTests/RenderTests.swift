@@ -978,10 +978,10 @@ struct RenderedTextTests {
 
   @Test("A `>` elsewhere in a line is literal")
   func midLine() throws {
-    let page = try page("## Personality\n\nOne > two.\n\n- Three > four.")
+    let page = try page("## Personality\n\nOne > two.\n\n- Three > four.\n\n> Five > six.")
     #expect(page.contains("<p>One &gt; two.</p>"))
     #expect(page.contains("<li>Three &gt; four.</li>"))
-    #expect(try elements("blockquote", in: page).isEmpty)
+    #expect(try elements("blockquote", in: page) == ["Five &gt; six."])
   }
 
   @Test("HTML in a quote is escaped")
