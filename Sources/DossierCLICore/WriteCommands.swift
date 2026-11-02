@@ -187,9 +187,16 @@ struct RefreshCommand: DossierSubcommand {
     commandName: "refresh",
     abstract: "Accept changed files, and adopt files another tool put in the bundle (DOSSIER-FORMAT 5.6).",
     discussion: """
-      The one way to accept a file changed by hand: it records the new hash and size, reports each \
-      file by path, and clears E-FILE-HASH. No other command does. It can't clear E-FILE-MISSING: a \
-      missing file must be restored, or, if it's an asset, taken out with remove.
+      The files on disk are the source of truth and the manifest is an index of them, so E-FILE-HASH \
+      means the manifest is behind the disk. This is the one way to accept a file changed by hand: \
+      it records the new hash and size, reports each file by path, and clears E-FILE-HASH. The file \
+      keeps its name, and when an image's name no longer matches its hash, that's reported too \
+      (nameMismatches in --json), not renamed.
+
+      A listed file with no asset that's missing has its entry dropped, which clears E-FILE-MISSING \
+      and is reported (dropped in --json). A missing file an asset points at is refused: refresh \
+      reports the paths, changes nothing, and exits 1. Restore the file; for the moment, remove is \
+      the way to take the asset out.
       """)
   @Argument(help: "The bundle.") var bundle: String
   @Option(help: "The CAST.md, for adopting an orphan bundle.") var cast: String?
@@ -204,6 +211,8 @@ struct RefreshCommand: DossierSubcommand {
     if io.json {
       var object: [String: Any] = [
         "accepted": report.accepted,
+        "nameMismatches": report.nameMismatches,
+        "dropped": report.dropped,
         "adopted": report.adopted.map(assetJSON),
         "unclassified": report.unclassified.map { ["path": $0.path, "reason": $0.reason.description] },
       ]
@@ -212,11 +221,13 @@ struct RefreshCommand: DossierSubcommand {
       io.emit(object)
     } else {
       for path in report.accepted { io.line("Accepted \(path)") }
+      for path in report.nameMismatches { io.line("Name no longer matches its hash, and is kept: \(path)") }
+      for path in report.dropped { io.line("Dropped \(path): no asset, and its file is missing") }
       for asset in report.adopted { io.line("Adopted " + assetLine(asset)) }
       for file in report.unclassified { io.line("Unclassified \(file.path): \(file.reason)") }
       if let orphan = report.orphan { io.line("Orphan: \(orphan)") }
-      if report.accepted.isEmpty && report.adopted.isEmpty && report.unclassified.isEmpty {
-        io.line("Nothing to accept or adopt")
+      if report.accepted.isEmpty && report.dropped.isEmpty && report.adopted.isEmpty && report.unclassified.isEmpty {
+        io.line("Nothing to accept, drop or adopt")
       }
     }
     return 0

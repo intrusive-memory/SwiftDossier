@@ -5,11 +5,15 @@
 # Item 4's migrate half belongs to phase 4. Item 3 keeps the rendered pages in PAGES_OUT when set,
 # which can't be inside PROJECT.
 #
-# The project is read and never written, apart from what Git LFS's own smudge keeps in its
-# object cache. REF's committed state goes into a temporary directory by `git archive`, every
-# command runs on that copy, and the copy is removed on exit. The one thing read from the
-# working tree is item 2's .generations/, and only when REF doesn't hold it, which is usual
-# since it's ignored; the output says when.
+# The files on disk are the source of truth, so by default the project is taken as it is on disk:
+# its tree goes into a temporary directory, hidden files included, .git skipped and links kept as
+# links, never followed. REF=<ref> takes that commit instead, by `git archive`. The output says which
+# (`source: disk`, or `source: ref <ref> at <sha>`). Every command runs on the copy, which is removed
+# on exit, and a link leading out of the copy stops the run.
+#
+# The project is read and never written, apart from what Git LFS's own smudge keeps in its object
+# cache under REF. Under REF, the one thing read from the working tree is item 2's .generations/, and
+# only when REF doesn't hold it, which is usual since it's ignored; the output says when.
 #
 # Output holds names, roles, sizes, codes, counts and key names. Never a prompt, a description, a sidecar
 # value or a tool's message, which can quote those.
@@ -20,8 +24,9 @@ set -euo pipefail
 
 usage() {
   echo "usage: make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]" >&2
-  echo "  REF defaults to dossier/v2-migration. REPARTO defaults to the one on PATH, then to one" >&2
-  echo "  built from the SwiftReparto this package resolves. PAGES_OUT keeps item 3's rendered pages." >&2
+  echo "  With no REF, the project as it is on disk (its tree, without .git). REF extracts that commit" >&2
+  echo "  instead, and has no default. REPARTO defaults to the one on PATH, then to one built from the" >&2
+  echo "  SwiftReparto this package resolves. PAGES_OUT keeps item 3's rendered pages." >&2
 }
 die() {
   echo "acceptance: $*" >&2
@@ -30,7 +35,6 @@ die() {
 
 PROJECT="${1:-}"
 REF="${2:-}"
-[ -n "$REF" ] || REF="dossier/v2-migration"
 
 if [ -z "$PROJECT" ]; then
   usage
@@ -52,17 +56,27 @@ if [ -n "${PAGES_OUT:-}" ]; then
   mkdir -p "$PAGES_OUT" || die "can't make PAGES_OUT"
 fi
 
-export GIT_OPTIONAL_LOCKS=0
-git -C "$PROJECT" rev-parse --git-dir >/dev/null 2>&1 || die "$PROJECT isn't a git repository"
-COMMIT="$(git -C "$PROJECT" rev-parse --verify --quiet "$REF^{commit}")" || die "no ref $REF in $PROJECT"
+COMMIT=""
+if [ -n "$REF" ]; then
+  export GIT_OPTIONAL_LOCKS=0
+  git -C "$PROJECT" rev-parse --git-dir >/dev/null 2>&1 || die "$PROJECT isn't a git repository"
+  COMMIT="$(git -C "$PROJECT" rev-parse --verify --quiet "$REF^{commit}")" || die "no ref $REF in $PROJECT"
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Copying a tree into itself wouldn't end, and would write to the project.
+case "$(cd "$WORK" && pwd -P)/" in
+  "$(cd "$PROJECT" && pwd -P)"/*) die "the temporary directory is inside PROJECT, which is never written" ;;
+esac
+
 mkdir "$WORK/copy"
-git -C "$PROJECT" archive "$COMMIT" 2>"$WORK/archive.log" | tar -xf - -C "$WORK/copy" \
-  || die "git archive of $REF failed. If Git LFS is in use, its objects may not be fetched."
+if [ -n "$REF" ]; then
+  git -C "$PROJECT" archive "$COMMIT" 2>"$WORK/archive.log" | tar -xf - -C "$WORK/copy" \
+    || die "git archive of $REF failed. If Git LFS is in use, its objects may not be fetched."
+fi
 
 echo "acceptance: building dossier with make release"
 if ! make -C "$ROOT" release >"$WORK/release.log" 2>&1; then
@@ -80,21 +94,23 @@ done
 cmp -s "$ROOT/bin/dossier" "$BUILT/dossier" \
   || die "bin/dossier isn't this checkout's build; make release took another DerivedData's. Run make clean."
 
-# The Python below is given the copy, and the project only to read .generations/ from.
+# The Python below is given the copy, and the project only to read from: its tree with no REF, and
+# .generations/ with one.
 ACCEPT_ROOT="$ROOT" ACCEPT_WORK="$WORK" ACCEPT_BUILT="$BUILT" ACCEPT_REF="$REF" \
-  ACCEPT_COMMIT="${COMMIT:0:12}" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
+  ACCEPT_COMMIT="$COMMIT" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
   ACCEPT_PAGES_OUT="${PAGES_OUT:-}" \
   python3 -I -c "$(sed -n '/^# PYTHON BEGIN$/,/^# PYTHON END$/p' "${BASH_SOURCE[0]}")"
 exit $?
 
 # PYTHON BEGIN
-import collections, datetime, difflib, hashlib, json, os, re, shutil, subprocess, sys
+import collections, ctypes, datetime, difflib, hashlib, json, os, re, shutil, stat, subprocess, sys
 
 ROOT = os.environ["ACCEPT_ROOT"]
 WORK = os.environ["ACCEPT_WORK"]
 COPY = os.path.join(WORK, "copy")
 BUILT = os.environ["ACCEPT_BUILT"]
 READ_ONLY_SOURCE = os.environ["ACCEPT_READ_ONLY_SOURCE"]
+REF = os.environ["ACCEPT_REF"]  # Empty when the source is the disk.
 DOSSIER = os.path.join(ROOT, "bin", "dossier")
 LFS_MAGIC = b"version https://git-lfs"
 PROBE = "ZZ ACCEPTANCE PROBE"
@@ -171,13 +187,54 @@ def sha256_of(path):
         return hashlib.sha256(file.read()).hexdigest()
 
 
+def clone_or_copy(source, target):
+    """A copy-on-write clone where the volume has them, so a large tree costs little and the two
+    never share a change. Otherwise the bytes, with the file's times and mode."""
+    try:
+        if ctypes.CDLL(None).clonefile(os.fsencode(source), os.fsencode(target), 0) == 0:
+            return
+    except (AttributeError, OSError):
+        pass
+    shutil.copy2(source, target, follow_symlinks=False)
+
+
+def copy_project_from_disk():
+    """The project's tree as it is now, into the copy, reading only. `.git` is skipped at any depth,
+    as a submodule has one too, and a link stays a link, so nothing outside the tree is read.
+    Returns (files, links, others skipped: a FIFO or socket isn't a file a bundle can hold)."""
+    def stop(error):
+        raise error
+
+    copied, links, others = 0, 0, 0
+    for directory, names, files in os.walk(READ_ONLY_SOURCE, onerror=stop):
+        names[:] = [name for name in names if name != ".git"]
+        relative = os.path.relpath(directory, READ_ONLY_SOURCE)
+        for name in names + files:
+            if name == ".git":
+                continue
+            source = os.path.join(directory, name)
+            target = os.path.normpath(os.path.join(COPY, relative, name))
+            mode = os.lstat(source).st_mode
+            if stat.S_ISLNK(mode):
+                os.symlink(os.readlink(source), target)
+                links += 1
+            elif stat.S_ISDIR(mode):
+                os.mkdir(target)
+            elif stat.S_ISREG(mode):
+                clone_or_copy(source, target)
+                copied += 1
+            else:
+                others += 1
+    return copied, links, others
+
+
 def reject_links_out_of_the_copy():
-    """Every write below goes through a path in the copy. A committed link could lead it away."""
+    """Every write below goes through a path in the copy. A link could lead it away."""
     for directory, names, files in os.walk(COPY):
         for name in names + files:
             path = os.path.join(directory, name)
             if os.path.islink(path) and not inside_copy(path):
-                print("acceptance: a committed link leads out of the copy. Nothing was run.", file=sys.stderr)
+                print("acceptance: a link leads out of the copy. Nothing was run.", file=sys.stderr)
                 sys.exit(2)
 
 
@@ -214,6 +271,8 @@ def item1(members, members_ok):
             schema = "FAIL"
         else:
             schema = "PASS"
+        # Before the skip below: item 2 counts only the errors its add introduces.
+        pre_add_errors[name] = errors
         pointers = sum(is_lfs_pointer(path) for path in files_under(bundle))
         pointers_total += pointers
         if pointers:
@@ -222,7 +281,6 @@ def item1(members, members_ok):
                 f"checked  manifest-v2: {schema}")
             skipped += 1
             continue
-        pre_add_errors[name] = errors
         if result is None or "findings" not in result:
             row("bundle", "FAIL", f"{name}  FAIL  validate didn't run (status {status}, {error_code(result)})  manifest-v2: not run")
             failed += 1
@@ -258,7 +316,8 @@ def item1(members, members_ok):
 # Item 2 ---------------------------------------------------------------------------------------
 
 def copy_generations_from_working_tree(members):
-    """.generations/ is normally ignored, so REF lacks it. Copies PNGs that have a sidecar, reading only."""
+    """.generations/ is normally ignored, so REF lacks it. Copies PNGs that have a sidecar, reading only.
+    With the disk as the source the copy already has it, so this is only for REF."""
     copied = 0
     for member in members:
         if not member["manifest"] or not inside_copy(member["manifest"]):
@@ -391,9 +450,9 @@ def same_time(first, second):
 def item2(members, pre_add_errors):
     """`dossier add` of a view and its sidecar. Writes to the copy only, which the choice checks."""
     print("item 2: dossier add of a view with its sidecar")
-    origin = "REF"
+    origin = "REF" if REF else "disk"
     chosen, pointer_files, unusable = choose_candidate(members)
-    if not chosen and not pointer_files:
+    if REF and not chosen and not pointer_files:
         if copy_generations_from_working_tree(members):
             origin = "the working tree, because REF doesn't hold it"
             chosen, pointer_files, unusable = choose_candidate(members)
@@ -508,9 +567,9 @@ PAGE_LIMIT = 10_000_000  # W-PAGE-SIZE.
 
 
 def prepare_item3():
-    """A copy of the copy made before item 2 changes it, so the pages are of REF's bundles."""
+    """A copy of the copy made before item 2 changes it, so the pages are of the source's bundles."""
     target = os.path.join(WORK, "item3-copy")
-    shutil.copytree(COPY, target, symlinks=True)
+    shutil.copytree(COPY, target, symlinks=True, copy_function=clone_or_copy)
     return target
 
 
@@ -817,7 +876,7 @@ def item4(members_ok):
     if hashes_after != hashes_before:
         failures.append("a hash changed on the normalized copy")
 
-    # As committed: every member keeps its §7 hash, except what SD-12 reports.
+    # As the source has it: every member keeps its §7 hash, except what SD-12 reports.
     raw = os.path.join(WORK, "item4-unnormalized")
     os.makedirs(os.path.join(raw, "characters"))
     cast = os.path.join(raw, "CAST.md")
@@ -980,7 +1039,16 @@ def item5():
 # ----------------------------------------------------------------------------------------------
 
 def main():
-    print(f"acceptance: REF {os.environ['ACCEPT_REF']} at {os.environ['ACCEPT_COMMIT']}")
+    if REF:
+        print(f"acceptance: source: ref {REF} at {os.environ['ACCEPT_COMMIT']}")
+    else:
+        try:
+            copied, links, others = copy_project_from_disk()
+        except OSError as error:
+            print(f"acceptance: couldn't copy the project: {type(error).__name__} on {error.filename}. Nothing was run.",
+                  file=sys.stderr)
+            sys.exit(2)
+        print(f"acceptance: source: disk ({copied} files, {links} links, {others} special files skipped; .git left out)")
     reject_links_out_of_the_copy()
     cast = os.path.join(COPY, "CAST.md")
     members = []

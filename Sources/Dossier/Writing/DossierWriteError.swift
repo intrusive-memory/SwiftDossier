@@ -90,8 +90,9 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   /// A file changed while the page was being made, so it no longer describes the bundle.
   case bundleChangedDuringRender
   /// A file doesn't match its `files` entry, `E-FILE-HASH` or `E-FILE-MISSING` (§11), so a render
-  /// refuses. `refresh` accepts a changed file, and a missing one must be restored. Each element is
-  /// a finding's code and path. Nothing was written.
+  /// refuses. `refresh` accepts a changed file, and drops a missing one with no asset; an asset's
+  /// file must be restored, or the asset removed. Each element is a finding's code and path.
+  /// Nothing was written.
   case renderRefusedByIntegrity([String])
   /// A marker's id isn't one or more ASCII letters, digits or hyphens (§5.7).
   case updateIDNotAllowed(String)
@@ -112,7 +113,7 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .zeroByteFiles(let paths): return "Zero-byte files: \(paths.joined(separator: ", "))"
     case .fileUnreadable(let path): return "Can't read \(path)"
     case .assetFilesMissing(let paths):
-      return "Assets with no file: \(paths.joined(separator: ", ")). Restore each file, or take its asset out with `dossier remove`"
+      return "Assets with no file: \(paths.joined(separator: ", ")). Restore each file; for the moment, `dossier remove` is the way to take its asset out"
     case .duplicateAsset(let path): return "Two assets with the path \(path)"
     case .multipleSelected(let path): return "More than one selected for the combination of \(path)"
     case .verificationFailed: return "manifest.json didn't read back as written; the prior manifest was restored"
@@ -159,7 +160,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
         message += " To keep a changed file as it now is, run `dossier refresh`."
       }
       if findings.contains(where: { $0.hasPrefix("E-FILE-MISSING") }) {
-        message += " A missing file must be restored: `dossier refresh` doesn't clear it."
+        message += " A missing file must be restored. If no asset names it, `dossier refresh` drops its entry;"
+        message += " if one does, `dossier remove` takes the asset out."
       }
       return message
     case .bundleChangedDuringRender: return "A file in the bundle changed during the render; run it again"

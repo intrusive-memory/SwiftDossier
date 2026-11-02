@@ -68,6 +68,13 @@ public struct RefreshReport: Sendable {
   /// The listed files whose changed bytes this call accepted, by path, in byte order: their entries
   /// now hold the new hash and size, which clears `E-FILE-HASH`. A file that's only new isn't one.
   public let accepted: [String]
+  /// The accepted files whose name no longer matches their hash, in byte order: a name of §4's
+  /// `<kind>[-<variant>]-<sha8>.png` form whose `<sha8>` isn't the new hash's first 8. Each keeps
+  /// its name, and nothing renames it.
+  public let nameMismatches: [String]
+  /// The listed files with no asset and no file on disk, in byte order: their entries are gone,
+  /// which clears `E-FILE-MISSING`.
+  public let dropped: [String]
   /// The assets adopted, each `candidate` (§5.6).
   public let adopted: [Asset]
   /// The files left unclassified, with why, in byte order of the path. `voice/samples.yaml`
@@ -80,18 +87,26 @@ public struct RefreshReport: Sendable {
 }
 
 extension DossierBundle {
-  /// Accepts files changed since they were listed, adopts files another tool put in the bundle by
-  /// §5.6's rules (SD-11) and, given a `CAST.md`, sets the pointer of the member this bundle is an
-  /// orphan of (§3). A near match is never adopted. Nothing is written when there's nothing to
-  /// accept or adopt.
+  /// Brings the manifest up to the disk (SD-11). The files on disk are the source of truth and the
+  /// manifest is an index of them, so `E-FILE-HASH` means the manifest is behind the disk. This
+  /// accepts files changed since they were listed, drops the entries of listed files that are gone
+  /// and have no asset, adopts files another tool put in the bundle by §5.6's rules and, given a
+  /// `CAST.md`, sets the pointer of the member this bundle is an orphan of (§3). A near match is
+  /// never adopted. Nothing is written when there's nothing to accept, drop or adopt.
   ///
   /// This is the one way to accept a changed file: no other write changes the entry of a file it
-  /// didn't write (SD-5). What was derived from an accepted file then reads as stale (§7). A file
-  /// that's both changed and adopted is in both lists of the report.
+  /// didn't write (SD-5). An accepted file keeps its name, and the report says when that name no
+  /// longer matches its hash. What was derived from an accepted file then reads as stale (§7). A
+  /// file that's both changed and adopted is in both lists of the report.
   ///
-  /// A listed file that's missing has nothing to accept. It keeps its entry and stays
-  /// `E-FILE-MISSING`. When this call has something to write and an asset's file is missing, it
-  /// refuses, as every write but `remove` does (``DossierWriteError/assetFilesMissing(_:)``).
+  /// SPEC-GAP: §4: a content name "can't claim to be something it isn't", and §4 doesn't say what
+  /// a hand edit to a named image does. The disk is the truth, so the name stays and is reported.
+  ///
+  /// SPEC-GAP: §5.2, §5.6: rc.6 doesn't say that a refresh drops an entry. A missing file with no
+  /// asset is only an entry the disk no longer backs, so it goes. An asset says more than the
+  /// disk does (its status and provenance), so one whose file is missing refuses the whole call
+  /// (``DossierWriteError/assetFilesMissing(_:)``), even with nothing else to write and with nothing
+  /// changed. For the moment `remove` is the way out.
   ///
   /// An adopted `vox` is `candidate`, so a sample beside it stays unclassified until it's
   /// selected and this runs again.
@@ -106,7 +121,7 @@ extension DossierBundle {
   ///   - castURL: The `CAST.md`, for orphan adoption. `nil` leaves it out.
   ///   - beforeCastWrite: Given SD-12's report before anything is written, when `CAST.md` is to
   ///     be written. Throwing stops the call with nothing changed.
-  /// - Returns: What was accepted and adopted, and why anything else wasn't.
+  /// - Returns: What was accepted, dropped and adopted, and why anything else wasn't.
   /// - Throws: ``DossierWriteError``, ``DossierCore/DossierError``, or what `beforeCastWrite` throws.
   @discardableResult
   public mutating func refresh(
@@ -114,9 +129,16 @@ extension DossierBundle {
   ) throws -> RefreshReport {
     let writer = ManifestWriter(bundle: url)
     let current = try writer.currentManifest()
+    let inventory = BundleInventory(bundle: url)
+    let stranded = current.assets.map(\.path).filter { inventory.file(at: $0) == nil }
+    guard stranded.isEmpty else { throw DossierWriteError.assetFilesMissing(stranded) }
+    // Every asset has its file by here, so what's missing has no asset.
+    let dropped = current.files.map(\.path).filter { inventory.file(at: $0) == nil }
+      .sorted { $0.precedesInByteOrder($1) }
+
     let plan = AdoptionPlan(bundle: url, manifest: current)
     let accepted = BundleScan.changedFiles(in: current, bundle: url)
-    let hasManifestWrite = !plan.adoptions.isEmpty || !accepted.isEmpty
+    let hasManifestWrite = !plan.adoptions.isEmpty || !accepted.isEmpty || !dropped.isEmpty
 
     // First, so an unreadable CAST.md stops the call before the manifest changes.
     let castFile = try castURL.map { try CastFile(url: $0) }
@@ -129,7 +151,7 @@ extension DossierBundle {
     // Nothing to change holds no marker.
     let write = {
       if hasManifestWrite {
-        manifest = try writer.update(accepting: accepted) { manifest, scan in
+        manifest = try writer.update(accepting: accepted, removing: dropped) { manifest, scan in
           adopted = try plan.adoptions.map { try $0.asset(scan: scan) }
           manifest.assets = manifest.assets + adopted
         }
@@ -147,8 +169,14 @@ extension DossierBundle {
       try UpdateHolding.holding(bundle: url, label: "refresh", write)
     }
     self = DossierBundle(url: url, manifest: manifest, member: member)
+    let hashes = Dictionary(manifest.files.map { (BundleInventory.key($0.path), $0.sha256) }) { first, _ in first }
+    let nameMismatches = accepted.filter { path in
+      guard let sha8 = ContentName.sha8(ofPath: path), let sha256 = hashes[BundleInventory.key(path)] else { return false }
+      return !sha256.utf8.starts(with: sha8.utf8)
+    }
     return RefreshReport(
-      accepted: accepted, adopted: adopted, unclassified: plan.unclassified, orphan: orphan?.outcome,
+      accepted: accepted, nameMismatches: nameMismatches, dropped: dropped, adopted: adopted,
+      unclassified: plan.unclassified, orphan: orphan?.outcome,
       castReport: orphan?.document == nil ? nil : castFile?.report)
   }
 
@@ -329,6 +357,25 @@ private struct AdoptionPlan {
     } catch {
       return .failure(Refusal(reason: .samplesUnreadable(String(describing: error))))
     }
+  }
+}
+
+/// §4's `images/<kind>[-<variant>]-<sha8>.png`.
+enum ContentName {
+  /// The `<sha8>` of a path of that form, or `nil` for any other path: a plain name, a kind §8 doesn't
+  /// have, or a last part that isn't 8 lowercase hex digits.
+  static func sha8(ofPath path: String) -> String? {
+    let prefix = "images/"
+    let suffix = ".png"
+    guard path.hasPrefix(prefix), path.hasSuffix(suffix) else { return nil }
+    let name = path.dropFirst(prefix.count).dropLast(suffix.count)
+    guard !name.contains("/") else { return nil }
+    let parts = name.split(separator: "-", omittingEmptySubsequences: false)
+    guard parts.count >= 2, let kind = parts.first, let last = parts.last else { return nil }
+    if case .unknown = AssetKind(rawValue: String(kind)) { return nil }
+    guard parts.dropFirst().dropLast().allSatisfy({ !$0.isEmpty }) else { return nil }
+    let isHex = last.utf8.allSatisfy { (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }
+    return last.utf8.count == 8 && isHex ? String(last) : nil
   }
 }
 

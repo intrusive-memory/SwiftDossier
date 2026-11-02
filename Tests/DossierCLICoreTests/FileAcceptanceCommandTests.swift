@@ -3,7 +3,7 @@ import Testing
 
 @testable import DossierCLICore
 
-@Suite("dossier refresh accepts a changed file; nothing else does")
+@Suite("dossier refresh brings the manifest up to the disk; nothing else does")
 struct FileAcceptanceCommandTests {
   private let bundleName = "characters/WREN HALLOWAY.dossier"
   private let editedText = "---\ntype: character\ncharacter: WREN HALLOWAY\n---\n\n## Logline\n\nEdited by hand.\n"
@@ -103,8 +103,71 @@ struct FileAcceptanceCommandTests {
     #expect(!(try codes(project).contains("E-FILE-HASH")))
   }
 
-  @Test("A missing file: render says to restore it, and refresh doesn't clear it")
-  func missing() throws {
+  @Test("A hand-edited image: refresh reports it accepted and its name off, render then works, the name stays")
+  func handEditedImage() throws {
+    for json in [false, true] {
+      let project = try TempProject(copyOf: "valid/complete-lead")
+      let bundle = project.path(bundleName)
+      let view = try addView(project)
+      let file = URL(fileURLWithPath: bundle + "/" + view)
+      let changed = try syntheticPNG(shade: 201)
+      try changed.write(to: file)
+      #expect(try codes(project).contains("E-FILE-HASH"))
+      #expect(dossier(["render", bundle]).status == 1)
+
+      if json {
+        let ran = dossier(["refresh", bundle, "--json"])
+        #expect(ran.status == 0, "\(ran.stdout)")
+        let object = try ran.object()
+        #expect(object["accepted"] as? [String] == [view])
+        #expect(object["nameMismatches"] as? [String] == [view])
+        #expect(object["dropped"] as? [String] == [])
+      } else {
+        let ran = dossier(["refresh", bundle])
+        #expect(ran.status == 0, "\(ran.stderr)")
+        #expect(ran.stdout.contains("Accepted \(view)"), "\(ran.stdout)")
+        #expect(ran.stdout.contains("Name no longer matches its hash, and is kept: \(view)"), "\(ran.stdout)")
+      }
+      #expect(!(try codes(project).contains("E-FILE-HASH")))
+      let rendered = dossier(["render", bundle])
+      #expect(rendered.status == 0, "\(rendered.stderr)")
+      #expect(try Data(contentsOf: file) == changed)
+    }
+  }
+
+  @Test("A listed file with no asset that's missing: refresh drops it and says so, with nothing else to write")
+  func droppedWithoutAsset() throws {
+    for json in [false, true] {
+      let project = try TempProject(copyOf: "valid/complete-lead")
+      let bundle = project.path(bundleName)
+      let loose = URL(fileURLWithPath: bundle + "/notes/loose.txt")
+      try FileManager.default.createDirectory(at: loose.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("note".utf8).write(to: loose)
+      #expect(dossier(["prompt", bundle, "identity", "--set", "A new prompt."]).status == 0)
+      try FileManager.default.removeItem(at: loose)
+      #expect(try codes(project).contains("E-FILE-MISSING"))
+
+      let manifest = URL(fileURLWithPath: bundle + "/manifest.json")
+      let before = try Data(contentsOf: manifest)
+      if json {
+        let ran = dossier(["refresh", bundle, "--json"])
+        #expect(ran.status == 0, "\(ran.stdout)")
+        #expect(try ran.object()["dropped"] as? [String] == ["notes/loose.txt"])
+      } else {
+        let ran = dossier(["refresh", bundle])
+        #expect(ran.status == 0, "\(ran.stderr)")
+        #expect(ran.stdout.contains("Dropped notes/loose.txt"), "\(ran.stdout)")
+        #expect(!ran.stdout.contains("Nothing to"), "\(ran.stdout)")
+      }
+      #expect(try Data(contentsOf: manifest) != before)
+      #expect(!(try codes(project).contains("E-FILE-MISSING")))
+      #expect(!(try codes(project).contains("E-CHECKSUM")))
+      #expect(dossier(["render", bundle]).status == 0)
+    }
+  }
+
+  @Test("An asset's missing file: render says to restore it, and refresh refuses, reports it and changes nothing")
+  func missingWithAsset() throws {
     let project = try TempProject(copyOf: "valid/complete-lead")
     let bundle = project.path(bundleName)
     try FileManager.default.removeItem(atPath: bundle + "/CHARACTER.md")
@@ -112,7 +175,22 @@ struct FileAcceptanceCommandTests {
     #expect(refused.status == 1)
     #expect(refused.stderr.contains("E-FILE-MISSING CHARACTER.md") && refused.stderr.contains("restored"), "\(refused.stderr)")
 
-    #expect(dossier(["refresh", bundle]).status == 0)
+    let manifest = URL(fileURLWithPath: bundle + "/manifest.json")
+    let before = try Data(contentsOf: manifest)
+
+    // There's nothing else for it to write, which used to succeed in silence.
+    let text = dossier(["refresh", bundle])
+    #expect(text.status == 1)
+    #expect(text.stderr.contains("CHARACTER.md") && text.stderr.contains("dossier remove"), "\(text.stderr)")
+
+    let json = dossier(["refresh", bundle, "--json"])
+    #expect(json.status == 1)
+    let error = try #require(try json.object()["error"] as? [String: Any])
+    #expect(error["code"] as? String == "assetFilesMissing")
+    #expect(error["paths"] as? [String] == ["CHARACTER.md"])
+    #expect((error["message"] as? String)?.contains("dossier remove") == true)
+
+    #expect(try Data(contentsOf: manifest) == before)
     #expect(try codes(project).contains("E-FILE-MISSING"))
 
     let prompted = dossier(["prompt", bundle, "identity", "--set", "No."])
@@ -124,6 +202,8 @@ struct FileAcceptanceCommandTests {
   func help() throws {
     let refresh = dossier(["refresh", "--help"])
     #expect(refresh.stdout.contains("E-FILE-HASH") && refresh.stdout.contains("E-FILE-MISSING"))
+    #expect(refresh.stdout.contains("source of truth"))
+    #expect(refresh.stdout.contains("nameMismatches") && refresh.stdout.contains("dropped"))
     let render = dossier(["render", "--help"])
     #expect(render.stdout.contains("refresh"))
   }

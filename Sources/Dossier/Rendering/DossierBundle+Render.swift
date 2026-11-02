@@ -54,8 +54,8 @@ extension DossierBundle {
     let pages = replaced + [pagePath]
 
     // §11: a page would describe bytes `files` doesn't vouch for. It refuses first, with nothing
-    // written: `refresh` accepts a changed file, and a missing one is restored. The page being
-    // replaced isn't considered.
+    // written: `refresh` brings the manifest up to the disk, and an asset's missing file is restored
+    // or the asset removed. The page being replaced isn't considered.
     let banner = try Self.bannerFindings(of: current, at: url, pages: pages, member: member, template: template)
     let broken = banner.filter { $0.code == .fileHash || $0.code == .fileMissing }
     guard broken.isEmpty else {

@@ -283,7 +283,8 @@ struct RenderCommand: DossierSubcommand {
       manifest as they were. Exits 0, or 1 when any render fails.
 
       A file that doesn't match its entry refuses the render, except the page being replaced. Run \
-      refresh to accept a changed file (E-FILE-HASH); a missing file must be restored (E-FILE-MISSING).
+      refresh to accept a changed file (E-FILE-HASH) or drop a missing one with no asset \
+      (E-FILE-MISSING); an asset's missing file must be restored, or the asset removed.
       """)
 
   @Argument(help: "The bundle.") var bundle: String?

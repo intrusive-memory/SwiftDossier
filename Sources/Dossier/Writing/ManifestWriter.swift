@@ -84,7 +84,8 @@ struct BundleScan {
   /// `files` as this write leaves it, sorted by the byte order of the path (§5.2).
   ///
   /// A listed file keeps its entry, whatever the disk now holds, unless the write says it changed
-  /// that file: a rescan must not turn `E-FILE-HASH` or `E-FILE-MISSING` into a clean bundle. A file
+  /// that file: only `refresh` brings the manifest up to the disk, so a rescan leaves `E-FILE-HASH`
+  /// and `E-FILE-MISSING` for it to report. A file
   /// that isn't listed yet is recorded as found, so a file another tool put here is listed, and is
   /// `W-UNCLASSIFIED` until an asset names it.
   ///
@@ -99,7 +100,7 @@ struct BundleScan {
   ///   - manifest: Gives the recorded entries and the spellings.
   ///   - accepting: Paths this write created or replaced, or that `refresh` accepts: recorded as
   ///     they are on disk.
-  ///   - removing: Paths this write removed: their entries go.
+  ///   - removing: Paths this write removed, or that `refresh` drops: their entries go.
   /// - Throws: ``DossierWriteError`` for an accepted hidden file that's empty or can't be read.
   func entries(
     recordedIn manifest: Manifest, accepting: [String] = [], removing: [String] = []
@@ -159,7 +160,7 @@ struct BundleScan {
 /// manifest in place.
 ///
 /// The rescan records what's new and keeps what's listed: only a file this write itself changed,
-/// or `refresh`, changes an entry (SD-5, SD-11).
+/// or `refresh`, changes or drops an entry (SD-5, SD-11).
 struct ManifestWriter {
   static let generatorName = "SwiftDossier"
 
@@ -194,8 +195,8 @@ struct ManifestWriter {
   ///   - keepingGenerator: Leaves `generator` as it is, which only a render asks for.
   ///   - accepting: The paths this write created or replaced, whose entries now say what's on disk.
   ///     Anything else already listed keeps its entry. Only `refresh` names a file it didn't write.
-  ///   - removing: The paths this write removed, whose entries go. Anything else listed that's
-  ///     missing keeps its entry, and stays `E-FILE-MISSING`.
+  ///   - removing: The paths this write removed, or that `refresh` drops, whose entries go. Anything
+  ///     else listed that's missing keeps its entry, and stays `E-FILE-MISSING`.
   ///   - change: Changes `assets`, and anything else but `files`, `manifestChecksum`, `updatedAt`
   ///     and `generator`, which this sets. It gets the disk as hashed for this write.
   /// - Returns: The manifest written.
@@ -242,8 +243,8 @@ struct ManifestWriter {
   /// §14's errors the schema can't see, which only this write could otherwise record.
   ///
   /// SPEC-GAP: §5.6: an asset whose file is gone has nothing a write could record. A writer's only
-  /// stated duty is the schema; this one refuses instead, and `remove` is how such an asset leaves.
-  /// The disk decides this, not `files`, which keeps a missing file's entry.
+  /// stated duty is the schema; this one refuses instead, and `remove` is how such an asset leaves,
+  /// for the moment. The disk decides this, not `files`, which keeps a missing file's entry.
   private func checkIntegrity(_ manifest: Manifest, scan: BundleScan) throws {
     let listed = Set(manifest.files.map { Array($0.path.utf8) })
     let missing = manifest.assets.map(\.path).filter { path in

@@ -132,8 +132,64 @@ struct FileAcceptanceTests {
     var bundle = try project.open()
     let report = try bundle.refresh()
     #expect(report.accepted == ["CHARACTER.md", portrait.path])
+    #expect(report.nameMismatches == [portrait.path], "CHARACTER.md's name says nothing of its hash")
     #expect(report.adopted.isEmpty)
     #expect(bundle.manifest == (try project.manifest()), "the value holds what was written")
+  }
+
+  @Test("A hand-edited image: render refuses, refresh accepts it and says the name is off, and it keeps its name")
+  func handEditedImage() throws {
+    let project = try project()
+    let portrait = try project.addImage(.portrait)
+    var bundle = try project.open()
+    try bundle.renderPage()
+    let original = try Data(contentsOf: file(portrait.path, project))
+    let changed = try RenderImages.png(width: 18, height: 32, shade: 200)
+    try changed.write(to: file(portrait.path, project))
+
+    #expect(try paths(.fileHash, project) == [portrait.path])
+    #expect(try refusal(project).contains("dossier refresh"))
+
+    bundle = try project.open()
+    let report = try bundle.refresh()
+    #expect(report.accepted == [portrait.path])
+    #expect(report.nameMismatches == [portrait.path])
+    #expect(report.dropped.isEmpty)
+    #expect(try paths(.fileHash, project).isEmpty)
+    #expect(try entry(portrait.path, project)?.sha256 == Checksum.sha256(changed))
+    #expect(try project.manifest().assets.contains { $0.path == portrait.path })
+    #expect(try Data(contentsOf: file(portrait.path, project)) == changed, "no rename, and the bytes stay")
+    try expectChecksumRight(project)
+
+    try bundle.renderPage()
+    #expect(try paths(.fileHash, project).isEmpty)
+    #expect(try Data(contentsOf: file(portrait.path, project)) == changed)
+
+    // Nothing accepted, nothing said. The bytes the name was made from, accepted back, match it.
+    #expect(try bundle.refresh().nameMismatches.isEmpty)
+    try original.write(to: file(portrait.path, project))
+    let back = try bundle.refresh()
+    #expect(back.accepted.contains(portrait.path))
+    #expect(back.nameMismatches.isEmpty)
+  }
+
+  @Test("§4's name form, and only that, has a sha8", arguments: [
+    ("images/portrait-0123abcd.png", "0123abcd"),
+    ("images/view-front-0123abcd.png", "0123abcd"),
+    ("images/expression-very-angry-0123abcd.png", "0123abcd"),
+    ("images/portrait.png", nil),
+    ("images/photo-0123abcd.png", nil),
+    ("images/view--0123abcd.png", nil),
+    ("images/portrait-0123ABCD.png", nil),
+    ("images/portrait-0123abc.png", nil),
+    ("images/portrait-0123abcde.png", nil),
+    ("images/nested/portrait-0123abcd.png", nil),
+    ("images/portrait-0123abcd.jpg", nil),
+    ("source/portrait-0123abcd.png", nil),
+    ("CHARACTER.md", nil),
+  ] as [(String, String?)])
+  private func contentName(_ path: String, _ sha8: String?) {
+    #expect(ContentName.sha8(ofPath: path) == sha8)
   }
 
   // MARK: add
@@ -304,7 +360,7 @@ struct FileAcceptanceTests {
 
   // MARK: Missing files
 
-  @Test("A listed, asset-less missing file stays E-FILE-MISSING across a write, and refresh doesn't clear it")
+  @Test("A listed, asset-less missing file stays E-FILE-MISSING across a write, and refresh drops it")
   func missingWithoutAsset() throws {
     let project = try project()
     try put("note", at: "notes/loose.txt", project)
@@ -319,22 +375,40 @@ struct FileAcceptanceTests {
     #expect(try paths(.fileMissing, project) == ["notes/loose.txt"])
     try expectChecksumRight(project)
 
+    // Nothing else to write: the drop is enough.
     var bundle = try project.open()
     let manifest = try Data(contentsOf: project.manifestURL)
-    #expect(try bundle.refresh().accepted.isEmpty)
-    #expect(try Data(contentsOf: project.manifestURL) == manifest)
-    #expect(try paths(.fileMissing, project) == ["notes/loose.txt"])
-
-    // A refresh that writes for another reason keeps it too.
-    try put(edited, at: "CHARACTER.md", project)
-    #expect(try bundle.refresh().accepted == ["CHARACTER.md"])
-    #expect(try entry("notes/loose.txt", project) == recorded)
-    #expect(try paths(.fileMissing, project) == ["notes/loose.txt"])
+    let report = try bundle.refresh()
+    #expect(report.dropped == ["notes/loose.txt"])
+    #expect(report.accepted.isEmpty && report.adopted.isEmpty)
+    #expect(try Data(contentsOf: project.manifestURL) != manifest, "the drop was written")
+    #expect(try entry("notes/loose.txt", project) == nil)
+    #expect(try paths(.fileMissing, project).isEmpty)
+    #expect(bundle.manifest == (try project.manifest()))
     try expectChecksumRight(project)
+    try bundle.renderPage()
 
-    try put("note", at: "notes/loose.txt", project)
+    let after = try Data(contentsOf: project.manifestURL)
+    #expect(try bundle.refresh().dropped.isEmpty)
+    #expect(try Data(contentsOf: project.manifestURL) == after)
+  }
+
+  @Test("refresh drops and accepts in one write, reporting both in byte order")
+  func dropsAndAccepts() throws {
+    let project = try project()
+    try put("b", at: "notes/b.txt", project)
+    try put("a", at: "notes/a.txt", project)
+    try touch(project)
+    try FileManager.default.removeItem(at: file("notes/b.txt", project))
+    try FileManager.default.removeItem(at: file("notes/a.txt", project))
+    try put(edited, at: "CHARACTER.md", project)
+    var bundle = try project.open()
+    let report = try bundle.refresh()
+    #expect(report.dropped == ["notes/a.txt", "notes/b.txt"])
+    #expect(report.accepted == ["CHARACTER.md"])
     #expect(try paths(.fileMissing, project).isEmpty)
     #expect(try paths(.fileHash, project).isEmpty)
+    try expectChecksumRight(project)
   }
 
   @Test("An asset's missing file refuses every write, refresh included, and remove is the way out")
@@ -359,14 +433,38 @@ struct FileAcceptanceTests {
     try expectChecksumRight(project)
   }
 
-  @Test("A refresh with nothing to write doesn't refuse an asset's missing file")
+  @Test("With nothing else to write, refresh still refuses an asset's missing file, and changes nothing")
   func missingWithAssetNoWrite() throws {
     let project = try project()
     let portrait = try project.addImage(.portrait)
     try FileManager.default.removeItem(at: file(portrait.path, project))
+    let tree = try project.tree()
     var bundle = try project.open()
-    #expect(try bundle.refresh().accepted.isEmpty)
+    #expect(throws: DossierWriteError.assetFilesMissing([portrait.path])) { try bundle.refresh() }
+    #expect(try project.tree() == tree)
     #expect(try paths(.fileMissing, project) == [portrait.path])
+  }
+
+  @Test("An asset's missing file refuses the whole refresh: nothing else is accepted, dropped or adopted")
+  func missingWithAssetStopsTheRest() throws {
+    let project = try project()
+    let portrait = try project.addImage(.portrait)
+    try put("note", at: "notes/loose.txt", project)
+    try touch(project)
+    try FileManager.default.removeItem(at: file("notes/loose.txt", project))
+    try FileManager.default.removeItem(at: file(portrait.path, project))
+    try put(edited, at: "CHARACTER.md", project)
+    try put("a new voice", at: "voice/\(RenderProject.character).vox", project)
+    let tree = try project.tree()
+    var bundle = try project.open()
+    var asked = false
+    #expect(throws: DossierWriteError.assetFilesMissing([portrait.path])) {
+      try bundle.refresh(cast: project.cast) { _ in asked = true }
+    }
+    #expect(!asked)
+    #expect(try project.tree() == tree)
+    #expect(try paths(.fileMissing, project) == ["notes/loose.txt", portrait.path].sorted())
+    #expect(try paths(.fileHash, project) == ["CHARACTER.md"])
   }
 
   @Test("remove of the mismatched asset itself takes its entry; another file's mismatch stays")
