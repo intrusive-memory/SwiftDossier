@@ -269,16 +269,103 @@ struct CheckCommand: DossierSubcommand {
 
 struct RenderCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "render", abstract: "Render a bundle's page. Not available yet.")
+    commandName: "render", abstract: "Write a bundle's page, or the page of every member of a CAST.md with a dossier.",
+    discussion: """
+      dossier render <bundle>               that bundle's page; its member comes from CAST.md
+      dossier render <bundle> --cast CAST.md   the same, from that CAST.md
+      dossier render --cast CAST.md         every member with a dossier, reported one by one
+
+      A page needs its CAST.md member (§7). Without --cast, CAST.md is looked for in the \
+      bundle's parent directory and then its grandparent, and nowhere else. A member that \
+      doesn't point at the bundle is refused.
+
+      The same inputs give the same bytes. A render that fails leaves the previous page and \
+      manifest as they were. Exits 0, or 1 when any render fails.
+      """)
+
   @Argument(help: "The bundle.") var bundle: String?
   @Option(help: "The CAST.md.") var cast: String?
   @OptionGroup var output: OutputOptions
 
+  func validate() throws {
+    if bundle == nil && cast == nil { throw ValidationError("give a bundle, --cast CAST.md, or both") }
+  }
+
   func execute(io: CommandIO) throws -> Int32 {
+    guard let bundle else {
+      guard let cast else { throw CLIFailure("usage", "give a bundle, --cast CAST.md, or both", status: 64) }
+      return try renderAll(cast: fileURL(cast), io: io)
+    }
+    let directory = fileURL(bundle)
+    let castURL = try cast.map(fileURL) ?? Self.findCast(near: directory)
+    let loaded = try Cast.load(castURL)
+    guard let member = castMember(pointingAt: directory, in: loaded) else {
+      throw CLIFailure("member-not-found", "No member of \(castURL.path) points at \(directory.path)")
+    }
+    var target = try DossierBundle.open(at: directory, member: member)
+    let page = try target.renderPage()
+    if io.json {
+      io.emit(Self.object(member: member, bundle: directory, page: page))
+    } else {
+      io.line("Rendered \(page.url.path) (\(page.sizeBytes) bytes)")
+    }
+    return 0
+  }
+
+  /// SPEC-GAP: §7, §11: a page's `castMember` input needs a member and a bundle doesn't hold one.
+  /// §3 only starts discovery from `CAST.md`, so nothing says how to get from a bundle to it. This
+  /// looks where a project's layout puts it, the bundle's parent and then its grandparent, with no
+  /// scanning, and otherwise refuses.
+  static func findCast(near bundle: URL) throws -> URL {
+    let parent = bundle.deletingLastPathComponent()
+    for directory in [parent, parent.deletingLastPathComponent()] {
+      let candidate = directory.appendingPathComponent("CAST.md")
+      if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+    }
     throw CLIFailure(
-      "not-available",
-      "render is not available: this version carries the page template but has no renderer for it yet",
-      status: 69)
+      "cast-not-found", "No CAST.md in the bundle's parent or grandparent directory; pass --cast CAST.md")
+  }
+
+  private func renderAll(cast castURL: URL, io: CommandIO) throws -> Int32 {
+    let loaded = try Cast.load(castURL)
+    var reports: [[String: Any]] = []
+    var failed = 0
+    for member in loaded.members where member.pointer != nil {
+      let directory = loaded.manifestURL(of: member)?.deletingLastPathComponent()
+      do {
+        guard var target = try loaded.openBundle(for: member), let directory else { continue }
+        let page = try target.renderPage()
+        reports.append(Self.object(member: member, bundle: directory, page: page))
+        if !io.json { io.line("\(member.character): rendered \(page.url.path) (\(page.sizeBytes) bytes)") }
+      } catch {
+        failed += 1
+        let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        reports.append([
+          "character": member.character, "status": "failed",
+          "bundle": directory.map { $0.path as Any } ?? NSNull(),
+          "error": ["code": String(String(describing: error).prefix { $0 != "(" }), "message": message],
+        ])
+        if !io.json { io.note("\(member.character): failed: \(message)") }
+      }
+    }
+    if io.json {
+      var object: [String: Any] = ["members": reports]
+      if failed > 0 {
+        object["error"] = ["code": "render-failed", "message": "\(failed) of \(reports.count) renders failed"]
+      }
+      io.emit(object)
+    } else {
+      io.line("\(reports.count - failed) of \(reports.count) rendered")
+    }
+    return failed > 0 ? 1 : 0
+  }
+
+  private static func object(member: Cast.Member, bundle: URL, page: RenderedPage) -> [String: Any] {
+    [
+      "character": member.character, "status": "rendered", "bundle": bundle.path, "page": page.url.path,
+      "sizeBytes": page.sizeBytes, "role": member.fields.role.map { $0.rawValue as Any } ?? NSNull(),
+      "banner": page.banner.map { ["code": $0.code.rawValue, "path": $0.path.map { $0 as Any } ?? NSNull()] },
+    ]
   }
 }
 

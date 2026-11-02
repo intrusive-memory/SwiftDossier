@@ -31,9 +31,16 @@ struct BundleInventory {
   /// The file a manifest path names.
   func file(at path: String) -> File? { byNormalizedPath[Self.key(path)] }
 
-  init(bundle url: URL) {
+  /// - Parameters:
+  ///   - url: The bundle.
+  ///   - excluding: Paths left out, as if they weren't on disk: the page, while it's being replaced.
+  init(bundle url: URL, excluding: [String] = []) {
     var found: [File] = []
     Self.walk(url, prefix: "", hidden: false, into: &found)
+    if !excluding.isEmpty {
+      let left = Set(excluding.map(Self.key))
+      found.removeAll { left.contains(Self.key($0.path)) }
+    }
     files = found.sorted { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) }
     byNormalizedPath = Dictionary(found.map { (Self.key($0.path), $0) }) { first, _ in first }
   }

@@ -30,8 +30,7 @@ dossier-format's specification, schemas, tier table, conformance fixtures, page
 template, field list and design tokens are written and tagged **`v2.0.0-rc.5`**
 (2026-11-01), the revision this package pins. All of them are copied as resources:
 the field list in `DossierCore`, the template and tokens in `Dossier`. The `dossier`
-CLI carries that template when it validates (§4); the renderer that fills it is
-§8 phase 3.
+CLI carries that template when it validates and renders (§4); `renderPage()` fills it.
 
 | # | Rule |
 |---|------|
@@ -45,7 +44,7 @@ CLI carries that template when it validates (§4); the renderer that fills it is
 | Target | Depends on | Contains |
 |--------|------------|----------|
 | `DossierCore` | Foundation, CryptoKit, SwiftReparto, Yams | Read-only. `Cast.load(_:)` (discovery from CAST.md, DOSSIER-FORMAT §3), `DossierBundle.open(at:)`, `Manifest`, `Asset`, `AssetKind`, `assets(kind:variant:)`, `selectedAsset(kind:variant:)`, `sampleURL(variant:)`, `identityPrompt`, `artStyle` (CHARACTER.md front matter, UD20), `pageURL`, `completeness(tier:)`, `stale()`, `DossierTabs`. No writers. Linked by the Vinetas app. |
-| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate(template:)`, `validate(cast:template:)`, `DossierTemplate`, `renderPage()`, `candidates(kind:variant:in:)`, `migrate`, `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
+| `Dossier` | `DossierCore`, ImageIO, Vision | Writers: `DossierBundle.create(character:role:in:)`, `add`, `select`, `reject`, `remove`, `delete()`, `deriveFace(box:)`, `refresh()`, `setPrompt(_:_:)`, `validate(template:)`, `validate(cast:template:)`, `DossierTemplate`, `renderPage()` (built, §8 phase 3), `candidates(kind:variant:in:)`, `migrate` (not built, §8 phase 4), `CharacterDescription.read/write`, `footnoteCheck()`, `openQuestions`. Linked by SwiftPersonaje. |
 | `DossierCLICore` | `Dossier`, ArgumentParser | Command logic, unit-testable without a subprocess. Not a product (SwiftReparto D-6). |
 | `dossier` | `DossierCLICore` | The executable (§5). |
 
@@ -96,7 +95,9 @@ CLI carries that template when it validates (§4); the renderer that fills it is
   originals, through the dossier-format template. Page copies are made with
   ImageIO at fixed settings and embedded as `data:` URIs; nothing is stored.
   Output is deterministic: a test renders the same bundle twice and compares
-  bytes. **Content parity:** every piece of content Personaje's
+  bytes. It needs the bundle's `CAST.md` member (§7's `castMember` input), so a bundle opened
+  with none is refused, and it runs as one update (SD-14). A failed render leaves the
+  previous page and manifest as they were. **Content parity:** every piece of content Personaje's
   `tools/render_dossier.py` shows (sources list, completeness, integrity
   banner, provenance lines, footnotes in citation order) appears in the new
   page, in the new layout.
@@ -115,7 +116,7 @@ dossier prompt   <bundle> identity|portrait|subject [--set "<text>" | --file f] 
 dossier face     <bundle> [--box x,y,w,h]
 dossier check    <bundle>                                 # CHARACTER.md: front matter, sections, footnotes, open questions
 dossier validate <bundle> | --cast CAST.md
-dossier render   <bundle> | --cast CAST.md
+dossier render   <bundle> [--cast CAST.md] | --cast CAST.md   # §4. Without --cast, CAST.md in the bundle's parent, then grandparent
 dossier refresh  <bundle>
 dossier candidates <bundle> [--kind portrait]            # what's in .generations/<CHARACTER>/
 dossier migrate  characters/SHANE --cast CAST.md [--apply]   # dry run by default (§6)
@@ -135,8 +136,7 @@ move candidates and sidecars to `.generations/<NAME>/`; map retired kinds
 `derivedFrom` in the §7 shape; update CAST.md pointers through Reparto;
 write the v2 manifest; render the page and delete `dossier.html`; validate.
 An asset that can't be mapped stays an unclassified file and is reported
-(Appendix A). Until the renderer ships (§8 phase 3), `migrate` stops before the
-page and says so.
+(Appendix A). The renderer has shipped (§8 phase 3); `migrate` hasn't (phase 4).
 
 ## 7. Format additions
 
@@ -152,8 +152,8 @@ first (SD-1).
    those. Tests against the synthetic fixtures (SD-4).
 2. **Face crop and `check`.**
 3. **Page renderer** with the dossier-format template, which is in the pinned
-   tag and already copied as resources (SD-2). `dossier render` waits
-   for it: there is no bridge (Q2). **`render_dossier.py` must not
+   tag and copied as resources (SD-2). **Built:** `renderPage()` and `dossier render`;
+   there is no bridge (Q2). **`render_dossier.py` must not
    be run on a v2 bundle;** it rewrites the manifest with a path-order checksum.
 4. **Migration,** for any remaining v1 bundle. Appendix A's order is settled, but
    not yet every field: a v1 asset can lack what v2 requires, reference paths
@@ -164,8 +164,8 @@ first (SD-1).
 
 ## 9. Acceptance
 
-Items 1, 2 and 4 run through `make acceptance` against a local Granville
-checkout (SD-4); they are not part of CI.
+Items 1 to 4 run through `make acceptance` against a local Granville
+checkout (SD-4); they are not part of CI, though a test renders the fixtures twice in CI.
 
 1. `dossier validate` on all nine Granville bundles on `dossier/v2-migration`:
    no errors, and each manifest validates against
@@ -188,5 +188,5 @@ checkout (SD-4); they are not part of CI.
 | # | Question | Recommendation |
 |---|----------|----------------|
 | Q1 | Public or private repository? (DEPENDENCY-MISSIONS OQ-13) | **Decided 2026-10-20: public.** Every Swift* package is public by convention; the apps are private. Hence SD-4. |
-| Q2 | Does `render` wait for the dossier-format template, or ship the bridge in §8 phase 3? | **Decided 2026-10-31:** ship the bridge only if it is shown to read v2 bundles first. **Recon showed it can't:** it doesn't find a v2 bundle's views, face or expressions, writes the wrong file name, and corrupts the manifest. So there's no bridge, and `render` waits for the template (§8 phase 3). |
+| Q2 | Does `render` wait for the dossier-format template, or ship the bridge in §8 phase 3? | **Decided 2026-10-31:** ship the bridge only if it is shown to read v2 bundles first. **Recon showed it can't:** it doesn't find a v2 bundle's views, face or expressions, writes the wrong file name, and corrupts the manifest. So there's no bridge, and `render` waited for the template (§8 phase 3, now built). |
 | Q3 | `check`: is CHARACTER.md linting the writer's job (here) or Personaje's? | **Decided 2026-10-31:** here. It reads a format file (DOSSIER-FORMAT §9) and is needed by every writer. Personaje only decides the gates. |

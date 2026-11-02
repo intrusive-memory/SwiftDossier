@@ -85,6 +85,10 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case bundleOutsideCastDirectory(String)
   /// `CAST.md` couldn't be written. A bundle made for the write was removed.
   case castWriteFailed(String)
+  /// The page's record fails `record.schema.json` (§11). Nothing was written.
+  case pageRecordInvalid([String])
+  /// A file changed while the page was being made, so it no longer describes the bundle.
+  case bundleChangedDuringRender
   /// A marker's id isn't one or more ASCII letters, digits or hyphens (§5.7).
   case updateIDNotAllowed(String)
   /// The bundle has no marker with this id (§5.7).
@@ -143,6 +147,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .memberPointsElsewhere(let member, let pointer): return "\(member) already points at \(pointer)"
     case .bundleOutsideCastDirectory(let path): return "\(path) isn't under the directory holding CAST.md"
     case .castWriteFailed(let detail): return "CAST.md couldn't be written: \(detail)"
+    case .pageRecordInvalid(let details): return "The page's record fails its schema: \(details.joined(separator: "; "))"
+    case .bundleChangedDuringRender: return "A file in the bundle changed during the render; run it again"
     case .updateIDNotAllowed(let id): return "\(id) isn't an update id: it needs ASCII letters, digits or hyphens"
     case .updateMarkerNotFound(let id): return "The bundle has no update marker with the id \(id)"
     case .updateMarkerUnreadable(let id): return "The update marker \(id) isn't a JSON object"

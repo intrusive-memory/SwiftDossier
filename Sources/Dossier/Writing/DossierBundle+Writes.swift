@@ -312,7 +312,7 @@ extension DossierBundle {
   /// SPEC-GAP: §4: `crowdRef` has no directory. It's an image, so SD-6 puts it in `images/`.
   /// §4 gives `source/` and `training/` no naming rule, and the fixtures keep a plain name there,
   /// so the file keeps its own, and a name that's taken by other bytes is refused.
-  private static func destination(
+  static func destination(
     of kind: AssetKind, sourceName: String, sha256: String, character: String, options: AddOptions
   ) throws -> String {
     func usable(_ name: String) throws -> String {
@@ -435,7 +435,7 @@ extension DossierBundle {
 }
 
 /// SD-10: `derivedFrom` in §7's array shape.
-private enum DerivedInputs {
+enum DerivedInputs {
   /// The inputs a kind records, or `nil` for a kind that has none and was given none.
   static func resolve(
     kind: AssetKind, path: String, explicit: [DerivedInput]?, references: [ProvenanceReference],

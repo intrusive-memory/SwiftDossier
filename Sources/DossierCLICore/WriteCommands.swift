@@ -76,6 +76,8 @@ struct AddCommand: DossierSubcommand {
       options.referenceRoles = referenceRoles.split(separator: ",", omittingEmptySubsequences: false)
         .map { $0.trimmingCharacters(in: .whitespaces) }
     }
+    // A `dossier`'s `template` input (§7): the template this tool carries.
+    if AssetKind(rawValue: kind) == .dossier { options.template = try DossierTemplate.current }
     var target = try openBundle(bundle)
     let asset = try target.add(fileURL(file), kind: AssetKind(rawValue: kind), options: options)
     if io.json {

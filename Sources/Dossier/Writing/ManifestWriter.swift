@@ -48,9 +48,12 @@ struct BundleScan {
   let files: [File]
   private let byKey: [[UInt8]: File]
 
+  /// - Parameters:
+  ///   - url: The bundle.
+  ///   - excluding: Paths left out of the inventory: the page, when what's asked is the bundle without it.
   /// - Throws: ``DossierWriteError/zeroByteFiles(_:)``, which a writer must not write (§5.2).
-  init(bundle url: URL) throws {
-    let visible = BundleInventory(bundle: url).visible
+  init(bundle url: URL, excluding: [String] = []) throws {
+    let visible = BundleInventory(bundle: url, excluding: excluding).visible
     let empty = visible.filter { $0.size == 0 }.map(\.path)
     guard empty.isEmpty else { throw DossierWriteError.zeroByteFiles(empty) }
     files = try visible.map { file in
@@ -114,11 +117,13 @@ struct ManifestWriter {
 
   /// Applies a change and writes the result.
   ///
-  /// - Parameter change: Changes `assets`, and anything else but `files`, `manifestChecksum`,
-  ///   `updatedAt` and `generator`, which this sets. It gets the disk as hashed for this write.
+  /// - Parameters:
+  ///   - keepingGenerator: Leaves `generator` as it is, which only a render asks for.
+  ///   - change: Changes `assets`, and anything else but `files`, `manifestChecksum`, `updatedAt`
+  ///     and `generator`, which this sets. It gets the disk as hashed for this write.
   /// - Returns: The manifest written.
   @discardableResult
-  func update(_ change: (inout Manifest, BundleScan) throws -> Void) throws -> Manifest {
+  func update(keepingGenerator: Bool = false, _ change: (inout Manifest, BundleScan) throws -> Void) throws -> Manifest {
     var manifest = try currentManifest()
     guard let prior = try? Data(contentsOf: manifestURL) else {
       throw DossierError.manifestMissing(path: manifestURL.path)
@@ -129,7 +134,7 @@ struct ManifestWriter {
     manifest.files = scan.entries(spelledAs: manifest)
     manifest.manifestChecksum = manifest.computedChecksum
     manifest.updatedAt = Timestamp.string(from: Date())
-    manifest.generator = Manifest.Generator(name: Self.generatorName, version: nil)
+    if !keepingGenerator { manifest.generator = Manifest.Generator(name: Self.generatorName, version: nil) }
     try checkSchema(manifest)
     try checkIntegrity(manifest)
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>]
+# make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]
 #
-# REQUIREMENTS §9 items 1, 2, 4 and 5 against a local project checkout. Not in CI (SD-4).
-# Items 3 and 4's migrate half belong to phases 3 and 4.
+# REQUIREMENTS §9 items 1 to 5 against a local project checkout. Not in CI (SD-4).
+# Item 4's migrate half belongs to phase 4. Item 3 keeps the rendered pages in PAGES_OUT when set,
+# which can't be inside PROJECT.
 #
 # The project is read and never written, apart from what Git LFS's own smudge keeps in its
 # object cache. REF's committed state goes into a temporary directory by `git archive`, every
@@ -10,7 +11,7 @@
 # working tree is item 2's .generations/, and only when REF doesn't hold it, which is usual
 # since it's ignored; the output says when.
 #
-# Output holds names, codes, counts and key names. Never a prompt, a description, a sidecar
+# Output holds names, roles, sizes, codes, counts and key names. Never a prompt, a description, a sidecar
 # value or a tool's message, which can quote those.
 #
 # Exit status: 0 no failure, 1 a failure, 2 couldn't run, 64 a bad command line. A project that
@@ -18,9 +19,9 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>]" >&2
+  echo "usage: make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]" >&2
   echo "  REF defaults to dossier/v2-migration. REPARTO defaults to the one on PATH, then to one" >&2
-  echo "  built from the SwiftReparto this package resolves." >&2
+  echo "  built from the SwiftReparto this package resolves. PAGES_OUT keeps item 3's rendered pages." >&2
 }
 die() {
   echo "acceptance: $*" >&2
@@ -38,6 +39,17 @@ fi
 if [ ! -d "$PROJECT" ]; then
   echo "acceptance: SKIP: no project at $PROJECT (SD-4). Nothing was run."
   exit 0
+fi
+
+# Item 3 writes here, and nothing writes to the project: judged by the nearest directory that
+# exists, before anything is made.
+if [ -n "${PAGES_OUT:-}" ]; then
+  EXISTING="$PAGES_OUT"
+  while [ ! -d "$EXISTING" ]; do EXISTING="$(dirname "$EXISTING")"; done
+  case "$(cd "$EXISTING" && pwd -P)/" in
+    "$(cd "$PROJECT" && pwd -P)"/*) die "PAGES_OUT is inside PROJECT, which is never written" ;;
+  esac
+  mkdir -p "$PAGES_OUT" || die "can't make PAGES_OUT"
 fi
 
 export GIT_OPTIONAL_LOCKS=0
@@ -71,6 +83,7 @@ cmp -s "$ROOT/bin/dossier" "$BUILT/dossier" \
 # The Python below is given the copy, and the project only to read .generations/ from.
 ACCEPT_ROOT="$ROOT" ACCEPT_WORK="$WORK" ACCEPT_BUILT="$BUILT" ACCEPT_REF="$REF" \
   ACCEPT_COMMIT="${COMMIT:0:12}" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
+  ACCEPT_PAGES_OUT="${PAGES_OUT:-}" \
   python3 -I -c "$(sed -n '/^# PYTHON BEGIN$/,/^# PYTHON END$/p' "${BASH_SOURCE[0]}")"
 exit $?
 
@@ -488,6 +501,85 @@ def item2(members, pre_add_errors):
             f"{at_selection} recorded with the current selection's path, face mapping: {'yes' if by_kind['face'] else 'no'}")
 
 
+# Item 3 ---------------------------------------------------------------------------------------
+
+LEAD_TARGET = 3_000_000  # DF-53: a "should".
+PAGE_LIMIT = 10_000_000  # W-PAGE-SIZE.
+
+
+def prepare_item3():
+    """A copy of the copy made before item 2 changes it, so the pages are of REF's bundles."""
+    target = os.path.join(WORK, "item3-copy")
+    shutil.copytree(COPY, target, symlinks=True)
+    return target
+
+
+def item3(members, members_ok, copy):
+    """Each member's bundle rendered twice on its own scratch copy, and validated after."""
+    print("item 3: render every member's bundle, twice")
+    if not members_ok:
+        row("item", "FAIL", "3 FAIL: CAST.md can't be read, or lists no members")
+        return
+    pages_out = os.environ.get("ACCEPT_PAGES_OUT", "")
+    cast = os.path.join(copy, "CAST.md")
+    with_bundle = [member for member in members if member["manifest"]]
+    failed, pointers, over_target = 0, 0, 0
+    for member in with_bundle:
+        name = member["character"]
+        if not inside_copy(member["manifest"]):
+            print(f"  {name}  FAIL  its manifest: leaves the project")
+            failed += 1
+            continue
+        bundle = os.path.dirname(os.path.join(copy, os.path.relpath(member["manifest"], COPY)))
+        if any(is_lfs_pointer(path) for path in files_under(bundle)):
+            print(f"  {name}  SKIP(lfs pointer)")
+            pointers += 1
+            continue
+        _, before = dossier("validate", bundle, "--cast", cast)
+        status, result = dossier("render", bundle, "--cast", cast)
+        if status != 0 or not result or "page" not in result:
+            print(f"  {name}  FAIL  render failed ({error_code(result)})")
+            failed += 1
+            continue
+        page = result["page"]
+        first = sha256_of(page)
+        status, again = dossier("render", bundle, "--cast", cast)
+        same = status == 0 and sha256_of(page) == first
+        size = os.path.getsize(page)
+        role = result.get("role")
+        _, after = dossier("validate", bundle, "--cast", cast)
+        new_errors = codes(after, "error") - codes(before, "error")
+        problems = []
+        if not same:
+            problems.append("the second render differs" if status == 0 else f"the second render failed ({error_code(again)})")
+        if new_errors:
+            problems.append(f"new errors: {counted(new_errors)}")
+        if size > PAGE_LIMIT:
+            problems.append(f"OVER 10 MB (W-PAGE-SIZE, limit {PAGE_LIMIT})")
+        notes = ""
+        if role == "lead":
+            if size > LEAD_TARGET:
+                over_target += 1
+                notes = f"  OVER 3 MB TARGET (DF-53, {LEAD_TARGET})"
+            else:
+                notes = f"  within the 3 MB target (DF-53, {LEAD_TARGET})"
+        print(f"  {name}  {size} bytes  role {role or 'none'}{notes}  {'FAIL  ' + '; '.join(problems) if problems else 'PASS'}")
+        failed += bool(problems)
+        if pages_out:
+            shutil.copyfile(page, os.path.join(pages_out, os.path.basename(page)))
+
+    if pages_out:
+        print(f"  rendered pages kept in {pages_out}")
+    summary = f"{len(with_bundle)} bundles, {failed} failed, {over_target} leads over the 3 MB target, which doesn't fail this item"
+    if not with_bundle:
+        row("item", "FAIL", "3 FAIL: no member has a bundle, so nothing was rendered")
+    elif pointers:
+        row("item", "SKIP(lfs pointer)", f"3 SKIP(lfs pointer): {pointers} of {len(with_bundle)} bundles hold LFS pointers, a failure of this check")
+    else:
+        verdict = "FAIL" if failed else "PASS"
+        row("item", verdict, f"3 {verdict}: {summary}")
+
+
 # Item 4 ---------------------------------------------------------------------------------------
 
 def package_checkout(name):
@@ -821,8 +913,9 @@ def main():
     members_ok = bool(members)
 
     pre_add_errors = item1(members, members_ok)
+    item3_copy = prepare_item3()
     item2(members, pre_add_errors)
-    print("item 3 not run: rendering is phase 3")
+    item3(members, members_ok, item3_copy)
     item4(members_ok)
     item5()
 
