@@ -1,3 +1,4 @@
+import Dossier
 import DossierCore
 import Foundation
 import Testing
@@ -77,6 +78,71 @@ struct ValidateTests {
     #expect(ran.status == 2)
     let codes = (try ran.object()["findings"] as? [[String: Any]])?.compactMap { $0["code"] as? String }
     #expect(codes == ["E-CAST"])
+  }
+
+  private struct ConformanceFile: Decodable {
+    struct Entry: Decodable {
+      let path: String
+      let verdict: String
+      let codes: [String]
+      let mayAlso: [String]
+    }
+    let templateVersion: String
+    let templateSha256: String
+    let fixtures: [Entry]
+
+    static func load() throws -> ConformanceFile {
+      try JSONDecoder().decode(
+        ConformanceFile.self, from: Data(contentsOf: FixturePaths.root.appendingPathComponent("conformance.json")))
+    }
+  }
+
+  private func codes(_ ran: Ran) throws -> [String] {
+    let findings = try #require(try ran.object()["findings"] as? [[String: Any]])
+    return findings.compactMap { $0["code"] as? String }
+  }
+
+  @Test("the CLI gives what conformance.json states for every fixture, with its bundled template")
+  func everyConformanceFixture() throws {
+    if SpecTree.isOverridden {
+      Issue.record("skipped: SPEC_DIR is set, and the CLI carries the pinned template, not that tree's", severity: .warning)
+      return
+    }
+    let file = try ConformanceFile.load()
+    #expect(try DossierTemplate.current == PageTemplate(version: file.templateVersion, sha256: file.templateSha256))
+    #expect(!file.fixtures.isEmpty)
+    let statuses = ["valid": Int32(0), "warnings": 1, "invalid": 2]
+    for entry in file.fixtures {
+      let cast = FixturePaths.root.appendingPathComponent(entry.path).appendingPathComponent("CAST.md")
+      let ran = dossier(["validate", "--cast", cast.path, "--json"])
+      #expect(ran.status == statuses[entry.verdict], "\(entry.path): \(ran.stdout)")
+      let reported = Set(try codes(ran))
+      #expect(Set(entry.codes).isSubset(of: reported), "\(entry.path): \(reported.sorted())")
+      #expect(reported.subtracting(entry.codes).subtracting(entry.mayAlso).isEmpty, "\(entry.path): \(reported.sorted())")
+    }
+  }
+
+  @Test("a page made with an older template is W-STALE, alone and from its project")
+  func olderTemplate() throws {
+    if SpecTree.isOverridden {
+      Issue.record("skipped: SPEC_DIR is set, and the CLI carries the pinned template, not that tree's", severity: .warning)
+      return
+    }
+    let project = try TempProject(copyOf: "warnings/W-STALE-template")
+    let bundle = project.path("characters/PELL ARDEN.dossier")
+
+    // The library, given no template, makes no comparison: the finding is the CLI's template.
+    #expect(try DossierBundle.validate(at: URL(fileURLWithPath: bundle)).findings.isEmpty)
+
+    for arguments in [["validate", bundle, "--json"], ["validate", bundle, "--cast", project.cast.path, "--json"]] {
+      let ran = dossier(arguments)
+      #expect(ran.status == 1, "\(ran.stdout)")
+      #expect(try codes(ran).contains("W-STALE"), "\(ran.stdout)")
+      #expect(ran.stdout.contains(try DossierTemplate.sha256))
+    }
+    let whole = dossier(["validate", "--cast", project.cast.path])
+    #expect(whole.status == 1)
+    #expect(whole.stdout.contains("W-STALE"))
   }
 
   @Test("validate needs a bundle or --cast")

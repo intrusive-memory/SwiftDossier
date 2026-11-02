@@ -8,7 +8,7 @@ extension DossierBundle {
   /// ``validate(cast:template:)``. With none they can't be: a tier and a voice come from
   /// `CAST.md` (§8.2, §8.3).
   ///
-  /// - Parameter template: The current template. `nil` makes no template comparison (§11).
+  /// - Parameter template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public func validate(template: PageTemplate? = nil) throws -> ValidationReport {
     try Self.validate(directory: url, member: member, template: template)
@@ -19,7 +19,7 @@ extension DossierBundle {
   ///
   /// - Parameters:
   ///   - url: The directory that should hold `manifest.json`.
-  ///   - template: The current template. `nil` makes no template comparison (§11).
+  ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public static func validate(at url: URL, template: PageTemplate? = nil) throws -> ValidationReport {
     try validate(directory: url.standardizedFileURL, member: nil, template: template)
@@ -30,7 +30,7 @@ extension DossierBundle {
   ///
   /// - Parameters:
   ///   - castURL: The `CAST.md` file.
-  ///   - template: The current template. `nil` makes no template comparison (§11).
+  ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public static func validate(cast castURL: URL, template: PageTemplate? = nil) throws -> ValidationReport {
     let cast: Cast
@@ -89,6 +89,18 @@ extension DossierBundle {
       completeness: run.completeness.map { [.init(bundlePath: "", report: $0)] } ?? [])
   }
 
+  /// §14 over a bundle as a given manifest describes it, with these paths treated as absent. Field
+  /// rule 5's banner: the bundle without the page. Nothing is changed.
+  static func findings(
+    at url: URL, describedBy manifest: Manifest, excluding: [String], member: Cast.Member?, template: PageTemplate?
+  ) throws -> [Finding] {
+    var run = BundleValidation(
+      url: url, member: member, prefix: "", template: template, schemas: try SchemaEvaluator.bundledSchemas.get(),
+      described: manifest, excluding: excluding)
+    try run.run()
+    return run.findings
+  }
+
   private static func roleFindings(of member: Cast.Member) -> [Finding] {
     guard member.pointer != nil, member.fields.role == nil else { return [] }
     return [Finding(code: .role, message: "\(member.character) has a manifest: and no role", path: nil)]
@@ -144,12 +156,22 @@ private struct BundleValidation {
   private(set) var findings: [Finding] = []
   private(set) var completeness: CompletenessReport?
 
-  init(url: URL, member: Cast.Member?, prefix: String, template: PageTemplate?, schemas: SchemaEvaluator) {
+  /// The manifest to check, in place of `manifest.json`.
+  private let described: Manifest?
+  /// Paths to treat as absent.
+  private let excluding: [String]
+
+  init(
+    url: URL, member: Cast.Member?, prefix: String, template: PageTemplate?, schemas: SchemaEvaluator,
+    described: Manifest? = nil, excluding: [String] = []
+  ) {
     self.url = url
     self.member = member
     self.prefix = prefix
     self.template = template
     self.schemas = schemas
+    self.described = described
+    self.excluding = excluding
   }
 
   private mutating func add(_ code: Finding.Code, _ message: String, path: String? = nil) {
@@ -157,10 +179,10 @@ private struct BundleValidation {
   }
 
   mutating func run() throws {
-    guard let manifest = readManifest() else { return }
+    guard let manifest = described ?? readManifest() else { return }
     let isV1 = manifest.manifestVersion == 1
     let bundle = DossierBundle(url: url, manifest: manifest, member: member)
-    let inventory = BundleInventory(bundle: url)
+    let inventory = BundleInventory(bundle: url, excluding: excluding)
 
     if isV1 {
       add(.v1, "A version 1 manifest; migrate it", path: "manifest.json")

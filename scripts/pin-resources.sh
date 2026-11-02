@@ -11,11 +11,24 @@ test -d "$SRC" || { echo "run 'make fixtures' first" >&2; exit 1; }
 DOSSIER_RES=Sources/Dossier/Resources
 SCHEMAS=$DOSSIER_RES/schemas
 DATA=Sources/DossierCore/Resources
-mkdir -p "$SCHEMAS" "$DATA"
+TEMPLATE=$DOSSIER_RES/template
+TOKENS=$DOSSIER_RES/data
+mkdir -p "$SCHEMAS" "$DATA" "$TOKENS"
 
 rm -f "$SCHEMAS"/*.json
 cp "$SRC"/schemas/*.json "$SCHEMAS"/
-cp "$SRC"/data/tiers.json "$SRC"/data/review.json "$DATA"/
+cp "$SRC"/data/tiers.json "$SRC"/data/review.json "$SRC"/data/fields.json "$DATA"/
+cp "$SRC"/data/tokens.json "$TOKENS"/
+
+# The files template/README.md rule 1 hashes, plus VERSION.json, which publishes
+# that hash. Not README.md, not example/, not any path with a segment beginning
+# with a dot. Bytes as they are.
+rm -rf "$TEMPLATE"
+(cd "$SRC/template" && find . -type f ! -path './README.md' ! -path './example/*' ! -path '*/.*') |
+  while IFS= read -r file; do
+    mkdir -p "$TEMPLATE/$(dirname "$file")"
+    cp "$SRC/template/$file" "$TEMPLATE/$file"
+  done
 
 # Resources/PINNED.sha256 lists "<sha256>  <path relative to Resources/>" and
 # opens with a comment naming the ref.
@@ -27,6 +40,6 @@ write_pins() {
     (cd "$dir" && shasum -a 256 "$@")
   } > "$dir/PINNED.sha256"
 }
-write_pins "$DOSSIER_RES" $(cd "$DOSSIER_RES" && ls schemas/*.json)
-write_pins "$DATA" tiers.json review.json
+write_pins "$DOSSIER_RES" $(cd "$DOSSIER_RES" && ls schemas/*.json && find template -type f | LC_ALL=C sort) data/tokens.json
+write_pins "$DATA" tiers.json review.json fields.json
 echo "Pinned resources regenerated for $REF"

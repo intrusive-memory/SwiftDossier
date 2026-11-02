@@ -429,7 +429,7 @@ enum SchemaEvaluatorTests {
     @Test func validFixturesValidateAgainstManifestV2() throws {
       let evaluator = try SchemaEvaluator.pinned()
       let found = try Self.manifests(under: "valid")
-      #expect(found.count == 18)
+      if SpecTree.isOverridden { #expect(found.count >= 19) } else { #expect(found.count == 19) }
       for (name, manifest) in found {
         let result = try evaluator.validate(manifest, against: "manifest-v2.schema.json")
         #expect(result.isEmpty, "\(name): \(result)")

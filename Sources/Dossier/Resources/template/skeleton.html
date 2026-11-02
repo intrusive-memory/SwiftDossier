@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="dossier-template" content="{{template.version}} {{template.sha256}}">
+<title>{{character}}</title>
+<style>{{include:fonts.css}}</style>
+<style>{{include:dossier.css}}</style>
+<script>document.documentElement.setAttribute("data-script","on")</script>
+</head>
+<body>
+<header class="page-before">{{page.before}}</header>
+<dossier-tabs>
+<nav class="tab-list" aria-label="Character sections">{{tab.links}}</nav>
+{{tab.panels}}
+</dossier-tabs>
+<footer class="page-after">{{page.after}}</footer>
+<script type="application/json" id="character-record">{{record}}</script>
+<script>{{include:dossier.js}}</script>
+</body>
+</html>

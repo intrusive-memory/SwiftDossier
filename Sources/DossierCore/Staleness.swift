@@ -40,7 +40,8 @@ extension DossierBundle {
   /// The hash of `CAST.md`'s member is compared only when the bundle was opened with its
   /// ``member``; without one there's no current member.
   ///
-  /// - Parameter template: The current template. `nil` makes no template comparison (§11).
+  /// - Parameter template: The current template; `Dossier` bundles one as `DossierTemplate.current`.
+  ///   `nil` makes no template comparison (§11).
   public func stale(template: PageTemplate? = nil) -> [StaleFinding] {
     guard manifest.manifestVersion == 2 else { return [] }
     var findings: [StaleFinding] = []

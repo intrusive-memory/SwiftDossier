@@ -5,7 +5,7 @@
 # through xcodebuild; SwiftPM's own drivers are not used in this project.
 
 # The pinned dossier-format revision. Defined ONLY here.
-DOSSIER_FORMAT_REF = v2.0.0-rc.5
+DOSSIER_FORMAT_REF = v2.0.0-rc.7
 DOSSIER_FORMAT_URL = https://github.com/intrusive-memory/dossier-format
 FIXTURES_DIR = .dossier-format
 
@@ -65,7 +65,8 @@ help:
 	@echo "  smoke       - Run bin/dossier from another directory on a conformance fixture (after release)"
 	@echo "  clean       - Remove build artifacts, $(BIN_DIR)/, and DerivedData"
 	@echo "  resolve     - Resolve package dependencies"
-	@echo "  acceptance  - REQUIREMENTS 9 against a checkout, read-only: PROJECT=<path> [REF=<ref>] [REPARTO=<path>]; not in CI"
+	@echo "  acceptance  - REQUIREMENTS 9 against a project, read-only: PROJECT=<path> [REF=<ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]; not in CI."
+	@echo "                The project as it is on disk, unless REF=<ref> asks for that commit; the output says which"
 	@echo ""
 	@echo "macOS destination: $(DESTINATION)"
 	@echo "iOS destination:   $(IOS_DESTINATION)"
@@ -167,4 +168,4 @@ clean:
 
 # Reads PROJECT and never writes to it, and skips when it isn't there (SD-4). Not part of `test`.
 acceptance:
-	@REPARTO="$(REPARTO)" scripts/acceptance.sh "$(PROJECT)" "$(REF)"
+	@REPARTO="$(REPARTO)" PAGES_OUT="$(PAGES_OUT)" scripts/acceptance.sh "$(PROJECT)" "$(REF)"

@@ -11,7 +11,7 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.1.0-dev implements dossier-format `v2.0.0-rc.5`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces and checks `CHARACTER.md`. `dossier render` and `dossier migrate` aren't built yet and exit with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.1.0-dev implements dossier-format `v2.0.0-rc.7`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md` and renders the page. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 
