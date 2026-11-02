@@ -7,7 +7,7 @@
 #
 # The files on disk are the source of truth, so by default the project is taken as it is on disk:
 # its tree goes into a temporary directory, hidden files included, .git skipped and links kept as
-# links, never followed. REF=<ref> takes that commit instead, by `git archive`. The output says which
+# links, never followed; a link out of the tree is left out. REF=<ref> takes that commit instead, by `git archive`. The output says which
 # (`source: disk`, or `source: ref <ref> at <sha>`). Every command runs on the copy, which is removed
 # on exit, and a link leading out of the copy stops the run.
 #
@@ -201,7 +201,7 @@ def clone_or_copy(source, target):
 def copy_project_from_disk():
     """The project's tree as it is now, into the copy, reading only. `.git` is skipped at any depth,
     as a submodule has one too, and a link stays a link, so nothing outside the tree is read.
-    Returns (files, links, others skipped: a FIFO or socket isn't a file a bundle can hold)."""
+    Returns (files, links, others skipped: a link out of the tree, a FIFO or a socket)."""
     def stop(error):
         raise error
 
@@ -216,7 +216,14 @@ def copy_project_from_disk():
             target = os.path.normpath(os.path.join(COPY, relative, name))
             mode = os.lstat(source).st_mode
             if stat.S_ISLNK(mode):
-                os.symlink(os.readlink(source), target)
+                # A link out of the tree, such as a virtualenv's python, is left out: following it
+                # would read outside the project. A bundle that needs one shows E-FILE-MISSING.
+                link = os.readlink(source)
+                inside = os.path.normpath(os.path.join(directory, link)).startswith(READ_ONLY_SOURCE + os.sep)
+                if os.path.isabs(link) or not inside:
+                    others += 1
+                    continue
+                os.symlink(link, target)
                 links += 1
             elif stat.S_ISDIR(mode):
                 os.mkdir(target)
@@ -1048,7 +1055,7 @@ def main():
             print(f"acceptance: couldn't copy the project: {type(error).__name__} on {error.filename}. Nothing was run.",
                   file=sys.stderr)
             sys.exit(2)
-        print(f"acceptance: source: disk ({copied} files, {links} links, {others} special files skipped; .git left out)")
+        print(f"acceptance: source: disk ({copied} files, {links} links, {others} left out: links out of the tree, FIFOs, sockets; .git left out)")
     reject_links_out_of_the_copy()
     cast = os.path.join(COPY, "CAST.md")
     members = []

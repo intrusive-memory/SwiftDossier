@@ -186,8 +186,8 @@ The disk is the source of truth (§3), so `make acceptance PROJECT=<path>` takes
 project as it is on disk: it copies the tree, `.git` aside and hidden `.generations/`
 included, into a temporary directory and runs there. `REF=<ref>` extracts that commit
 instead, and has no default. The output says which source was used: `disk`, or the ref
-and SHA. Either way it never writes to the project, a link leading out of the copy stops
-the run, and a file that's an LFS pointer reports `SKIP(lfs pointer)`.
+and SHA. Either way it never writes to the project and a file that's an LFS pointer reports `SKIP(lfs pointer)`. From disk, a link leading out of the tree is left out; from a ref,
+it stops the run.
 
 1. `dossier validate` on all nine Granville bundles: no errors, and each manifest validates against
    `schemas/manifest-v2.schema.json`. Separately, in CI: `dossier validate`
