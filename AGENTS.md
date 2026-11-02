@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftDossier — Agent Instructions
-updated: 2026-11-01
+updated: 2026-11-02
 ---
 
 # AGENTS.md
@@ -33,7 +33,7 @@ The Swift implementation of dossier-format: read, write, validate, migrate and r
 ## Queryable Codemap
 
 A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
-codebase lives in [`graphify-out/`](graphify-out/) (1999 nodes · 4215 edges). **Prefer
+codebase lives in [`graphify-out/`](graphify-out/) (2474 nodes · 5523 edges). **Prefer
 querying it before grepping** for architecture or "what connects to what" questions:
 
 ```bash
