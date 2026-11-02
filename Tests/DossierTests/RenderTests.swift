@@ -528,8 +528,8 @@ struct RenderTests {
     let text = "---\ntype: character\ncharacter: SOMEONE ELSE\n---\n\n## Logline\n\nA line.\n"
     try Data(text.utf8).write(to: description)
     var bundle = try project.open()
-    // Written through a write, so the hash of the file is right.
-    try bundle.refreshManifestForTest()
+    // Accepted, so the hash of the file is right.
+    try bundle.refresh()
     let rendered = try render(project)
     #expect(rendered.banner.map(\.code) == [.nameMismatch])
     let items = PageReader.matches(of: "<li>([^<]*)</li>", in: try PageReader(text: try project.page()).element(key: "page.integrity"))
@@ -576,7 +576,7 @@ struct RenderTests {
     let file = project.bundleURL.appendingPathComponent(portrait.path)
     try Data("not an image".utf8).write(to: file)
     var bundle = try project.open()
-    try bundle.setPrompt(.subject, "person")  // A write records the file's hash, so it isn't E-FILE-HASH.
+    try bundle.refresh()  // Accepts the file's hash, so it isn't E-FILE-HASH.
     let before = try project.tree()
     #expect(throws: DossierWriteError.imageUnreadable(portrait.path)) { try bundle.renderPage() }
     #expect(try project.tree() == before)
@@ -649,14 +649,6 @@ final class RenderBox<Value: Sendable>: @unchecked Sendable {
   init(_ value: Value) { stored = value }
   func withValue(_ change: (inout Value) -> Void) { lock.withLock { change(&stored) } }
   var value: Value { lock.withLock { stored } }
-}
-
-extension DossierBundle {
-  /// A write that only rescans, to record a file changed by hand.
-  mutating func refreshManifestForTest() throws {
-    let manifest = try ManifestWriter(bundle: url).update { _, _ in }
-    self = DossierBundle(url: url, manifest: manifest, member: member)
-  }
 }
 
 /// `make test`'s version of `scripts/compare-pages.py`: each fixture page as filled, against a

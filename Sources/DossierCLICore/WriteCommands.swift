@@ -121,7 +121,8 @@ struct RejectCommand: DossierSubcommand {
 
 struct RemoveCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "remove", abstract: "Delete one asset and its file. Needs --yes.")
+    commandName: "remove", abstract: "Delete one asset and its file. Needs --yes.",
+    discussion: "Also the way out for an asset whose file is gone, which every other write refuses.")
   @Argument(help: "The bundle.") var bundle: String
   @Argument(help: "The asset's path in the bundle.") var path: String
   @Flag(help: "Confirm the deletion.") var yes = false
@@ -183,7 +184,13 @@ struct PromptCommand: DossierSubcommand {
 
 struct RefreshCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "refresh", abstract: "Adopt files another tool put in the bundle (DOSSIER-FORMAT 5.6).")
+    commandName: "refresh",
+    abstract: "Accept changed files, and adopt files another tool put in the bundle (DOSSIER-FORMAT 5.6).",
+    discussion: """
+      The one way to accept a file changed by hand: it records the new hash and size, reports each \
+      file by path, and clears E-FILE-HASH. No other command does. It can't clear E-FILE-MISSING: a \
+      missing file must be restored, or, if it's an asset, taken out with remove.
+      """)
   @Argument(help: "The bundle.") var bundle: String
   @Option(help: "The CAST.md, for adopting an orphan bundle.") var cast: String?
   @OptionGroup var output: OutputOptions
@@ -196,6 +203,7 @@ struct RefreshCommand: DossierSubcommand {
     }
     if io.json {
       var object: [String: Any] = [
+        "accepted": report.accepted,
         "adopted": report.adopted.map(assetJSON),
         "unclassified": report.unclassified.map { ["path": $0.path, "reason": $0.reason.description] },
       ]
@@ -203,10 +211,13 @@ struct RefreshCommand: DossierSubcommand {
       if let castReport = report.castReport { object["castReport"] = castReportJSON(castReport) }
       io.emit(object)
     } else {
+      for path in report.accepted { io.line("Accepted \(path)") }
       for asset in report.adopted { io.line("Adopted " + assetLine(asset)) }
       for file in report.unclassified { io.line("Unclassified \(file.path): \(file.reason)") }
       if let orphan = report.orphan { io.line("Orphan: \(orphan)") }
-      if report.adopted.isEmpty && report.unclassified.isEmpty { io.line("Nothing to adopt") }
+      if report.accepted.isEmpty && report.adopted.isEmpty && report.unclassified.isEmpty {
+        io.line("Nothing to accept or adopt")
+      }
     }
     return 0
   }

@@ -65,6 +65,9 @@ public struct RefreshReport: Sendable {
     case outsideCastDirectory
   }
 
+  /// The listed files whose changed bytes this call accepted, by path, in byte order: their entries
+  /// now hold the new hash and size, which clears `E-FILE-HASH`. A file that's only new isn't one.
+  public let accepted: [String]
   /// The assets adopted, each `candidate` (§5.6).
   public let adopted: [Asset]
   /// The files left unclassified, with why, in byte order of the path. `voice/samples.yaml`
@@ -77,9 +80,18 @@ public struct RefreshReport: Sendable {
 }
 
 extension DossierBundle {
-  /// Adopts files another tool put in the bundle by §5.6's rules (SD-11) and, given a `CAST.md`,
-  /// sets the pointer of the member this bundle is an orphan of (§3). A near match is never
-  /// adopted. Nothing is written when nothing is adopted.
+  /// Accepts files changed since they were listed, adopts files another tool put in the bundle by
+  /// §5.6's rules (SD-11) and, given a `CAST.md`, sets the pointer of the member this bundle is an
+  /// orphan of (§3). A near match is never adopted. Nothing is written when there's nothing to
+  /// accept or adopt.
+  ///
+  /// This is the one way to accept a changed file: no other write changes the entry of a file it
+  /// didn't write (SD-5). What was derived from an accepted file then reads as stale (§7). A file
+  /// that's both changed and adopted is in both lists of the report.
+  ///
+  /// A listed file that's missing has nothing to accept. It keeps its entry and stays
+  /// `E-FILE-MISSING`. When this call has something to write and an asset's file is missing, it
+  /// refuses, as every write but `remove` does (``DossierWriteError/assetFilesMissing(_:)``).
   ///
   /// An adopted `vox` is `candidate`, so a sample beside it stays unclassified until it's
   /// selected and this runs again.
@@ -94,7 +106,7 @@ extension DossierBundle {
   ///   - castURL: The `CAST.md`, for orphan adoption. `nil` leaves it out.
   ///   - beforeCastWrite: Given SD-12's report before anything is written, when `CAST.md` is to
   ///     be written. Throwing stops the call with nothing changed.
-  /// - Returns: What was adopted, and why anything else wasn't.
+  /// - Returns: What was accepted and adopted, and why anything else wasn't.
   /// - Throws: ``DossierWriteError``, ``DossierCore/DossierError``, or what `beforeCastWrite` throws.
   @discardableResult
   public mutating func refresh(
@@ -103,6 +115,8 @@ extension DossierBundle {
     let writer = ManifestWriter(bundle: url)
     let current = try writer.currentManifest()
     let plan = AdoptionPlan(bundle: url, manifest: current)
+    let accepted = BundleScan.changedFiles(in: current, bundle: url)
+    let hasManifestWrite = !plan.adoptions.isEmpty || !accepted.isEmpty
 
     // First, so an unreadable CAST.md stops the call before the manifest changes.
     let castFile = try castURL.map { try CastFile(url: $0) }
@@ -114,8 +128,8 @@ extension DossierBundle {
     var member = member
     // Nothing to change holds no marker.
     let write = {
-      if !plan.adoptions.isEmpty {
-        manifest = try writer.update { manifest, scan in
+      if hasManifestWrite {
+        manifest = try writer.update(accepting: accepted) { manifest, scan in
           adopted = try plan.adoptions.map { try $0.asset(scan: scan) }
           manifest.assets = manifest.assets + adopted
         }
@@ -127,14 +141,14 @@ extension DossierBundle {
         }
       }
     }
-    if plan.adoptions.isEmpty && orphan?.document == nil {
+    if !hasManifestWrite && orphan?.document == nil {
       try write()
     } else {
       try UpdateHolding.holding(bundle: url, label: "refresh", write)
     }
     self = DossierBundle(url: url, manifest: manifest, member: member)
     return RefreshReport(
-      adopted: adopted, unclassified: plan.unclassified, orphan: orphan?.outcome,
+      accepted: accepted, adopted: adopted, unclassified: plan.unclassified, orphan: orphan?.outcome,
       castReport: orphan?.document == nil ? nil : castFile?.report)
   }
 

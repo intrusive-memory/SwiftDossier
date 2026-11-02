@@ -79,11 +79,17 @@ extension DossierBundle {
   /// stripped bytes'. A malformed one is refused. Other formats are copied as they are. A file
   /// already in the bundle is never modified: it keeps its bytes and its name.
   ///
+  /// A file this call writes is recorded as written. One it finds in place, with the bytes it would
+  /// write, was not written by it: if it's already listed, its entry stays, so a file that was
+  /// changed by hand becomes an asset and stays `E-FILE-HASH` until `refresh` accepts it (SD-5).
+  ///
   /// `derivedFrom` is §7's list, from the current selection. A reference whose role is an input's
   /// role says what was actually sent, so its hash is recorded instead, and the asset reads as
   /// stale if that's no longer selected. When those bytes have left the bundle, the path is that
   /// of the role's current selection; with no selection the input is refused as missing. A `view`
-  /// lists `face` when a reference was the face.
+  /// lists `face` when a reference was the face. Each hash is of the bytes on disk, which are what
+  /// was read: an input that doesn't match its `files` entry makes the new asset read as stale
+  /// until `refresh` accepts that input.
   ///
   /// - Parameters:
   ///   - source: The file to copy.
@@ -125,7 +131,7 @@ extension DossierBundle {
       do {
         var added: Asset?
         let member = member
-        let manifest = try writer.update { manifest, scan in
+        let manifest = try writer.update(accepting: placed.file == nil ? [] : [path]) { manifest, scan in
           try folded.resolveReferences(roles: options.referenceRoles, manifest: manifest, scan: scan)
           folded.resolveLoras(manifest: manifest)
           let provenance = Provenance(json: folded.json)
@@ -206,7 +212,9 @@ extension DossierBundle {
   /// Deletes one asset and its file (SD-9). Assets derived from it stay, and read as stale (§7).
   ///
   /// The file is set aside until the manifest is written and put back if that fails, so the
-  /// two can't disagree. An asset whose file is already gone is removed all the same.
+  /// two can't disagree. An asset whose file is already gone is removed all the same, and this is
+  /// the way out for one: every other write refuses it. The entry goes with the asset, whatever
+  /// the file held; any other file's entry stays as it was.
   ///
   /// - Parameter path: The asset's bundle path.
   public mutating func remove(path: String) throws {
@@ -226,7 +234,7 @@ extension DossierBundle {
       if let file, let aside { try manager.moveItem(at: file.url, to: aside) }
       let manifest: Manifest
       do {
-        manifest = try writer.update { manifest, _ in
+        manifest = try writer.update(removing: [asset.path]) { manifest, _ in
           var assets = manifest.assets
           assets.removeAll { $0.hasPath(path) }
           manifest.assets = assets
@@ -458,11 +466,11 @@ enum DerivedInputs {
         guard let member else { throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: role) }
         return DerivedInput(role: role, sha256: member.hash)
       case "bundle":
-        // §7: over every file except the page, which here isn't an asset yet.
+        // §7: `manifestChecksum` over every file except the page, which here isn't an asset yet. Of
+        // the bytes as they are, like every other input, so it agrees with `files` once they're accepted.
         let pages = manifest.assets.filter { $0.kind == .dossier }.map(\.path) + [path]
-        let hashes = scan.files.filter { file in
-          !pages.contains { BundleInventory.key($0) == BundleInventory.key(file.path) }
-        }.map(\.sha256)
+        let hashes = try scan.entries(recordedIn: manifest, accepting: manifest.files.map(\.path), removing: pages)
+          .map(\.sha256)
         return DerivedInput(role: role, sha256: Checksum.sorted(hashes))
       case "template":
         guard let template else { throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: role) }

@@ -53,8 +53,9 @@ extension DossierBundle {
     let replaced = current.assets.filter { $0.kind == .dossier }.map(\.path)
     let pages = replaced + [pagePath]
 
-    // §11: a render's rescan would record a changed file's new hash, so a re-render could clear the
-    // finding. It refuses first, with nothing written. The page being replaced isn't considered.
+    // §11: a page would describe bytes `files` doesn't vouch for. It refuses first, with nothing
+    // written: `refresh` accepts a changed file, and a missing one is restored. The page being
+    // replaced isn't considered.
     let banner = try Self.bannerFindings(of: current, at: url, pages: pages, member: member, template: template)
     let broken = banner.filter { $0.code == .fileHash || $0.code == .fileMissing }
     guard broken.isEmpty else {
@@ -62,7 +63,7 @@ extension DossierBundle {
     }
 
     let scan = try BundleScan(bundle: url, excluding: pages)
-    let embedded = Self.embeddedManifest(of: current, scan: scan)
+    let embedded = try Self.embeddedManifest(of: current, scan: scan, pages: pages)
     let view = DossierBundle(url: url, manifest: embedded, member: member)
     guard view.selectedAsset(kind: .description) != nil else {
       throw DossierWriteError.missingDerivedInput(kind: kindName, role: "description")
@@ -94,13 +95,18 @@ extension DossierBundle {
       // embedded manifest "otherwise matches manifest.json" and the fixture pages carry the prior
       // writer's `generator`, so stamping it would change the page between a first render and a
       // second, on the same inputs. A render leaves it; the asset's provenance says who rendered.
-      manifest = try writer.update(keepingGenerator: true) { manifest, scan in
+      let others = replaced.filter { BundleInventory.key($0) != BundleInventory.key(pagePath) }
+      let read = scan.diskChecksum()
+      manifest = try writer.update(keepingGenerator: true, accepting: [pagePath], removing: others) { manifest, scan in
         let inputs = try DerivedInputs.resolve(
           kind: .dossier, path: pagePath, explicit: nil, references: [], template: template, member: member,
           manifest: manifest, scan: scan)
-        // `bundle` is what the page's embedded checksum was read as. A difference is a file that
-        // changed since then, so the page doesn't describe this bundle.
-        guard let inputs, inputs.first(where: { $0.role == "bundle" })?.sha256.hasSameBytes(as: embedded.manifestChecksum) == true else {
+        // `bundle` is what the page's embedded checksum was read as, and the disk is what the page
+        // was filled from. A difference in either is a file that changed since then, so the page
+        // doesn't describe this bundle. `files` alone can't tell, as it keeps a listed file's entry.
+        guard let inputs, inputs.first(where: { $0.role == "bundle" })?.sha256.hasSameBytes(as: embedded.manifestChecksum) == true,
+          scan.diskChecksum(excluding: pages).hasSameBytes(as: read)
+        else {
           throw DossierWriteError.bundleChangedDuringRender
         }
         var asset = Asset(
@@ -129,10 +135,10 @@ extension DossierBundle {
   /// §11: no entry for the page, the checksum over the remaining files, and `updatedAt` the latest
   /// `createdAt` of its assets. `files` is the rescan the write will record (SD-5), so this
   /// matches the `manifest.json` the render leaves.
-  private static func embeddedManifest(of current: Manifest, scan: BundleScan) -> Manifest {
+  private static func embeddedManifest(of current: Manifest, scan: BundleScan, pages: [String]) throws -> Manifest {
     var embedded = current
     embedded.assets = current.assets.filter { $0.kind != .dossier }
-    embedded.files = scan.entries(spelledAs: embedded)
+    embedded.files = try scan.entries(recordedIn: embedded, removing: pages)
     embedded.manifestChecksum = embedded.computedChecksum
     if let latest = latestCreatedAt(of: embedded.assets) { embedded.updatedAt = latest }
     return embedded
@@ -151,9 +157,8 @@ extension DossierBundle {
   }
 
   /// Field rule 5: §14 over the bundle without the page. This reads `manifest.json` as it stands,
-  /// with its entries for the page gone: the rescan a write does would otherwise hide a file whose
-  /// bytes no longer match what's recorded. A checksum that was right stays right; a wrong one
-  /// stays wrong, which is `E-CHECKSUM`.
+  /// with its entries for the page gone. A checksum that was right stays right; a wrong one stays
+  /// wrong, which is `E-CHECKSUM`.
   ///
   /// A render refuses `E-FILE-HASH` and `E-FILE-MISSING` (§11), so neither reaches a banner.
   private static func bannerFindings(

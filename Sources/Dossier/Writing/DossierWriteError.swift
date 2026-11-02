@@ -12,7 +12,7 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case zeroByteFiles([String])
   /// A file the rescan couldn't read.
   case fileUnreadable(String)
-  /// Assets whose files aren't on disk, which the write would record as `E-ASSET-NO-FILE`.
+  /// Assets whose files aren't on disk. Every write but `remove` refuses them.
   case assetFilesMissing([String])
   /// Two assets would have this path (§5.4).
   case duplicateAsset(String)
@@ -90,7 +90,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   /// A file changed while the page was being made, so it no longer describes the bundle.
   case bundleChangedDuringRender
   /// A file doesn't match its `files` entry, `E-FILE-HASH` or `E-FILE-MISSING` (§11), so a render
-  /// refuses: its rescan would record the new hash and clear the finding. Nothing was written.
+  /// refuses. `refresh` accepts a changed file, and a missing one must be restored. Each element is
+  /// a finding's code and path. Nothing was written.
   case renderRefusedByIntegrity([String])
   /// A marker's id isn't one or more ASCII letters, digits or hyphens (§5.7).
   case updateIDNotAllowed(String)
@@ -110,7 +111,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .schemaViolations(let details): return "The manifest fails its schema: \(details.joined(separator: "; "))"
     case .zeroByteFiles(let paths): return "Zero-byte files: \(paths.joined(separator: ", "))"
     case .fileUnreadable(let path): return "Can't read \(path)"
-    case .assetFilesMissing(let paths): return "Assets with no file: \(paths.joined(separator: ", "))"
+    case .assetFilesMissing(let paths):
+      return "Assets with no file: \(paths.joined(separator: ", ")). Restore each file, or take its asset out with `dossier remove`"
     case .duplicateAsset(let path): return "Two assets with the path \(path)"
     case .multipleSelected(let path): return "More than one selected for the combination of \(path)"
     case .verificationFailed: return "manifest.json didn't read back as written; the prior manifest was restored"
@@ -152,7 +154,14 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .castWriteFailed(let detail): return "CAST.md couldn't be written: \(detail)"
     case .pageRecordInvalid(let details): return "The page's record fails its schema: \(details.joined(separator: "; "))"
     case .renderRefusedByIntegrity(let findings):
-      return "Can't render: \(findings.joined(separator: "; ")). Nothing was changed."
+      var message = "Can't render: \(findings.joined(separator: "; ")). Nothing was changed."
+      if findings.contains(where: { $0.hasPrefix("E-FILE-HASH") }) {
+        message += " To keep a changed file as it now is, run `dossier refresh`."
+      }
+      if findings.contains(where: { $0.hasPrefix("E-FILE-MISSING") }) {
+        message += " A missing file must be restored: `dossier refresh` doesn't clear it."
+      }
+      return message
     case .bundleChangedDuringRender: return "A file in the bundle changed during the render; run it again"
     case .updateIDNotAllowed(let id): return "\(id) isn't an update id: it needs ASCII letters, digits or hyphens"
     case .updateMarkerNotFound(let id): return "The bundle has no update marker with the id \(id)"

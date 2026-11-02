@@ -281,6 +281,9 @@ struct RenderCommand: DossierSubcommand {
 
       The same inputs give the same bytes. A render that fails leaves the previous page and \
       manifest as they were. Exits 0, or 1 when any render fails.
+
+      A file that doesn't match its entry refuses the render, except the page being replaced. Run \
+      refresh to accept a changed file (E-FILE-HASH); a missing file must be restored (E-FILE-MISSING).
       """)
 
   @Argument(help: "The bundle.") var bundle: String?

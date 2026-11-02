@@ -384,13 +384,18 @@ struct CharacterDescriptionTests {
     #expect(try Fixture.tree(url) == before)
   }
 
-  @Test("Writing what a hand edit already put in the file still corrects its entry")
+  @Test("Writing what a hand edit already put in the file changes nothing: refresh accepts it")
   func writeSameTextStaleEntry() throws {
     var bundle = try Fixture.bundle(description: "---\ntype: character\ncharacter: THE TINKER\n---\nFirst\n")
     let edited = "---\ntype: character\ncharacter: THE TINKER\n---\nEdited\n"
     let file = bundle.url.appendingPathComponent("CHARACTER.md")
     try Data(edited.utf8).write(to: file)
+    let before = try Fixture.tree(bundle.url)
     try CharacterDescription(text: edited).write(to: &bundle)
+    #expect(try Fixture.tree(bundle.url) == before)
+    #expect(try DossierBundle.validate(at: bundle.url).findings.map(\.code).contains(.fileHash))
+
+    #expect(try bundle.refresh().accepted == ["CHARACTER.md"])
     #expect(bundle.manifest.files.first { $0.path == "CHARACTER.md" }?.sha256 == Checksum.sha256(Data(edited.utf8)))
     #expect(!(try DossierBundle.validate(at: bundle.url).findings.map(\.code).contains(.fileHash)))
   }

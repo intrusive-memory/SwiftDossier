@@ -265,9 +265,13 @@ public struct CharacterDescription: Sendable {
 
   // MARK: Write
 
-  /// Writes this text as the bundle's `CHARACTER.md` and rescans the manifest (SD-5), so `files`
-  /// and `manifestChecksum` stay correct. Nothing is written when the file and its entry already
-  /// hold it. A failure puts back the file that was there.
+  /// Writes this text as the bundle's `CHARACTER.md` and records it (SD-5), so `files` and
+  /// `manifestChecksum` stay correct. A failure puts back the file that was there.
+  ///
+  /// Nothing is written when the file already holds this text and is listed. That includes a file
+  /// edited by hand to this text: this call changed nothing, so it stays `E-FILE-HASH` until
+  /// `refresh` accepts it. A file edited to something else is replaced, and what replaced it is
+  /// recorded, so reading an edited file, changing it and writing it takes the edit in with it.
   ///
   /// A selected description's hash changes, so what was derived from it reads as stale (§7).
   ///
@@ -297,16 +301,16 @@ public struct CharacterDescription: Sendable {
       prior = data
     }
 
-    // The same text still needs a rescan if something else changed the file since the manifest.
+    // The same text, unlisted, still needs a rescan to list it.
     let isSameText = prior == bytes
-    let isListed = current.files.contains { $0.path == Self.fileName && $0.sha256 == Checksum.sha256(bytes) }
+    let isListed = current.files.contains { $0.path == Self.fileName }
     if isSameText, isListed { return }
 
     let target = bundle.url
     try UpdateHolding.holding(bundle: target, label: "write \(Self.fileName)") {
       if !isSameText { try Self.replace(destination, with: bytes) }
       do {
-        let manifest = try writer.update { _, _ in }
+        let manifest = try writer.update(accepting: isSameText ? [] : [Self.fileName]) { _, _ in }
         bundle = DossierBundle(url: bundle.url, manifest: manifest, member: bundle.member)
       } catch {
         if !isSameText {
