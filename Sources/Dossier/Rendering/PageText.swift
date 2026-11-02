@@ -157,9 +157,8 @@ struct PageMarkdown {
   let footnotes: PageFootnotes
   /// The `mark` fragment for a number.
   let mark: (Int) throws -> String
-  /// The `markSeparator` fragment, for two marks with nothing between them (rule 4). `nil` when the
-  /// pinned template doesn't have it.
-  var markSeparator: (() throws -> String)? = nil
+  /// The `markSeparator` fragment, for two marks with nothing between them (rule 4).
+  let markSeparator: () throws -> String
 
   /// A section's text as blocks. A footnote's definition isn't text here: it's shown only in
   /// `page.sources` (field rule 2). Rule 3 has no code fences, so a fence is literal text and its
@@ -328,7 +327,7 @@ struct PageMarkdown {
       if token >= 0 {
         out.append(UInt8(token))
       } else {
-        if previous < 0, let markSeparator { out.append(contentsOf: try markSeparator().utf8) }
+        if previous < 0 { out.append(contentsOf: try markSeparator().utf8) }
         out.append(contentsOf: try mark(Int(-token)).utf8)
       }
       previous = token

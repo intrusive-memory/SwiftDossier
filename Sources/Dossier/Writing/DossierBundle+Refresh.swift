@@ -99,14 +99,11 @@ extension DossierBundle {
   /// longer matches its hash. What was derived from an accepted file then reads as stale (§7). A
   /// file that's both changed and adopted is in both lists of the report.
   ///
-  /// SPEC-GAP: §4: a content name "can't claim to be something it isn't", and §4 doesn't say what
-  /// a hand edit to a named image does. The disk is the truth, so the name stays and is reported.
-  ///
-  /// SPEC-GAP: §5.2, §5.6: rc.6 doesn't say that a refresh drops an entry. A missing file with no
-  /// asset is only an entry the disk no longer backs, so it goes. An asset says more than the
-  /// disk does (its status and provenance), so one whose file is missing refuses the whole call
-  /// (``DossierWriteError/assetFilesMissing(_:)``), even with nothing else to write and with nothing
-  /// changed. For the moment `remove` is the way out.
+  /// §4: a name's `<sha8>` records the bytes when the file was added and the manifest's hash is the
+  /// authority, so the name stays and is reported. §5.6: a missing file with no asset is dropped and
+  /// reported. An asset's missing file is refused and reported. §5.6 leaves how to resolve that open,
+  /// and here it refuses the whole call (``DossierWriteError/assetFilesMissing(_:)``), even with
+  /// nothing else to write and with nothing changed. For the moment `remove` is the way out.
   ///
   /// An adopted `vox` is `candidate`, so a sample beside it stays unclassified until it's
   /// selected and this runs again.

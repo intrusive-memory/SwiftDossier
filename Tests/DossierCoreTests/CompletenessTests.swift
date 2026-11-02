@@ -17,7 +17,7 @@ struct CompletenessTests {
       asserted += 1
     }
     // The count is the pinned tag's. Another tree (SPEC_DIR) may have more fixtures.
-    #expect(SpecTree.isOverridden ? asserted >= 55 : asserted == 55)
+    #expect(SpecTree.isOverridden ? asserted >= 56 : asserted == 56)
   }
 
   @Test("§8.3: no role means completeness isn't defined, whatever the manifest says")

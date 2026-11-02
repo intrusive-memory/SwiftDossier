@@ -31,7 +31,7 @@ struct ManifestTests {
     }
     // Every manifest.json under examples/, less not-JSON, not-object and E-VERSION.
     // The count is the pinned tag's. Another tree (SPEC_DIR) may have more fixtures.
-    #expect(SpecTree.isOverridden ? reencoded >= 103 : reencoded == 103)
+    #expect(SpecTree.isOverridden ? reencoded >= 104 : reencoded == 104)
   }
 
   @Test("Unknown top-level, asset and provenance keys survive a re-encode")

@@ -140,6 +140,13 @@
       });
       this.panels.forEach(function (panel) { panel.setAttribute("role", "tabpanel"); });
       this.setAttribute("data-enhanced", "");
+      /* A mark's hash may already be the page's: no hashchange fires, so follow it here. */
+      document.addEventListener("click", (event) => {
+        var mark = event.target.closest(".mark a");
+        if (!mark || mark.hash !== location.hash) return;
+        event.preventDefault();
+        this.follow();
+      });
       window.addEventListener("hashchange", () => this.follow());
       window.addEventListener("load", () => this.follow());
       this.follow();
@@ -161,7 +168,8 @@
       this.choose(this.links[next]);
     }
 
-    /* DF-50: #voice opens that tab; #profile.age opens its tab and goes to the field. */
+    /* DF-50: #voice opens that tab; #profile.age opens its tab and goes to the field, as
+       does #page.sources. A key outside the tabs (#page.name) scrolls and keeps the tab. */
     follow() {
       var key = "";
       try { key = decodeURIComponent(location.hash.slice(1)); } catch (error) { key = ""; }

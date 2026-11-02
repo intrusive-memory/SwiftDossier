@@ -27,7 +27,7 @@ the two.
 ## 1. The specification
 
 dossier-format's specification, schemas, tier table, conformance fixtures, page
-template, field list and design tokens are written and tagged **`v2.0.0-rc.6`**
+template, field list and design tokens are written and tagged **`v2.0.0-rc.7`**
 (2026-11-01), the revision this package pins. All of them are copied as resources:
 the field list in `DossierCore`, the template and tokens in `Dossier`. The `dossier`
 CLI carries that template when it validates and renders (§4); `renderPage()` fills it.

@@ -203,14 +203,10 @@ final class PageFiller {
   // MARK: - Sections
 
   private var markdown: PageMarkdown {
-    // SPEC-PIN: `markSeparator` is in the template from rc.7. Once the pin has it, it's required
-    // like every other fragment, and this `nil` goes.
-    let separator: (() throws -> String)? =
-      fragments["markSeparator"] == nil ? nil : { [unowned self] in try self.fragment("markSeparator", [:]) }
-    return PageMarkdown(
+    PageMarkdown(
       footnotes: footnotes,
       mark: { [unowned self] number in try self.fragment("mark", ["number": String(number)]) },
-      markSeparator: separator)
+      markSeparator: { [unowned self] in try self.fragment("markSeparator", [:]) })
   }
 
   private func matching(_ section: String) -> [(heading: String, content: String)] {
@@ -233,8 +229,6 @@ final class PageFiller {
     return out
   }
 
-  // SPEC-PIN: an item's quote is a `<blockquote>`, and rc.6's `canonItem` holds its text in a
-  // `<span>`, which shouldn't hold one. rc.7's fragment has a `<div>`, so this needs nothing then.
   /// Field rule 1.
   private func canonMarkup(_ source: JSONObject) throws -> String? {
     guard let section = source["section"]?.stringValue else { throw malformed("a section source names no section") }

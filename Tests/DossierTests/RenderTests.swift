@@ -1018,30 +1018,38 @@ struct RenderedTextTests {
     #expect(PageReader.matches(of: "canon-source[^>]*>([^<]*)<", in: canon) == ["Author, Stated", "Stated"])
   }
 
-  // SPEC-PIN: at rc.6 `fields.json` has `page.sources` in `page.after`, and from rc.7 on the Profile
-  // tab with `page.after` empty, so what it's held to comes from the pinned file. Once the pin is at
-  // rc.7, assert the Profile tab and the empty footer outright.
-  @Test("`page.sources` is where `fields.json` puts it, and `page.after` may be empty")
+  @Test("`page.sources` is on the Profile tab alone, and `page.after` is empty")
   func sourcesPlacement() throws {
     let page = PageReader(text: try page("## Personality\n\nCited.[^a]\n\n[^a]: Author. A source, 2026-11-01."))
     let tabs = try DossierTabs.bundled()
+    #expect(tabs.pageAfter.isEmpty)
     let footer = try #require(PageReader.matches(of: "(?s)<footer class=\"page-after\">(.*)</footer>", in: page.markup).first)
-    #expect(footer.isEmpty == tabs.pageAfter.isEmpty)
-    #expect(footer.contains("id=\"page.sources\"") == tabs.pageAfter.contains { $0.key == "page.sources" })
+    #expect(footer.isEmpty)
     for tab in tabs.tabs {
-      let panel = try #require(PageReader.matches(of: "(?s)<section class=\"tab-panel\" id=\"\(tab.key)\".*?</section>", in: page.markup, group: 0).first)
-      #expect(panel.contains("id=\"page.sources\"") == tab.fields.contains { $0.key == "page.sources" }, "\(tab.key)")
+      let panel = try #require(PageReader.matches(of: "(?s)<section class=\"tab-panel\" id=\"\(tab.key)\"(.*?)</section>", in: page.markup).first)
+      #expect(panel.contains("id=\"page.sources\"") == (tab.key == "profile"), "\(tab.key)")
     }
     #expect(page.attributes("id").filter { $0 == "page.sources" }.count == 1)
     #expect(try page.element(key: "page.sources").contains("Author. A source, 2026-11-01."))
   }
 
-  private func marks(_ text: String, separator: Bool = true) throws -> String {
+  @Test("Rule 4, on a real page: a comma only between marks with nothing between them")
+  func markSeparatorOnAPage() throws {
+    let html = try page(
+      "## Personality\n\nOne.[^a][^b] Two.[^a] Three.[^b]\n\n[^a]: Author. One, 2026-11-01.\n[^b]: Author. Two, 2026-11-01.")
+    let separator = "<sup class=\"mark\">, </sup>"
+    #expect(html.components(separatedBy: separator).count == 2)
+    let shown = try #require(PageReader.matches(of: "(?s)<p>(One\\..*?)</p>", in: html).first)
+    #expect(shown.contains("</sup>\(separator)<sup"))
+    #expect(!shown.contains(" Two.\(separator)"))
+  }
+
+  private func marks(_ text: String) throws -> String {
     let notes = "\n\n[^a]: Author. One, 2026-11-01.\n[^b]: Author. Two, 2026-11-01.\n"
     let markdown = PageMarkdown(
       footnotes: PageFootnotes(body: text + notes),
       mark: { "<\($0)>" },
-      markSeparator: separator ? { "," } : nil)
+      markSeparator: { "," })
     let blocks = PageMarkdown.blocks(of: text)
     return try markdown.inline(blocks[0].lines)
   }
@@ -1052,6 +1060,5 @@ struct RenderedTextTests {
     #expect(try marks("One.[^a] Two.[^b]") == "One.<1> Two.<2>")
     #expect(try marks("**One.[^a]**[^b]") == "<strong>One.<1></strong><2>")
     #expect(try marks("One.[^a][^nowhere][^b]") == "One.<1>[^nowhere]<2>")
-    #expect(try marks("Word.[^a][^b]", separator: false) == "Word.<1><2>")
   }
 }
