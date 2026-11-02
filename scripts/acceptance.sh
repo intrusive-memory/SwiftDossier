@@ -514,6 +514,41 @@ def prepare_item3():
     return target
 
 
+def page_text_check(page, description):
+    """Each list item and paragraph of CHARACTER.md's body, whole in one element of the page: what a
+    person reads, against what was written. Returns (blocks, blocks not whole, literal ** shown)."""
+    import html
+    import re
+    def plain(text):
+        text = re.sub(r"\[\^[^\]]+\]", "", text).replace("*", "")
+        return " ".join(html.unescape(text).split())
+    with open(description, encoding="utf-8") as handle:
+        body = handle.read().split("---\n", 2)[-1]
+    found, current = [], None
+    for line in body.split("\n"):
+        if re.match(r" {0,3}\[\^[^\]]+\]:", line) or line.startswith("#") or not line.strip():
+            if current:
+                found.append(current)
+            current = None
+        elif line.startswith("- "):
+            if current:
+                found.append(current)
+            current = line[2:]
+        else:
+            current = (current + " " + line.strip()) if current else line.strip()
+    if current:
+        found.append(current)
+    with open(page, encoding="utf-8") as handle:
+        document = handle.read()
+    document = re.sub(r"<script.*?</script>|<style.*?</style>", "", document, flags=re.S)
+    document = re.sub(r'<sup class="mark">.*?</sup>', "", document, flags=re.S)
+    shown = [plain(re.sub(r"<[^>]+>", "", inner)) for inner in re.findall(r"<(?:li|p|span)[^>]*>(.*?)</(?:li|p|span)>", document, flags=re.S)]
+    blocks = [plain(block) for block in found if plain(block)]
+    lost = sum(1 for block in blocks if block not in shown and not any(block in text for text in shown))
+    literal = sum(re.sub(r"<[^>]+>", "", inner).count("**") for inner in re.findall(r"<(?:li|p)[^>]*>(.*?)</(?:li|p)>", document, flags=re.S))
+    return len(blocks), lost, literal
+
+
 def item3(members, members_ok, copy):
     """Each member's bundle rendered twice on its own scratch copy, and validated after."""
     print("item 3: render every member's bundle, twice")
@@ -563,6 +598,10 @@ def item3(members, members_ok, copy):
                 notes = f"  OVER 3 MB TARGET (DF-53, {LEAD_TARGET})"
             else:
                 notes = f"  within the 3 MB target (DF-53, {LEAD_TARGET})"
+        blocks, lost, literal = page_text_check(page, os.path.join(bundle, "CHARACTER.md"))
+        notes += f"  text: {blocks - lost} of {blocks} source blocks whole, literal ** {literal}"
+        if lost:
+            problems.append(f"{lost} source blocks aren't whole in one element")
         print(f"  {name}  {size} bytes  role {role or 'none'}{notes}  {'FAIL  ' + '; '.join(problems) if problems else 'PASS'}")
         failed += bool(problems)
         if pages_out:

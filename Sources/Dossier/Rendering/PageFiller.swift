@@ -203,9 +203,14 @@ final class PageFiller {
   // MARK: - Sections
 
   private var markdown: PageMarkdown {
-    PageMarkdown(footnotes: footnotes) { [unowned self] number in
-      try self.fragment("mark", ["number": String(number)])
-    }
+    // SPEC-PIN: `markSeparator` is in the template from rc.7. Once the pin has it, it's required
+    // like every other fragment, and this `nil` goes.
+    let separator: (() throws -> String)? =
+      fragments["markSeparator"] == nil ? nil : { [unowned self] in try self.fragment("markSeparator", [:]) }
+    return PageMarkdown(
+      footnotes: footnotes,
+      mark: { [unowned self] number in try self.fragment("mark", ["number": String(number)]) },
+      markSeparator: separator)
   }
 
   private func matching(_ section: String) -> [(heading: String, content: String)] {

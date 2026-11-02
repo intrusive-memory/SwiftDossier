@@ -742,3 +742,116 @@ struct ConformancePageTests {
     #expect(try RenderTree.files(under: root) != before)
   }
 }
+
+/// The text a person reads in each element, for comparing with the source.
+private func elements(_ tag: String, in page: String) throws -> [String] {
+  let body = try #require(page.range(of: "<body")).lowerBound
+  let pattern = try NSRegularExpression(pattern: "<\(tag)>(.*?)</\(tag)>", options: [.dotMatchesLineSeparators])
+  let text = String(page[body...])
+  let range = NSRange(text.startIndex..., in: text)
+  return pattern.matches(in: text, range: range).compactMap { match in
+    Range(match.range(at: 1), in: text).map { String(text[$0]) }
+  }
+  .map { inner in
+    inner.replacingOccurrences(of: "<sup class=\"mark\">.*?</sup>", with: "", options: .regularExpression)
+      .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+      .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+  }
+}
+
+@Suite("A page shows the text as written (rules 3 and 4)")
+struct RenderedTextTests {
+  private func page(_ section: String) throws -> String {
+    let project = try RenderProject(description: synthetic(body: "## Logline\n\nA line.\n\n## Appearance\n\nPlain.\n\n## Voice & Speech\n\nLow.\n\n\(section)\n"))
+    var bundle = try project.open()
+    try bundle.renderPage()
+    return try project.page()
+  }
+
+  private let wrapped = """
+    ## Personality
+
+    - **Easy and unhurried,** the script
+    has him hedging,
+      and on an indented line.
+    - A second item.
+
+    Then a paragraph.
+    """
+
+  @Test("A line break inside a list item continues it")
+  func wrappedItem() throws {
+    let page = try page(wrapped)
+    let items = try elements("li", in: page)
+    #expect(items.contains("Easy and unhurried, the script has him hedging, and on an indented line."))
+    #expect(items.contains("A second item."))
+    #expect(try elements("p", in: page).contains("Then a paragraph."))
+    #expect(try !elements("p", in: page).contains { $0.contains("hedging") })
+  }
+
+  @Test("Every source block reaches one element whole, in a list or a paragraph")
+  func sourceAgainstElements() throws {
+    let source = """
+      ## Personality
+
+      - One item
+      on two lines.[^a]
+      - **Bold over
+      a break** in an item.
+
+      A paragraph on
+      two lines.[^a]
+
+      ### A group
+      - After a heading
+      and wrapped.
+
+      [^a]: Author. A source, 2026-11-01.
+      """
+    let page = try page(source)
+    let found = try elements("li", in: page) + elements("p", in: page) + elements("h4", in: page)
+    for block in [
+      "One item on two lines.", "Bold over a break in an item.", "A paragraph on two lines.", "A group",
+      "After a heading and wrapped.",
+    ] {
+      #expect(found.contains(block), "\(block)")
+    }
+  }
+
+  @Test("Bold and emphasis span a line break, and nothing is left literal")
+  func spans() throws {
+    let page = try page("## Personality\n\n**His hair went\nwhite early:** and *he doesn't\nmind.*\n\n- **In an\nitem** too.")
+    #expect(page.contains("<strong>His hair went\nwhite early:</strong>"))
+    #expect(page.contains("<em>he doesn&#x27;t\nmind.</em>"))
+    #expect(page.contains("<strong>In an\nitem</strong>"))
+    let shown = try (elements("p", in: page) + elements("li", in: page)).joined(separator: " ")
+    #expect(!shown.contains("**"))
+  }
+
+  @Test("A bold or emphasis pair doesn't span two blocks")
+  func staysInItsBlock() throws {
+    let page = try page("## Personality\n\nOne *star here.\n\nAnother* star there.\n\n- A ** pair\n- split ** across items")
+    #expect(!page.contains("<em>One"))
+    #expect(try elements("p", in: page).contains("One *star here."))
+    #expect(try elements("li", in: page).contains("A ** pair"))
+  }
+
+  private func marks(_ text: String, separator: Bool = true) throws -> String {
+    let notes = "\n\n[^a]: Author. One, 2026-11-01.\n[^b]: Author. Two, 2026-11-01.\n"
+    let markdown = PageMarkdown(
+      footnotes: PageFootnotes(body: text + notes),
+      mark: { "<\($0)>" },
+      markSeparator: separator ? { "," } : nil)
+    let blocks = PageMarkdown.blocks(of: text)
+    return try markdown.inline(blocks[0].lines)
+  }
+
+  @Test("Rule 4: a separator goes only between marks with nothing between them")
+  func separator() throws {
+    #expect(try marks("Word.[^a][^b]") == "Word.<1>,<2>")
+    #expect(try marks("One.[^a] Two.[^b]") == "One.<1> Two.<2>")
+    #expect(try marks("**One.[^a]**[^b]") == "<strong>One.<1></strong><2>")
+    #expect(try marks("One.[^a][^nowhere][^b]") == "One.<1>[^nowhere]<2>")
+    #expect(try marks("Word.[^a][^b]", separator: false) == "Word.<1><2>")
+  }
+}

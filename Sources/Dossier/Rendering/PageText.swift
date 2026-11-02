@@ -148,13 +148,20 @@ struct PageMarkdown {
   let footnotes: PageFootnotes
   /// The `mark` fragment for a number.
   let mark: (Int) throws -> String
+  /// The `markSeparator` fragment, for two marks with nothing between them (rule 4). `nil` when the
+  /// pinned template doesn't have it.
+  var markSeparator: (() throws -> String)? = nil
 
   /// A section's text as blocks. A footnote's definition isn't text here: it's shown only in
   /// `page.sources` (field rule 2).
   static func blocks(of content: String) -> [Block] {
     var found: [Block] = []
     var paragraph: [Line] = []
+    /// The list item a line break continues (rule 3).
+    var item: [Line]?
     func flush() {
+      if let open = item { found.append(.item(open)) }
+      item = nil
       if !paragraph.isEmpty { found.append(.paragraph(paragraph)) }
       paragraph = []
     }
@@ -162,18 +169,24 @@ struct PageMarkdown {
     for rawLine in content.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
       let line = String(rawLine)
       let isCode = fence.isCode(line)
-      if !isCode, Footnotes.isDefinition(line) { continue }
+      if !isCode, Footnotes.isDefinition(line) {
+        if item != nil { flush() }
+        continue
+      }
       let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
       if isCode {
+        if item != nil { flush() }
         if !trimmed.isEmpty { paragraph.append(Line(text: trimmed, isCode: true)) } else { flush() }
       } else if line.hasPrefix("### ") {
         flush()
         found.append(.heading([Line(text: String(line.dropFirst(4)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: false)]))
       } else if line.hasPrefix("- ") {
         flush()
-        found.append(.item([Line(text: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: false)]))
+        item = [Line(text: String(line.dropFirst(2)).trimmingCharacters(in: .whitespacesAndNewlines), isCode: false)]
       } else if trimmed.isEmpty {
         flush()
+      } else if item != nil {
+        item?.append(Line(text: trimmed, isCode: false))
       } else {
         paragraph.append(Line(text: trimmed, isCode: false))
       }
@@ -252,12 +265,15 @@ struct PageMarkdown {
 
     var out: [UInt8] = []
     out.reserveCapacity(tokens.count)
+    var previous: Int32 = 0
     for token in tokens {
       if token >= 0 {
         out.append(UInt8(token))
       } else {
+        if previous < 0, let markSeparator { out.append(contentsOf: try markSeparator().utf8) }
         out.append(contentsOf: try mark(Int(-token)).utf8)
       }
+      previous = token
     }
     return String(decoding: out, as: UTF8.self)
   }
@@ -268,10 +284,10 @@ struct PageMarkdown {
     tokens.append(contentsOf: escaped.map(Int32.init))
   }
 
-  /// Pairs of a run of `*`, nearest first, with at least one token between and no line break.
+  /// Pairs of a run of `*`, nearest first, with at least one token between. A pair may span a line
+  /// break in its block (rule 3).
   private static func applying(delimiter length: Int, opening: String, closing: String, to tokens: [Int32]) -> [Int32] {
     let star: Int32 = 0x2A
-    let newline: Int32 = 0x0A
     func isDelimiter(at index: Int) -> Bool {
       index + length <= tokens.count && tokens[index..<(index + length)].allSatisfy { $0 == star }
     }
@@ -282,7 +298,7 @@ struct PageMarkdown {
       if isDelimiter(at: index) {
         var found: Int?
         var search = index + length
-        while search < tokens.count, tokens[search] != newline {
+        while search < tokens.count {
           if search > index + length, isDelimiter(at: search) {
             found = search
             break
