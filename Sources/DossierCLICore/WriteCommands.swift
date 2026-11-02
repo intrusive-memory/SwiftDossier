@@ -76,6 +76,8 @@ struct AddCommand: DossierSubcommand {
       options.referenceRoles = referenceRoles.split(separator: ",", omittingEmptySubsequences: false)
         .map { $0.trimmingCharacters(in: .whitespaces) }
     }
+    // A `dossier`'s `template` input (§7): the template this tool carries.
+    if AssetKind(rawValue: kind) == .dossier { options.template = try DossierTemplate.current }
     var target = try openBundle(bundle)
     let asset = try target.add(fileURL(file), kind: AssetKind(rawValue: kind), options: options)
     if io.json {
@@ -119,7 +121,8 @@ struct RejectCommand: DossierSubcommand {
 
 struct RemoveCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "remove", abstract: "Delete one asset and its file. Needs --yes.")
+    commandName: "remove", abstract: "Delete one asset and its file. Needs --yes.",
+    discussion: "Also the way out for an asset whose file is gone, which every other write refuses.")
   @Argument(help: "The bundle.") var bundle: String
   @Argument(help: "The asset's path in the bundle.") var path: String
   @Flag(help: "Confirm the deletion.") var yes = false
@@ -181,7 +184,20 @@ struct PromptCommand: DossierSubcommand {
 
 struct RefreshCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "refresh", abstract: "Adopt files another tool put in the bundle (DOSSIER-FORMAT 5.6).")
+    commandName: "refresh",
+    abstract: "Accept changed files, and adopt files another tool put in the bundle (DOSSIER-FORMAT 5.6).",
+    discussion: """
+      The files on disk are the source of truth and the manifest is an index of them, so E-FILE-HASH \
+      means the manifest is behind the disk. This is the one way to accept a file changed by hand: \
+      it records the new hash and size, reports each file by path, and clears E-FILE-HASH. The file \
+      keeps its name, and when an image's name no longer matches its hash, that's reported too \
+      (nameMismatches in --json), not renamed.
+
+      A listed file with no asset that's missing has its entry dropped, which clears E-FILE-MISSING \
+      and is reported (dropped in --json). A missing file an asset points at is refused: refresh \
+      reports the paths, changes nothing, and exits 1. Restore the file; for the moment, remove is \
+      the way to take the asset out.
+      """)
   @Argument(help: "The bundle.") var bundle: String
   @Option(help: "The CAST.md, for adopting an orphan bundle.") var cast: String?
   @OptionGroup var output: OutputOptions
@@ -194,6 +210,9 @@ struct RefreshCommand: DossierSubcommand {
     }
     if io.json {
       var object: [String: Any] = [
+        "accepted": report.accepted,
+        "nameMismatches": report.nameMismatches,
+        "dropped": report.dropped,
         "adopted": report.adopted.map(assetJSON),
         "unclassified": report.unclassified.map { ["path": $0.path, "reason": $0.reason.description] },
       ]
@@ -201,10 +220,15 @@ struct RefreshCommand: DossierSubcommand {
       if let castReport = report.castReport { object["castReport"] = castReportJSON(castReport) }
       io.emit(object)
     } else {
+      for path in report.accepted { io.line("Accepted \(path)") }
+      for path in report.nameMismatches { io.line("Name no longer matches its hash, and is kept: \(path)") }
+      for path in report.dropped { io.line("Dropped \(path): no asset, and its file is missing") }
       for asset in report.adopted { io.line("Adopted " + assetLine(asset)) }
       for file in report.unclassified { io.line("Unclassified \(file.path): \(file.reason)") }
       if let orphan = report.orphan { io.line("Orphan: \(orphan)") }
-      if report.adopted.isEmpty && report.unclassified.isEmpty { io.line("Nothing to adopt") }
+      if report.accepted.isEmpty && report.dropped.isEmpty && report.adopted.isEmpty && report.unclassified.isEmpty {
+        io.line("Nothing to accept, drop or adopt")
+      }
     }
     return 0
   }

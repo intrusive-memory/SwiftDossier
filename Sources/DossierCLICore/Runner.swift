@@ -107,7 +107,9 @@ public enum DossierCLI {
       }
       let described = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
       let name = String(String(describing: error).prefix { $0 != "(" })
-      report(code: name, message: described, json: json, sink: sink)
+      var paths: [String]?
+      if case DossierWriteError.assetFilesMissing(let missing) = error { paths = missing }
+      report(code: name, message: described, paths: paths, json: json, sink: sink)
       return failureStatus
     }
   }
@@ -128,9 +130,11 @@ public enum DossierCLI {
     return target
   }
 
-  private static func report(code: String, message: String, json: Bool, sink: any OutputSink) {
+  private static func report(code: String, message: String, paths: [String]? = nil, json: Bool, sink: any OutputSink) {
     if json {
-      sink.writeOutput(JSONOut.string(["error": ["code": code, "message": message]]) + "\n")
+      var object: [String: Any] = ["code": code, "message": message]
+      if let paths { object["paths"] = paths }
+      sink.writeOutput(JSONOut.string(["error": object]) + "\n")
     } else {
       sink.writeError("error: \(message)\n")
     }

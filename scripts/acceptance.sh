@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
-# make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>]
+# make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]
 #
-# REQUIREMENTS §9 items 1, 2, 4 and 5 against a local project checkout. Not in CI (SD-4).
-# Items 3 and 4's migrate half belong to phases 3 and 4.
+# REQUIREMENTS §9 items 1 to 5 against a local project checkout. Not in CI (SD-4).
+# Item 4's migrate half belongs to phase 4. Item 3 keeps the rendered pages in PAGES_OUT when set,
+# which can't be inside PROJECT.
 #
-# The project is read and never written, apart from what Git LFS's own smudge keeps in its
-# object cache. REF's committed state goes into a temporary directory by `git archive`, every
-# command runs on that copy, and the copy is removed on exit. The one thing read from the
-# working tree is item 2's .generations/, and only when REF doesn't hold it, which is usual
-# since it's ignored; the output says when.
+# The files on disk are the source of truth, so by default the project is taken as it is on disk:
+# its tree goes into a temporary directory, hidden files included, .git skipped and links kept as
+# links, never followed; a link out of the tree is left out. REF=<ref> takes that commit instead, by `git archive`. The output says which
+# (`source: disk`, or `source: ref <ref> at <sha>`). Every command runs on the copy, which is removed
+# on exit, and a link leading out of the copy stops the run.
 #
-# Output holds names, codes, counts and key names. Never a prompt, a description, a sidecar
+# The project is read and never written, apart from what Git LFS's own smudge keeps in its object
+# cache under REF. Under REF, the one thing read from the working tree is item 2's .generations/, and
+# only when REF doesn't hold it, which is usual since it's ignored; the output says when.
+#
+# Output holds names, roles, sizes, codes, counts and key names. Never a prompt, a description, a sidecar
 # value or a tool's message, which can quote those.
 #
 # Exit status: 0 no failure, 1 a failure, 2 couldn't run, 64 a bad command line. A project that
@@ -18,9 +23,10 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>]" >&2
-  echo "  REF defaults to dossier/v2-migration. REPARTO defaults to the one on PATH, then to one" >&2
-  echo "  built from the SwiftReparto this package resolves." >&2
+  echo "usage: make acceptance PROJECT=<path> [REF=<git ref>] [REPARTO=<path>] [PAGES_OUT=<dir>]" >&2
+  echo "  With no REF, the project as it is on disk (its tree, without .git). REF extracts that commit" >&2
+  echo "  instead, and has no default. REPARTO defaults to the one on PATH, then to one built from the" >&2
+  echo "  SwiftReparto this package resolves. PAGES_OUT keeps item 3's rendered pages." >&2
 }
 die() {
   echo "acceptance: $*" >&2
@@ -29,7 +35,6 @@ die() {
 
 PROJECT="${1:-}"
 REF="${2:-}"
-[ -n "$REF" ] || REF="dossier/v2-migration"
 
 if [ -z "$PROJECT" ]; then
   usage
@@ -40,17 +45,38 @@ if [ ! -d "$PROJECT" ]; then
   exit 0
 fi
 
-export GIT_OPTIONAL_LOCKS=0
-git -C "$PROJECT" rev-parse --git-dir >/dev/null 2>&1 || die "$PROJECT isn't a git repository"
-COMMIT="$(git -C "$PROJECT" rev-parse --verify --quiet "$REF^{commit}")" || die "no ref $REF in $PROJECT"
+# Item 3 writes here, and nothing writes to the project: judged by the nearest directory that
+# exists, before anything is made.
+if [ -n "${PAGES_OUT:-}" ]; then
+  EXISTING="$PAGES_OUT"
+  while [ ! -d "$EXISTING" ]; do EXISTING="$(dirname "$EXISTING")"; done
+  case "$(cd "$EXISTING" && pwd -P)/" in
+    "$(cd "$PROJECT" && pwd -P)"/*) die "PAGES_OUT is inside PROJECT, which is never written" ;;
+  esac
+  mkdir -p "$PAGES_OUT" || die "can't make PAGES_OUT"
+fi
+
+COMMIT=""
+if [ -n "$REF" ]; then
+  export GIT_OPTIONAL_LOCKS=0
+  git -C "$PROJECT" rev-parse --git-dir >/dev/null 2>&1 || die "$PROJECT isn't a git repository"
+  COMMIT="$(git -C "$PROJECT" rev-parse --verify --quiet "$REF^{commit}")" || die "no ref $REF in $PROJECT"
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
+# Copying a tree into itself wouldn't end, and would write to the project.
+case "$(cd "$WORK" && pwd -P)/" in
+  "$(cd "$PROJECT" && pwd -P)"/*) die "the temporary directory is inside PROJECT, which is never written" ;;
+esac
+
 mkdir "$WORK/copy"
-git -C "$PROJECT" archive "$COMMIT" 2>"$WORK/archive.log" | tar -xf - -C "$WORK/copy" \
-  || die "git archive of $REF failed. If Git LFS is in use, its objects may not be fetched."
+if [ -n "$REF" ]; then
+  git -C "$PROJECT" archive "$COMMIT" 2>"$WORK/archive.log" | tar -xf - -C "$WORK/copy" \
+    || die "git archive of $REF failed. If Git LFS is in use, its objects may not be fetched."
+fi
 
 echo "acceptance: building dossier with make release"
 if ! make -C "$ROOT" release >"$WORK/release.log" 2>&1; then
@@ -68,20 +94,23 @@ done
 cmp -s "$ROOT/bin/dossier" "$BUILT/dossier" \
   || die "bin/dossier isn't this checkout's build; make release took another DerivedData's. Run make clean."
 
-# The Python below is given the copy, and the project only to read .generations/ from.
+# The Python below is given the copy, and the project only to read from: its tree with no REF, and
+# .generations/ with one.
 ACCEPT_ROOT="$ROOT" ACCEPT_WORK="$WORK" ACCEPT_BUILT="$BUILT" ACCEPT_REF="$REF" \
-  ACCEPT_COMMIT="${COMMIT:0:12}" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
+  ACCEPT_COMMIT="$COMMIT" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
+  ACCEPT_PAGES_OUT="${PAGES_OUT:-}" \
   python3 -I -c "$(sed -n '/^# PYTHON BEGIN$/,/^# PYTHON END$/p' "${BASH_SOURCE[0]}")"
 exit $?
 
 # PYTHON BEGIN
-import collections, datetime, difflib, hashlib, json, os, re, shutil, subprocess, sys
+import collections, ctypes, datetime, difflib, hashlib, json, os, re, shutil, stat, subprocess, sys
 
 ROOT = os.environ["ACCEPT_ROOT"]
 WORK = os.environ["ACCEPT_WORK"]
 COPY = os.path.join(WORK, "copy")
 BUILT = os.environ["ACCEPT_BUILT"]
 READ_ONLY_SOURCE = os.environ["ACCEPT_READ_ONLY_SOURCE"]
+REF = os.environ["ACCEPT_REF"]  # Empty when the source is the disk.
 DOSSIER = os.path.join(ROOT, "bin", "dossier")
 LFS_MAGIC = b"version https://git-lfs"
 PROBE = "ZZ ACCEPTANCE PROBE"
@@ -158,13 +187,61 @@ def sha256_of(path):
         return hashlib.sha256(file.read()).hexdigest()
 
 
+def clone_or_copy(source, target):
+    """A copy-on-write clone where the volume has them, so a large tree costs little and the two
+    never share a change. Otherwise the bytes, with the file's times and mode."""
+    try:
+        if ctypes.CDLL(None).clonefile(os.fsencode(source), os.fsencode(target), 0) == 0:
+            return
+    except (AttributeError, OSError):
+        pass
+    shutil.copy2(source, target, follow_symlinks=False)
+
+
+def copy_project_from_disk():
+    """The project's tree as it is now, into the copy, reading only. `.git` is skipped at any depth,
+    as a submodule has one too, and a link stays a link, so nothing outside the tree is read.
+    Returns (files, links, others skipped: a link out of the tree, a FIFO or a socket)."""
+    def stop(error):
+        raise error
+
+    copied, links, others = 0, 0, 0
+    for directory, names, files in os.walk(READ_ONLY_SOURCE, onerror=stop):
+        names[:] = [name for name in names if name != ".git"]
+        relative = os.path.relpath(directory, READ_ONLY_SOURCE)
+        for name in names + files:
+            if name == ".git":
+                continue
+            source = os.path.join(directory, name)
+            target = os.path.normpath(os.path.join(COPY, relative, name))
+            mode = os.lstat(source).st_mode
+            if stat.S_ISLNK(mode):
+                # A link out of the tree, such as a virtualenv's python, is left out: following it
+                # would read outside the project. A bundle that needs one shows E-FILE-MISSING.
+                link = os.readlink(source)
+                inside = os.path.normpath(os.path.join(directory, link)).startswith(READ_ONLY_SOURCE + os.sep)
+                if os.path.isabs(link) or not inside:
+                    others += 1
+                    continue
+                os.symlink(link, target)
+                links += 1
+            elif stat.S_ISDIR(mode):
+                os.mkdir(target)
+            elif stat.S_ISREG(mode):
+                clone_or_copy(source, target)
+                copied += 1
+            else:
+                others += 1
+    return copied, links, others
+
+
 def reject_links_out_of_the_copy():
-    """Every write below goes through a path in the copy. A committed link could lead it away."""
+    """Every write below goes through a path in the copy. A link could lead it away."""
     for directory, names, files in os.walk(COPY):
         for name in names + files:
             path = os.path.join(directory, name)
             if os.path.islink(path) and not inside_copy(path):
-                print("acceptance: a committed link leads out of the copy. Nothing was run.", file=sys.stderr)
+                print("acceptance: a link leads out of the copy. Nothing was run.", file=sys.stderr)
                 sys.exit(2)
 
 
@@ -201,6 +278,8 @@ def item1(members, members_ok):
             schema = "FAIL"
         else:
             schema = "PASS"
+        # Before the skip below: item 2 counts only the errors its add introduces.
+        pre_add_errors[name] = errors
         pointers = sum(is_lfs_pointer(path) for path in files_under(bundle))
         pointers_total += pointers
         if pointers:
@@ -209,7 +288,6 @@ def item1(members, members_ok):
                 f"checked  manifest-v2: {schema}")
             skipped += 1
             continue
-        pre_add_errors[name] = errors
         if result is None or "findings" not in result:
             row("bundle", "FAIL", f"{name}  FAIL  validate didn't run (status {status}, {error_code(result)})  manifest-v2: not run")
             failed += 1
@@ -245,7 +323,8 @@ def item1(members, members_ok):
 # Item 2 ---------------------------------------------------------------------------------------
 
 def copy_generations_from_working_tree(members):
-    """.generations/ is normally ignored, so REF lacks it. Copies PNGs that have a sidecar, reading only."""
+    """.generations/ is normally ignored, so REF lacks it. Copies PNGs that have a sidecar, reading only.
+    With the disk as the source the copy already has it, so this is only for REF."""
     copied = 0
     for member in members:
         if not member["manifest"] or not inside_copy(member["manifest"]):
@@ -378,9 +457,9 @@ def same_time(first, second):
 def item2(members, pre_add_errors):
     """`dossier add` of a view and its sidecar. Writes to the copy only, which the choice checks."""
     print("item 2: dossier add of a view with its sidecar")
-    origin = "REF"
+    origin = "REF" if REF else "disk"
     chosen, pointer_files, unusable = choose_candidate(members)
-    if not chosen and not pointer_files:
+    if REF and not chosen and not pointer_files:
         if copy_generations_from_working_tree(members):
             origin = "the working tree, because REF doesn't hold it"
             chosen, pointer_files, unusable = choose_candidate(members)
@@ -486,6 +565,162 @@ def item2(members, pre_add_errors):
         row("item", "PASS",
             f"2 PASS: {name}, every SD-7 key recorded, {matched} of {len(recorded)} reference hashes match and are mapped, "
             f"{at_selection} recorded with the current selection's path, face mapping: {'yes' if by_kind['face'] else 'no'}")
+
+
+# Item 3 ---------------------------------------------------------------------------------------
+
+LEAD_TARGET = 3_000_000  # DF-53: a "should".
+PAGE_LIMIT = 10_000_000  # W-PAGE-SIZE.
+
+
+def prepare_item3():
+    """A copy of the copy made before item 2 changes it, so the pages are of the source's bundles."""
+    target = os.path.join(WORK, "item3-copy")
+    shutil.copytree(COPY, target, symlinks=True, copy_function=clone_or_copy)
+    return target
+
+
+def page_text_check(page, description):
+    """Each list item, paragraph and quote of CHARACTER.md's body, whole in one element of the page:
+    what a person reads, against what was written, by template rule 3. A quote is looked for in the
+    <blockquote>s, and everything else in the other elements, with those quotes taken out.
+
+    Returns (blocks, blocks not whole, literal ** shown, literal --- shown, literal leading > shown).
+    The last two leave out what the source itself has as text: `- > x`, `> > x`, `- ---`, `> ---`."""
+    import html
+    import re
+    def plain(text):
+        text = re.sub(r"\[\^[^\]]+\]", "", text).replace("*", "")
+        return " ".join(html.unescape(text).split())
+    with open(description, encoding="utf-8") as handle:
+        body = handle.read().split("---\n", 2)[-1]
+    found, current, open_kind = [], None, None  # open_kind: "text", or "quote" when a line continues one.
+    written_rules, written_quotes = 0, 0
+    def note(text):
+        nonlocal written_rules, written_quotes
+        written_rules += text == "---"
+        written_quotes += text.startswith(">")
+    def close():
+        nonlocal current, open_kind
+        if current is not None:
+            found.append((open_kind, current))
+        current, open_kind = None, None
+    for line in body.split("\n"):
+        stripped = line.strip(" ")
+        if re.match(r" {0,3}\[\^[^\]]+\]:", line) or line.startswith("#") or not line.strip() or stripped == "---":
+            close()
+        elif line.startswith("- "):
+            close()
+            current, open_kind = line[2:], "text"
+            note(current.strip())
+        elif stripped.startswith(">"):
+            content = stripped[1:].strip()
+            note(content)
+            if open_kind == "quote":
+                current += " " + content
+            else:
+                close()
+                current, open_kind = content, "quote"
+        elif current is not None:
+            current += " " + line.strip()
+        else:
+            current, open_kind = line.strip(), "text"
+    close()
+    with open(page, encoding="utf-8") as handle:
+        document = handle.read()
+    document = re.sub(r"<script.*?</script>|<style.*?</style>", "", document, flags=re.S)
+    document = re.sub(r'<sup class="mark">.*?</sup>', "", document, flags=re.S)
+    quote_element = r"<blockquote[^>]*>(.*?)</blockquote>"
+    quotes = re.findall(quote_element, document, flags=re.S)
+    document = re.sub(quote_element, "", document, flags=re.S)
+    without_tags = lambda inner: re.sub(r"<[^>]+>", "", inner)
+    shown = [plain(without_tags(inner)) for inner in re.findall(r"<(?:li|p|span)[^>]*>(.*?)</(?:li|p|span)>", document, flags=re.S)]
+    shown_quotes = [plain(without_tags(inner)) for inner in quotes]
+    blocks = [(kind, plain(block)) for kind, block in found if plain(block)]
+    lost = 0
+    for kind, block in blocks:
+        pool = shown_quotes if kind == "quote" else shown
+        lost += block not in pool and not any(block in text for text in pool)
+    read = [without_tags(inner) for inner in re.findall(r"<(?:li|p)[^>]*>(.*?)</(?:li|p)>", document, flags=re.S)] + [without_tags(inner) for inner in quotes]
+    literal = sum(text.count("**") for text in read)
+    read_lines = [line.strip() for text in read for line in html.unescape(text).split("\n")]
+    rules = max(0, sum(line == "---" for line in read_lines) - written_rules)
+    leading = max(0, sum(line.startswith(">") for line in read_lines) - written_quotes)
+    return len(blocks), lost, literal, rules, leading
+
+
+def item3(members, members_ok, copy):
+    """Each member's bundle rendered twice on its own scratch copy, and validated after."""
+    print("item 3: render every member's bundle, twice")
+    if not members_ok:
+        row("item", "FAIL", "3 FAIL: CAST.md can't be read, or lists no members")
+        return
+    pages_out = os.environ.get("ACCEPT_PAGES_OUT", "")
+    cast = os.path.join(copy, "CAST.md")
+    with_bundle = [member for member in members if member["manifest"]]
+    failed, pointers, over_target = 0, 0, 0
+    for member in with_bundle:
+        name = member["character"]
+        if not inside_copy(member["manifest"]):
+            print(f"  {name}  FAIL  its manifest: leaves the project")
+            failed += 1
+            continue
+        bundle = os.path.dirname(os.path.join(copy, os.path.relpath(member["manifest"], COPY)))
+        if any(is_lfs_pointer(path) for path in files_under(bundle)):
+            print(f"  {name}  SKIP(lfs pointer)")
+            pointers += 1
+            continue
+        _, before = dossier("validate", bundle, "--cast", cast)
+        status, result = dossier("render", bundle, "--cast", cast)
+        if status != 0 or not result or "page" not in result:
+            print(f"  {name}  FAIL  render failed ({error_code(result)})")
+            failed += 1
+            continue
+        page = result["page"]
+        first = sha256_of(page)
+        status, again = dossier("render", bundle, "--cast", cast)
+        same = status == 0 and sha256_of(page) == first
+        size = os.path.getsize(page)
+        role = result.get("role")
+        _, after = dossier("validate", bundle, "--cast", cast)
+        new_errors = codes(after, "error") - codes(before, "error")
+        problems = []
+        if not same:
+            problems.append("the second render differs" if status == 0 else f"the second render failed ({error_code(again)})")
+        if new_errors:
+            problems.append(f"new errors: {counted(new_errors)}")
+        if size > PAGE_LIMIT:
+            problems.append(f"OVER 10 MB (W-PAGE-SIZE, limit {PAGE_LIMIT})")
+        notes = ""
+        if role == "lead":
+            if size > LEAD_TARGET:
+                over_target += 1
+                notes = f"  OVER 3 MB TARGET (DF-53, {LEAD_TARGET})"
+            else:
+                notes = f"  within the 3 MB target (DF-53, {LEAD_TARGET})"
+        blocks, lost, literal, rules, leading = page_text_check(page, os.path.join(bundle, "CHARACTER.md"))
+        notes += f"  text: {blocks - lost} of {blocks} source blocks whole, literal ** {literal}, literal --- {rules}, literal leading > {leading}"
+        if lost:
+            problems.append(f"{lost} source blocks aren't whole in one element")
+        if rules:
+            problems.append(f"{rules} literal --- shown")
+        if leading:
+            problems.append(f"{leading} literal leading > shown")
+        print(f"  {name}  {size} bytes  role {role or 'none'}{notes}  {'FAIL  ' + '; '.join(problems) if problems else 'PASS'}")
+        failed += bool(problems)
+        if pages_out:
+            shutil.copyfile(page, os.path.join(pages_out, os.path.basename(page)))
+
+    if pages_out:
+        print(f"  rendered pages kept in {pages_out}")
+    summary = f"{len(with_bundle)} bundles, {failed} failed, {over_target} leads over the 3 MB target, which doesn't fail this item"
+    if not with_bundle:
+        row("item", "FAIL", "3 FAIL: no member has a bundle, so nothing was rendered")
+    elif pointers:
+        row("item", "SKIP(lfs pointer)", f"3 SKIP(lfs pointer): {pointers} of {len(with_bundle)} bundles hold LFS pointers, a failure of this check")
+    else:
+        verdict = "FAIL" if failed else "PASS"
+        row("item", verdict, f"3 {verdict}: {summary}")
 
 
 # Item 4 ---------------------------------------------------------------------------------------
@@ -648,7 +883,7 @@ def item4(members_ok):
     if hashes_after != hashes_before:
         failures.append("a hash changed on the normalized copy")
 
-    # As committed: every member keeps its §7 hash, except what SD-12 reports.
+    # As the source has it: every member keeps its §7 hash, except what SD-12 reports.
     raw = os.path.join(WORK, "item4-unnormalized")
     os.makedirs(os.path.join(raw, "characters"))
     cast = os.path.join(raw, "CAST.md")
@@ -811,7 +1046,16 @@ def item5():
 # ----------------------------------------------------------------------------------------------
 
 def main():
-    print(f"acceptance: REF {os.environ['ACCEPT_REF']} at {os.environ['ACCEPT_COMMIT']}")
+    if REF:
+        print(f"acceptance: source: ref {REF} at {os.environ['ACCEPT_COMMIT']}")
+    else:
+        try:
+            copied, links, others = copy_project_from_disk()
+        except OSError as error:
+            print(f"acceptance: couldn't copy the project: {type(error).__name__} on {error.filename}. Nothing was run.",
+                  file=sys.stderr)
+            sys.exit(2)
+        print(f"acceptance: source: disk ({copied} files, {links} links, {others} left out: links out of the tree, FIFOs, sockets; .git left out)")
     reject_links_out_of_the_copy()
     cast = os.path.join(COPY, "CAST.md")
     members = []
@@ -821,8 +1065,9 @@ def main():
     members_ok = bool(members)
 
     pre_add_errors = item1(members, members_ok)
+    item3_copy = prepare_item3()
     item2(members, pre_add_errors)
-    print("item 3 not run: rendering is phase 3")
+    item3(members, members_ok, item3_copy)
     item4(members_ok)
     item5()
 

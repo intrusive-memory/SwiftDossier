@@ -185,11 +185,8 @@ struct CommandTests {
     #expect(object["unclassified"] is [Any])
   }
 
-  @Test("render and migrate exist and say they are not available")
+  @Test("migrate exists and says it is not available")
   func notAvailable() throws {
-    let render = dossier(["render", "somewhere.dossier"])
-    #expect(render.status == 69)
-    #expect(render.stderr.contains("template"))
     let migrate = dossier(["migrate", "somewhere", "--apply", "--json"])
     #expect(migrate.status == 69)
     let message = try #require((try migrate.object()["error"] as? [String: Any])?["message"] as? String)
