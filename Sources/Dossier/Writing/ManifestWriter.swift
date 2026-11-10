@@ -53,12 +53,14 @@ struct BundleScan {
   /// - Parameters:
   ///   - url: The bundle.
   ///   - excluding: Paths left out of the inventory: the page, when what's asked is the bundle without it.
+  ///   - allowingEmpty: Hash a zero-byte file like any other. Only a preview, which writes
+  ///     nothing, may.
   /// - Throws: ``DossierWriteError/zeroByteFiles(_:)``, which a writer must not write (§5.2).
-  init(bundle url: URL, excluding: [String] = []) throws {
+  init(bundle url: URL, excluding: [String] = [], allowingEmpty: Bool = false) throws {
     inventory = BundleInventory(bundle: url, excluding: excluding)
     let visible = inventory.visible
     let empty = visible.filter { $0.size == 0 }.map(\.path)
-    guard empty.isEmpty else { throw DossierWriteError.zeroByteFiles(empty) }
+    guard empty.isEmpty || allowingEmpty else { throw DossierWriteError.zeroByteFiles(empty) }
     files = try visible.map(Self.hashed)
     byKey = Dictionary(files.map { (BundleInventory.key($0.path), $0) }) { first, _ in first }
   }

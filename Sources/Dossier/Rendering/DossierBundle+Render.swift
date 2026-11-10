@@ -135,7 +135,7 @@ extension DossierBundle {
   /// §11: no entry for the page, the checksum over the remaining files, and `updatedAt` the latest
   /// `createdAt` of its assets. `files` is the rescan the write will record (SD-5), so this
   /// matches the `manifest.json` the render leaves.
-  private static func embeddedManifest(of current: Manifest, scan: BundleScan, pages: [String]) throws -> Manifest {
+  static func embeddedManifest(of current: Manifest, scan: BundleScan, pages: [String]) throws -> Manifest {
     var embedded = current
     embedded.assets = current.assets.filter { $0.kind != .dossier }
     embedded.files = try scan.entries(recordedIn: embedded, removing: pages)
@@ -161,8 +161,8 @@ extension DossierBundle {
   /// wrong, which is `E-CHECKSUM`.
   ///
   /// A render refuses `E-FILE-HASH` and `E-FILE-MISSING` (§11), so neither reaches a banner.
-  private static func bannerFindings(
-    of current: Manifest, at url: URL, pages: [String], member: Cast.Member, template: PageTemplate
+  static func bannerFindings(
+    of current: Manifest, at url: URL, pages: [String], member: Cast.Member?, template: PageTemplate
   ) throws -> [Finding] {
     let isPage: (String) -> Bool = { path in pages.contains { BundleInventory.key($0) == BundleInventory.key(path) } }
     var described = current
@@ -174,7 +174,7 @@ extension DossierBundle {
   }
 
   /// `CHARACTER.md` (§9), which must be UTF-8.
-  private static func readDescription(in url: URL, excluding: [String]) throws -> CharacterDocument {
+  static func readDescription(in url: URL, excluding: [String]) throws -> CharacterDocument {
     let name = CharacterDescription.fileName
     guard let file = BundleInventory(bundle: url, excluding: excluding).file(at: name),
       let data = try? Data(contentsOf: file.url)
@@ -188,7 +188,7 @@ extension DossierBundle {
   /// SPEC-GAP: §11, rule 9: how front matter becomes JSON isn't said, and §7's canonical JSON has
   /// no floats or dates. §7's reading of a plain scalar is used, as for a member: null, boolean,
   /// integer, otherwise a string as written.
-  private static func frontMatterObject(of document: CharacterDocument) throws -> JSONObject {
+  static func frontMatterObject(of document: CharacterDocument) throws -> JSONObject {
     guard let yaml = document.frontMatterYAML else { return JSONObject() }
     let root: Node?
     do {

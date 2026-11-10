@@ -386,3 +386,44 @@ struct MigrateCommand: DossierSubcommand {
       "not-available", "migrate is not available: it is phase 4 of the plan and has not been built", status: 69)
   }
 }
+
+struct PreviewCommand: DossierSubcommand {
+  static let configuration = CommandConfiguration(
+    commandName: "preview", abstract: "Build a bundle's page for viewing, writing nothing into the bundle.",
+    discussion: """
+      dossier preview <bundle>                 the page, written to the preview cache; prints its path
+      dossier preview <bundle> --to F          the page, written to F
+
+      The page is built from the bundle as it is, ignoring any page it holds. A file that \
+      doesn't match its entry is listed on the page rather than refusing it, and an image or \
+      sample that can't be read is left off. The CAST.md member is taken from the bundle's parent \
+      or grandparent directory when one points at the bundle, and is optional.
+
+      Exits 0, or 1 when the page can't be built (CHARACTER.md missing or not UTF-8).
+      """)
+
+  @Argument(help: "The bundle.") var bundle: String
+  @Option(help: "Where to write the page, instead of the preview cache.") var to: String?
+  @OptionGroup var output: OutputOptions
+
+  func execute(io: CommandIO) throws -> Int32 {
+    let directory = fileURL(bundle)
+    let target = try DossierBundle.openForPreview(at: directory)
+    let file: URL
+    if let to {
+      file = fileURL(to)
+      try Data(try target.previewPage().html.utf8).write(to: file, options: .atomic)
+    } else {
+      file = try DossierPreviewCache().pageURL(for: target)
+    }
+    if io.json {
+      io.emit([
+        "character": target.manifest.character, "bundle": directory.path, "page": file.path,
+        "member": target.member != nil,
+      ])
+    } else {
+      io.line(file.path)
+    }
+    return 0
+  }
+}
