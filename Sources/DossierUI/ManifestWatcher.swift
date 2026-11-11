@@ -92,7 +92,7 @@ public final class ManifestWatcher: ManifestWatching {
   private let bundleURL: URL
   private let guarded: Guarded
   private let onChange: @Sendable (ManifestChange) -> Void
-  private let source: any DispatchSourceFileSystemObject
+  private let source: (any DispatchSourceFileSystemObject)?
 
   /// Starts watching `bundleURL`.
   ///
@@ -101,18 +101,33 @@ public final class ManifestWatcher: ManifestWatching {
   ///   - onChange: Called, on a private queue, once per observed change. Never called after
   ///     ``cancel()`` returns.
   /// - Returns: `nil` when the directory can't be opened.
-  public init?(bundleURL: URL, onChange: @escaping @Sendable (ManifestChange) -> Void) {
-    let descriptor = open(bundleURL.path, O_EVTONLY)
-    guard descriptor >= 0 else { return nil }
+  public convenience init?(bundleURL: URL, onChange: @escaping @Sendable (ManifestChange) -> Void) {
+    self.init(bundleURL: bundleURL, activating: true, onChange: onChange)
+  }
+
+  /// `activating: false` builds the watcher without an event source: nothing reaches it but
+  /// ``handleEvent()``. For tests.
+  init?(bundleURL: URL, activating: Bool, onChange: @escaping @Sendable (ManifestChange) -> Void) {
+    var descriptor: Int32 = -1
+    if activating {
+      descriptor = open(bundleURL.path, O_EVTONLY)
+      guard descriptor >= 0 else { return nil }
+    }
     self.bundleURL = bundleURL
     self.onChange = onChange
     guarded = Guarded(State(last: BundleSnapshot(bundleURL: bundleURL)))
-    source = DispatchSource.makeFileSystemObjectSource(
-      fileDescriptor: descriptor, eventMask: [.write, .rename, .delete, .extend, .attrib, .link],
-      queue: DispatchQueue(label: "DossierUI.ManifestWatcher"))
-    source.setEventHandler { [weak self] in self?.handleEvent() }
-    source.setCancelHandler { close(descriptor) }
-    source.resume()
+    if activating {
+      let source = DispatchSource.makeFileSystemObjectSource(
+        fileDescriptor: descriptor, eventMask: [.write, .rename, .delete, .extend, .attrib, .link],
+        queue: DispatchQueue(label: "DossierUI.ManifestWatcher"))
+      let fd = descriptor
+      source.setCancelHandler { close(fd) }
+      self.source = source
+      source.setEventHandler { [weak self] in self?.handleEvent() }
+      source.resume()
+    } else {
+      source = nil
+    }
   }
 
   /// Whether ``cancel()`` has been called.
@@ -120,9 +135,12 @@ public final class ManifestWatcher: ManifestWatching {
 
   /// What the event source calls: reports a change since the last event, unless cancelled.
   func handleEvent() {
-    let now = BundleSnapshot(bundleURL: bundleURL)
+    let bundleURL = self.bundleURL
+    // Snapshot, compare and store under one lock, so a late event can't report a step backwards.
     let change = guarded.state.withLock { state -> ManifestChange? in
-      guard !state.cancelled, let change = BundleSnapshot.change(from: state.last, to: now) else { return nil }
+      guard !state.cancelled else { return nil }
+      let now = BundleSnapshot(bundleURL: bundleURL)
+      guard let change = BundleSnapshot.change(from: state.last, to: now) else { return nil }
       state.last = now
       return change
     }
@@ -131,7 +149,7 @@ public final class ManifestWatcher: ManifestWatching {
 
   public func cancel() {
     guarded.state.withLock { $0.cancelled = true }
-    source.cancel()
+    source?.cancel()
   }
 
   deinit { cancel() }

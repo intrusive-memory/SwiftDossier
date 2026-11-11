@@ -80,25 +80,37 @@ struct ManifestWatcherTests {
     #expect(BundleSnapshot.change(from: during, to: BundleSnapshot(bundleURL: project.bundleURL)) == .markers)
   }
 
-  @Test("A watcher reports an event, and a cancelled one never reports")
+  @Test("A watcher reports a change once, and a cancelled one never reports")
   func cancelStopsReports() throws {
     let project = try UIProject()
     let reports = Mutex(0)
-    let watcher = try #require(ManifestWatcher(bundleURL: project.bundleURL) { _ in reports.withLock { $0 += 1 } })
+    // No event source: nothing reaches the watcher but handleEvent().
+    let watcher = try #require(
+      ManifestWatcher(bundleURL: project.bundleURL, activating: false) { _ in reports.withLock { $0 += 1 } })
     #expect(!watcher.isCancelled)
+    watcher.handleEvent()
+    #expect(reports.withLock { $0 } == 0)
 
     try Self.replaceManifest(in: project.bundleURL, adding: "x-one")
     watcher.handleEvent()
-    // The real source may have delivered the event first; either way it's reported.
-    let reported = reports.withLock { $0 }
-    #expect(reported >= 1)
-    watcher.handleEvent()  // nothing new since: not reported again
-    #expect(reports.withLock { $0 } == reported)
+    #expect(reports.withLock { $0 } == 1)
+    watcher.handleEvent()  // nothing new since
+    #expect(reports.withLock { $0 } == 1)
 
     watcher.cancel()
     #expect(watcher.isCancelled)
     try Self.replaceManifest(in: project.bundleURL, adding: "x-two")
     watcher.handleEvent()
-    #expect(reports.withLock { $0 } == reported)
+    #expect(reports.withLock { $0 } == 1)
+  }
+
+  @Test("The real event source can be made and cancelled")
+  func liveSourceConstructs() throws {
+    let project = try UIProject()
+    let watcher = try #require(ManifestWatcher(bundleURL: project.bundleURL) { _ in })
+    watcher.cancel()
+    #expect(watcher.isCancelled)
+    let missing = project.root.appendingPathComponent("nowhere.dossier")
+    #expect(ManifestWatcher(bundleURL: missing) { _ in } == nil)
   }
 }
