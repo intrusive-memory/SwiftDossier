@@ -131,7 +131,7 @@ dossier prompt   <bundle> identity|portrait|subject [--set "<text>" | --file f] 
 dossier face     <bundle> [--box x,y,w,h]
 dossier check    <bundle>                                 # CHARACTER.md: front matter, sections, footnotes, open questions
 dossier validate <bundle> | --cast CAST.md
-dossier render   <bundle> [--cast CAST.md] | --cast CAST.md   # §4. Without --cast, CAST.md in the bundle's parent, then grandparent
+dossier render   [<bundle>] --cast CAST.md   # §4. --cast is required: one CAST.md per project, never searched for (REQUIREMENTS-preview PV-27)
 dossier refresh  <bundle> [--cast CAST.md]                # brings the manifest up to the disk (SD-11): accepts changed files, drops missing ones with no asset, adopts by §5.6; refuses an asset's missing file; --json has accepted, nameMismatches, dropped, adopted, unclassified
 dossier candidates <bundle> [--kind portrait]            # what's in .generations/<CHARACTER>/
 dossier migrate  characters/SHANE --cast CAST.md [--apply]   # dry run by default (§6)
