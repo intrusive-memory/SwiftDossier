@@ -122,6 +122,19 @@ extension DossierBundle {
     if let file = store.storedPage(forKey: parts.key) {
       return PreviewResult(key: parts.key, hit: true, pageURL: file, html: nil, banner: nil, storeError: nil)
     }
+    return try buildAndStorePreview(parts, in: store)
+  }
+
+  /// ``showPreview(template:)`` with ``DossierTemplate/current``.
+  public func showPreview() throws -> PreviewResult {
+    try showPreview(template: try DossierTemplate.current)
+  }
+
+  /// Builds the page for `parts` and stores it, whether or not `.preview/<key>.html` is already
+  /// there. A failure to store is in the result's ``PreviewResult/storeError``, not thrown (PV-23).
+  ///
+  /// - Throws: What ``previewPage(template:)`` throws.
+  func buildAndStorePreview(_ parts: PreviewParts, in store: PreviewStore) throws -> PreviewResult {
     let page = try previewPage(parts)
     do {
       let file = try store.store(page)
@@ -131,10 +144,5 @@ extension DossierBundle {
       return PreviewResult(
         key: page.key, hit: false, pageURL: nil, html: page.html, banner: page.banner, storeError: error)
     }
-  }
-
-  /// ``showPreview(template:)`` with ``DossierTemplate/current``.
-  public func showPreview() throws -> PreviewResult {
-    try showPreview(template: try DossierTemplate.current)
   }
 }

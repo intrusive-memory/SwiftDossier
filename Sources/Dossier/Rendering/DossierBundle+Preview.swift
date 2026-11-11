@@ -138,7 +138,7 @@ extension DossierBundle {
 
   /// The member of the `CAST.md` at `castURL` whose `manifest:` points at the bundle at `url`,
   /// or `nil`. Only that file is read.
-  private static func member(pointingAt url: URL, in castURL: URL?) -> Cast.Member? {
+  static func member(pointingAt url: URL, in castURL: URL?) -> Cast.Member? {
     guard let castURL, let cast = try? Cast.load(castURL) else { return nil }
     let target = url.resolvingSymlinksInPath().standardizedFileURL.path
     return cast.members.first { member in
