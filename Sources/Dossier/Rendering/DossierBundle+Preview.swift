@@ -24,8 +24,9 @@ extension DossierBundle {
   /// - Any page already in the bundle is ignored, current or not, and left where it is.
   /// - A file that doesn't match its `files` entry, or a listed file that's missing, is shown in
   ///   the banner rather than refusing. An image or sample that can't be read is left off.
-  /// - The `CAST.md` member is optional. With none, the page has no role, tier or voice prompt;
-  ///   ``openForPreview(at:)`` finds the member where a project's layout puts it.
+  /// - The `CAST.md` member is optional. With none, the record's `castMember` is `null` and the
+  ///   page has no role, tier or voice prompt. ``openForPreview(at:cast:)`` takes the member from
+  ///   the project's `CAST.md`, which its caller passes in.
   ///
   /// The selected `description` asset isn't required either: `CHARACTER.md` on disk is what's shown.
   ///
@@ -45,16 +46,16 @@ extension DossierBundle {
     try previewParts().key
   }
 
-  /// Opens a bundle for ``previewPage()``, with the `CAST.md` member when one can be found.
+  /// Opens a bundle for ``previewPage()``, with its member of the project's `CAST.md`.
   ///
-  /// `CAST.md` is looked for in the bundle's parent directory and then its grandparent, as
-  /// `dossier render` does, and the member is the one whose `manifest:` points at this bundle. A
-  /// `CAST.md` that's missing or unreadable, or that has no such member, gives a bundle with no
-  /// member, not an error.
+  /// A project has one `CAST.md`, and the caller passes it in as `cast`; nothing looks for one.
+  /// The member is the one whose `manifest:` points at this bundle (§3, *Resolving a pointer*,
+  /// compared as ``DossierCore/Cast/manifestURL(of:)`` gives it). A `cast` that's `nil`, missing
+  /// or unreadable, or that has no such member, gives a bundle with no member, not an error.
   ///
   /// - Throws: What ``open(at:member:)`` throws.
-  public static func openForPreview(at url: URL) throws -> DossierBundle {
-    try open(at: url, member: Self.previewMember(of: url))
+  public static func openForPreview(at url: URL, cast: URL?) throws -> DossierBundle {
+    try open(at: url, member: Self.member(pointingAt: url, in: cast))
   }
 
   // MARK: - Internals
@@ -89,7 +90,7 @@ extension DossierBundle {
     var record = JSONObject()
     record["formatVersion"] = .integer(Int64(try DossierTabs.bundled().formatVersion))
     record["character"] = .string(current.character)
-    record["castMember"] = member?.normalForm ?? .object(JSONObject())
+    record["castMember"] = member?.normalForm ?? .null
     // A front matter that can't be read still leaves the body to show.
     record["frontMatter"] = .object((try? Self.frontMatterObject(of: document)) ?? JSONObject())
     record["body"] = .string(document.body)
@@ -114,18 +115,14 @@ extension DossierBundle {
     return (registered + loose).filter { seen.insert(BundleInventory.key($0)).inserted }
   }
 
-  private static func previewMember(of url: URL) -> Cast.Member? {
+  /// The member of the `CAST.md` at `castURL` whose `manifest:` points at the bundle at `url`,
+  /// or `nil`. Only that file is read.
+  private static func member(pointingAt url: URL, in castURL: URL?) -> Cast.Member? {
+    guard let castURL, let cast = try? Cast.load(castURL) else { return nil }
     let target = url.resolvingSymlinksInPath().standardizedFileURL.path
-    let parent = url.deletingLastPathComponent()
-    for directory in [parent, parent.deletingLastPathComponent()] {
-      let candidate = directory.appendingPathComponent("CAST.md")
-      guard FileManager.default.fileExists(atPath: candidate.path) else { continue }
-      guard let cast = try? Cast.load(candidate) else { return nil }
-      return cast.members.first { member in
-        cast.manifestURL(of: member)?.deletingLastPathComponent().resolvingSymlinksInPath()
-          .standardizedFileURL.path == target
-      }
+    return cast.members.first { member in
+      cast.manifestURL(of: member)?.deletingLastPathComponent().resolvingSymlinksInPath()
+        .standardizedFileURL.path == target
     }
-    return nil
   }
 }

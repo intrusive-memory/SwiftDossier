@@ -396,8 +396,7 @@ struct PreviewCommand: DossierSubcommand {
 
       The page is built from the bundle as it is, ignoring any page it holds. A file that \
       doesn't match its entry is listed on the page rather than refusing it, and an image or \
-      sample that can't be read is left off. The CAST.md member is taken from the bundle's parent \
-      or grandparent directory when one points at the bundle, and is optional.
+      sample that can't be read is left off. The page has no CAST.md member.
 
       Exits 0, or 1 when the page can't be built (CHARACTER.md missing or not UTF-8).
       """)
@@ -408,7 +407,8 @@ struct PreviewCommand: DossierSubcommand {
 
   func execute(io: CommandIO) throws -> Int32 {
     let directory = fileURL(bundle)
-    let target = try DossierBundle.openForPreview(at: directory)
+    // No CAST.md is read until `--cast` arrives (PV-3, PV-27): the page has no member.
+    let target = try DossierBundle.openForPreview(at: directory, cast: nil)
     let file: URL
     if let to {
       file = fileURL(to)

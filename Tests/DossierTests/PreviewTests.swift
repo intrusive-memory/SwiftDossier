@@ -29,7 +29,7 @@ struct PreviewTests {
     let project = try RenderProject(description: synthetic(body: body))
     try project.addImage(.portrait)
     let before = try project.tree()
-    let page = try DossierBundle.openForPreview(at: project.bundleURL).previewPage()
+    let page = try DossierBundle.openForPreview(at: project.bundleURL, cast: project.cast).previewPage()
     #expect(try project.tree() == before)
     #expect(page.html.contains("A tinker who mends radios."))
   }
@@ -85,20 +85,78 @@ struct PreviewTests {
     #expect(preview.html.contains("A tinker who mends radios."))
   }
 
-  @Test("No CAST.md member still previews")
+  @Test("No CAST.md passed, a missing one, or one with no member previews with no member")
   func noMember() throws {
     let project = try RenderProject(description: synthetic(body: body))
-    try FileManager.default.removeItem(at: project.cast)
-    let bundle = try DossierBundle.openForPreview(at: project.bundleURL)
-    #expect(bundle.member == nil)
-    #expect(try bundle.previewPage().html.contains("A tinker who mends radios."))
+
+    let unpassed = try DossierBundle.openForPreview(at: project.bundleURL, cast: nil)
+    #expect(unpassed.member == nil)
+    #expect(try unpassed.previewPage().html.contains("A tinker who mends radios."))
+
+    let missing = project.root.appendingPathComponent("NO-SUCH-CAST.md")
+    #expect(try DossierBundle.openForPreview(at: project.bundleURL, cast: missing).member == nil)
+
+    let unreadable = project.root.appendingPathComponent("BROKEN-CAST.md")
+    try Data("---\ncast: [\n---\n".utf8).write(to: unreadable)
+    #expect(try DossierBundle.openForPreview(at: project.bundleURL, cast: unreadable).member == nil)
+
+    let other = project.root.appendingPathComponent("OTHER-CAST.md")
+    try Data(
+      """
+      ---
+      type: cast
+      schemaVersion: 1
+      cast:
+      - character: SOMEONE ELSE
+        manifest: characters/SOMEONE ELSE.dossier/manifest.json
+      ---
+      """.utf8
+    ).write(to: other)
+    let unmatched = try DossierBundle.openForPreview(at: project.bundleURL, cast: other)
+    #expect(unmatched.member == nil)
+    #expect(try unmatched.previewPage().html.contains("A tinker who mends radios."))
   }
 
-  @Test("The member is found from CAST.md beside the characters directory")
+  @Test("With the project's CAST.md passed, the member is the one pointing at the bundle")
   func findsMember() throws {
     let project = try RenderProject(description: synthetic(body: body))
-    let bundle = try DossierBundle.openForPreview(at: project.bundleURL)
+    let bundle = try DossierBundle.openForPreview(at: project.bundleURL, cast: project.cast)
     #expect(bundle.member?.character == RenderProject.character)
+  }
+
+  @Test("A CAST.md in the bundle's parent or grandparent is not read when none is passed")
+  func noSearch() throws {
+    let project = try RenderProject(description: synthetic(body: body))
+    // The grandparent (the project root) already holds a CAST.md pointing at the bundle; put
+    // one in the parent (`characters/`) too, pointing at it from there.
+    let parent = project.bundleURL.deletingLastPathComponent().appendingPathComponent("CAST.md")
+    try Data(
+      """
+      ---
+      type: cast
+      schemaVersion: 1
+      cast:
+      - character: \(RenderProject.character)
+        role: lead
+        manifest: \(RenderProject.character).dossier/manifest.json
+      ---
+      """.utf8
+    ).write(to: parent)
+    #expect(try DossierBundle.openForPreview(at: project.bundleURL, cast: parent).member != nil)
+    #expect(try DossierBundle.openForPreview(at: project.bundleURL, cast: project.cast).member != nil)
+
+    #expect(try DossierBundle.openForPreview(at: project.bundleURL, cast: nil).member == nil)
+  }
+
+  @Test("With no member, the record's castMember is JSON null")
+  func nullCastMember() throws {
+    let project = try RenderProject(description: synthetic(body: body))
+    let page = try DossierBundle.openForPreview(at: project.bundleURL, cast: nil).previewPage()
+    let record = try PageReader(text: page.html).record()
+    guard case .null? = record["castMember"] else {
+      Issue.record("castMember is \(String(describing: record["castMember"])), not null")
+      return
+    }
   }
 
   @Test("No CHARACTER.md is an error: there is nothing to show")
@@ -121,15 +179,15 @@ struct PreviewTests {
   func cacheLifecycle() throws {
     let project = try RenderProject(description: synthetic(body: body))
     let cache = try cache()
-    let first = try cache.pageURL(forBundleAt: project.bundleURL)
+    let first = try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast)
     #expect(first.path.hasPrefix(cache.directory.path))
     let made = try FileManager.default.attributesOfItem(atPath: first.path)[.modificationDate] as? Date
 
-    #expect(try cache.pageURL(forBundleAt: project.bundleURL) == first)
+    #expect(try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast) == first)
     #expect(try FileManager.default.attributesOfItem(atPath: first.path)[.modificationDate] as? Date == made)
 
     try project.addImage(.portrait)
-    let second = try cache.pageURL(forBundleAt: project.bundleURL)
+    let second = try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast)
     #expect(second != first)
     #expect(!FileManager.default.fileExists(atPath: first.path))
     #expect(try String(contentsOf: second, encoding: .utf8).contains("data:image/jpeg;base64,"))

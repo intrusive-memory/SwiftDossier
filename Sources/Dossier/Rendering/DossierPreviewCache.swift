@@ -29,15 +29,15 @@ public struct DossierPreviewCache: Sendable {
 
   /// The preview page of the bundle at `url`, built and written here if it isn't already.
   ///
-  /// The bundle is opened with ``DossierCore/DossierBundle/openForPreview(at:)``, so the page has
-  /// its `CAST.md` member when the project's layout gives one. Reads and hashes every file in the
+  /// The bundle is opened with ``DossierCore/DossierBundle/openForPreview(at:cast:)``, so the page
+  /// has its member of the project's `CAST.md` at `cast`, when there is one. Reads and hashes every file in the
   /// bundle each time; builds the page only on a miss. Call it off the main thread.
   ///
   /// - Returns: The page's file.
-  /// - Throws: What ``DossierCore/DossierBundle/openForPreview(at:)`` and
+  /// - Throws: What ``DossierCore/DossierBundle/openForPreview(at:cast:)`` and
   ///   ``DossierCore/DossierBundle/previewPage()`` throw, and file-system errors writing the page.
-  public func pageURL(forBundleAt url: URL) throws -> URL {
-    try pageURL(for: try DossierBundle.openForPreview(at: url))
+  public func pageURL(forBundleAt url: URL, cast: URL?) throws -> URL {
+    try pageURL(for: try DossierBundle.openForPreview(at: url, cast: cast))
   }
 
   /// The preview page of `bundle`, built and written here if it isn't already.
