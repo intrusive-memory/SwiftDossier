@@ -11,12 +11,12 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.3.0 implements dossier-format `v2.0.0-rc.8`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.4.0 implements dossier-format `v2.0.0-rc.8`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 
 ```swift
-.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.3.0"))
+.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.4.0"))
 ```
 
 | Product | Use |
