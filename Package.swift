@@ -16,6 +16,7 @@ let package = Package(
   products: [
     .library(name: "DossierCore", targets: ["DossierCore"]),
     .library(name: "Dossier", targets: ["Dossier"]),
+    .library(name: "DossierUI", targets: ["DossierUI"]),
     .executable(name: "dossier", targets: ["dossier"]),
   ],
   dependencies: [
@@ -59,6 +60,19 @@ let package = Package(
       ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
+    // The viewer (PV-17). The only target that links a UI framework: `DossierCore` and `Dossier`
+    // import none.
+    .target(
+      name: "DossierUI",
+      // `DossierCore` is already `Dossier`'s; it's named because `UpdateStatus` and
+      // `DossierError` are used directly.
+      dependencies: ["Dossier", "DossierCore"],
+      swiftSettings: [.enableUpcomingFeature("StrictConcurrency")],
+      linkerSettings: [
+        .linkedFramework("SwiftUI"),
+        .linkedFramework("WebKit"),
+      ]
+    ),
     .target(
       name: "DossierCLICore",
       dependencies: [
@@ -85,6 +99,15 @@ let package = Package(
       dependencies: [
         "Dossier",
         .product(name: "SwiftReparto", package: "SwiftReparto"),
+      ],
+      swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
+    ),
+    .testTarget(
+      name: "DossierUITests",
+      dependencies: [
+        "DossierUI",
+        "Dossier",
+        "DossierCore",
       ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),

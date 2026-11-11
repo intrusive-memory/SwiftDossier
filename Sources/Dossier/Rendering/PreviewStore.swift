@@ -25,6 +25,26 @@ public struct PreviewStore: Sendable {
     return file
   }
 
+  /// The preview file in the store, whatever its key, or `nil` (§11.1, *Showing a bundle*, step 1:
+  /// what a viewer shows while the bundle is being updated, when no key is computed).
+  ///
+  /// The store normally holds one. When two writers have each left one, the one modified last is
+  /// returned. Only the directory's listing and its entries' metadata are read.
+  public func anyStoredPage() -> URL? {
+    let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
+    guard let entries = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)
+    else { return nil }
+    let pages = entries.compactMap { entry -> (url: URL, modified: Date)? in
+      let name = entry.lastPathComponent
+      guard name.hasSuffix(".html"), Self.isKey(String(name.dropLast(5))),
+        let values = try? entry.resourceValues(forKeys: Set(keys)), values.isRegularFile == true
+      else { return nil }
+      // Named as `storedPage(forKey:)` names it, not as the listing spells the directory.
+      return (directory.appendingPathComponent(name), values.contentModificationDate ?? .distantPast)
+    }
+    return pages.max { $0.modified < $1.modified }?.url
+  }
+
   /// Stores `page` as `.preview/<key>.html` and removes everything else in `.preview/` except
   /// `.gitignore` (§11.1, *Storing*; PV-9, PV-10).
   ///
@@ -119,15 +139,33 @@ extension DossierBundle {
   public func showPreview(template: PageTemplate) throws -> PreviewResult {
     let parts = try previewParts(template: template)
     let store = PreviewStore(bundle: url)
-    if let file = store.storedPage(forKey: parts.key) {
-      return PreviewResult(key: parts.key, hit: true, pageURL: file, html: nil, banner: nil, storeError: nil)
-    }
+    if let hit = storedPreview(parts, in: store) { return hit }
     return try buildAndStorePreview(parts, in: store)
   }
 
   /// ``showPreview(template:)`` with ``DossierTemplate/current``.
   public func showPreview() throws -> PreviewResult {
     try showPreview(template: try DossierTemplate.current)
+  }
+
+  /// §11.1's *Showing a bundle*, steps 2 and 3 alone: computes the key and returns the hit, or
+  /// `nil` on a miss. Nothing is built or written, so a viewer can call it where it can't build,
+  /// such as on the main actor, and build only on a miss (PV-15).
+  ///
+  /// - Throws: What ``previewKey(template:)`` throws.
+  public func storedPreview(template: PageTemplate) throws -> PreviewResult? {
+    storedPreview(try previewParts(template: template), in: PreviewStore(bundle: url))
+  }
+
+  /// ``storedPreview(template:)`` with ``DossierTemplate/current``.
+  public func storedPreview() throws -> PreviewResult? {
+    try storedPreview(template: try DossierTemplate.current)
+  }
+
+  func storedPreview(_ parts: PreviewParts, in store: PreviewStore) -> PreviewResult? {
+    store.storedPage(forKey: parts.key).map { file in
+      PreviewResult(key: parts.key, hit: true, pageURL: file, html: nil, banner: nil, storeError: nil)
+    }
   }
 
   /// Builds the page for `parts` and stores it, whether or not `.preview/<key>.html` is already

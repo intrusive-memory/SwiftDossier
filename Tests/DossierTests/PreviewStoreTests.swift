@@ -185,4 +185,34 @@ struct PreviewStoreTests {
     #expect(result.html?.contains("A tinker who mends radios.") == true)
     #expect(try StoreSnapshot(directory) == before)
   }
+
+  @Test("storedPreview() is nil on a miss and writes nothing, and is showPreview()'s hit after a store")
+  func storedPreviewHitAndMiss() throws {
+    let project = try project()
+    let tree = try project.tree()
+    #expect(try project.open().storedPreview() == nil)
+    #expect(try project.tree() == tree)
+
+    let built = try project.open().showPreview()
+    let stored = try #require(try project.open().storedPreview())
+    #expect(stored.hit)
+    #expect(stored.key == built.key)
+    #expect(stored.pageURL == built.pageURL)
+    #expect(stored.html == nil)
+    #expect(stored.banner == nil)
+  }
+
+  @Test("anyStoredPage() finds the preview without a key, and ignores what isn't one")
+  func anyStoredPage() throws {
+    let project = try project()
+    #expect(store(project).anyStoredPage() == nil)
+    let directory = store(project).directory
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    try Data("<p>stray</p>".utf8).write(to: directory.appendingPathComponent("stray.html"))
+    try Data("<p>half</p>".utf8).write(to: directory.appendingPathComponent("\(otherKey("tmp")).html.x.tmp"))
+    #expect(store(project).anyStoredPage() == nil)
+
+    let built = try project.open().showPreview()
+    #expect(store(project).anyStoredPage() == built.pageURL)
+  }
 }
