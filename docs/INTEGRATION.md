@@ -24,7 +24,7 @@ alone, so ImageIO and Vision stay out of its build. `Dossier` links `DossierCore
 re-export it: `import Dossier` and `import DossierCore` when you use both.
 
 ```swift
-.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.2.0-dev"))
+.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.3.0"))
 // in a target: .product(name: "Dossier", package: "SwiftDossier")   // or DossierCore, DossierUI
 ```
 
