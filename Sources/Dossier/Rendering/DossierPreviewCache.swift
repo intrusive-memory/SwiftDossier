@@ -4,10 +4,11 @@ import Foundation
 /// Preview pages (``DossierCore/DossierBundle/previewPage()``) kept on disk, outside the bundles
 /// they show, so a viewer can load one as a file and never writes into a project.
 ///
-/// A page is filed under its ``DossierCore/DossierBundle/previewKey()``, which changes whenever
-/// anything the page is built from does. So a page found here is never out of date, there is
-/// nothing to invalidate, and an edit to the bundle (a new image, a changed `CHARACTER.md`) is
-/// a miss that builds the page again. Each bundle keeps only its latest page.
+/// A page is filed under its ``DossierCore/DossierBundle/previewKey(template:)`` (§11.1), which
+/// changes when `manifest.json`, the `CAST.md` member or the template does. An edit made through a
+/// writer (a new image, a changed `CHARACTER.md`) changes `manifest.json`, so it's a miss that
+/// builds the page again; an edit that bypasses a writer is not seen. Each bundle keeps only its
+/// latest page.
 ///
 /// Every page is self-contained (images and samples are `data:` URIs), so a web view needs read
 /// access to this directory only, not to the project.
@@ -30,8 +31,8 @@ public struct DossierPreviewCache: Sendable {
   /// The preview page of the bundle at `url`, built and written here if it isn't already.
   ///
   /// The bundle is opened with ``DossierCore/DossierBundle/openForPreview(at:cast:)``, so the page
-  /// has its member of the project's `CAST.md` at `cast`, when there is one. Reads and hashes every file in the
-  /// bundle each time; builds the page only on a miss. Call it off the main thread.
+  /// has its member of the project's `CAST.md` at `cast`, when there is one. Reads `manifest.json` for the key; reads the rest of the
+  /// bundle and builds the page only on a miss. Call it off the main thread.
   ///
   /// - Returns: The page's file.
   /// - Throws: What ``DossierCore/DossierBundle/openForPreview(at:cast:)`` and

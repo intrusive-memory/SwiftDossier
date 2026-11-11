@@ -1,20 +1,20 @@
 import DossierCore
 import Foundation
 
-/// A page built for viewing only, from the bundle as it is on disk (``DossierBundle/previewPage()``).
+/// A page built for viewing only, from the bundle as it is on disk (``DossierBundle/previewPage(template:)``).
 public struct PreviewPage: Sendable {
   /// The page's text: one self-contained HTML file, with images and samples as `data:` URIs.
   public let html: String
-  /// Names what the page was built from (``DossierBundle/previewKey()``).
+  /// Names what the page was built from (``DossierBundle/previewKey(template:)``).
   public let key: String
   /// What the page's integrity banner lists. A preview shows these instead of refusing.
   public let banner: [Finding]
 }
 
 extension DossierBundle {
-  /// Bumped when the preview's own rules change, so a cached page built by older rules is
-  /// rebuilt. The template's identity is part of the key already.
-  static let previewRules = "1"
+  /// §11.1's version: the second line of the preview key. It changes when the rules for
+  /// building a preview change, and every key changes with it.
+  public static let previewVersion = "1"
 
   /// The page, built from the bundle as it is now. Nothing is written.
   ///
@@ -30,23 +30,39 @@ extension DossierBundle {
   ///
   /// The selected `description` asset isn't required either: `CHARACTER.md` on disk is what's shown.
   ///
+  /// - Parameter template: The template the page is built with; its `sha256` is part of the
+  ///   page's ``PreviewPage/key``, which is ``previewKey(template:)`` for the same template.
   /// - Throws: ``DossierCore/CharacterDescriptionError`` when `CHARACTER.md` is missing or isn't
   ///   UTF-8, since then there is nothing to show; template and resource errors.
+  public func previewPage(template: PageTemplate) throws -> PreviewPage {
+    try previewPage(try previewParts(template: template))
+  }
+
+  /// ``previewPage(template:)`` with ``DossierTemplate/current``.
   public func previewPage() throws -> PreviewPage {
-    let parts = try previewParts()
-    return try previewPage(parts)
+    try previewPage(template: try DossierTemplate.current)
   }
 
-  /// A name for what ``previewPage()`` would build now: a hash of every file in the bundle but
-  /// the page, the `CAST.md` member, the template and the preview's rules. Any change to them
-  /// changes it, so a page cached under it is never shown out of date.
+  /// §11.1's key for the page ``previewPage(template:)`` would build: the SHA-256 of five
+  /// LF-terminated lines, `dossier-preview`, ``previewVersion``, the SHA-256 of `manifest.json`'s
+  /// bytes as stored, the member's hash (§7; empty with no member), and the template's `sha256`.
   ///
-  /// It reads and hashes every file, as a render does, and builds nothing.
-  public func previewKey() throws -> String {
-    try previewParts().key
+  /// It reads `manifest.json` and no other file (PV-2), so an edit that bypasses a writer, such
+  /// as `CHARACTER.md` saved from a text editor, leaves the key as it was (§11.1).
+  ///
+  /// - Throws: File-system errors reading `manifest.json`.
+  public func previewKey(template: PageTemplate) throws -> String {
+    Self.previewKey(
+      manifestBytes: try Data(contentsOf: url.appendingPathComponent("manifest.json")),
+      member: member, template: template)
   }
 
-  /// Opens a bundle for ``previewPage()``, with its member of the project's `CAST.md`.
+  /// ``previewKey(template:)`` with ``DossierTemplate/current``.
+  public func previewKey() throws -> String {
+    try previewKey(template: try DossierTemplate.current)
+  }
+
+  /// Opens a bundle for ``previewPage(template:)``, with its member of the project's `CAST.md`.
   ///
   /// A project has one `CAST.md`, and the caller passes it in as `cast`; nothing looks for one.
   /// The member is the one whose `manifest:` points at this bundle (§3, *Resolving a pointer*,
@@ -60,33 +76,38 @@ extension DossierBundle {
 
   // MARK: - Internals
 
+  /// The template a preview is built with, and its key. Cheap: only `manifest.json` is read.
   struct PreviewParts {
-    let scan: BundleScan
-    let pages: [String]
     let template: PageTemplate
     let key: String
   }
 
+  func previewParts(template: PageTemplate) throws -> PreviewParts {
+    PreviewParts(template: template, key: try previewKey(template: template))
+  }
+
   func previewParts() throws -> PreviewParts {
-    let template = try DossierTemplate.current
-    let pages = previewPagePaths()
-    let scan = try BundleScan(bundle: url, excluding: pages, allowingEmpty: true)
-    let key = Checksum.sha256(
-      [
-        "dossier-preview", Self.previewRules, template.version, template.sha256,
-        scan.diskChecksum(), member?.canonicalJSON ?? "",
-      ].joined(separator: "\n"))
-    return PreviewParts(scan: scan, pages: pages, template: template, key: key)
+    try previewParts(template: try DossierTemplate.current)
+  }
+
+  static func previewKey(manifestBytes: Data, member: Cast.Member?, template: PageTemplate) -> String {
+    let lines = [
+      "dossier-preview", previewVersion, Checksum.sha256(manifestBytes), member?.hash ?? "",
+      template.sha256,
+    ]
+    return Checksum.sha256(lines.map { $0 + "\n" }.joined())
   }
 
   func previewPage(_ parts: PreviewParts) throws -> PreviewPage {
     let current = manifest
-    let embedded = try Self.embeddedManifest(of: current, scan: parts.scan, pages: parts.pages)
+    let pages = previewPagePaths()
+    let scan = try BundleScan(bundle: url, excluding: pages, allowingEmpty: true)
+    let embedded = try Self.embeddedManifest(of: current, scan: scan, pages: pages)
     let banner =
       (try? Self.bannerFindings(
-        of: current, at: url, pages: parts.pages, member: member, template: parts.template)) ?? []
+        of: current, at: url, pages: pages, member: member, template: parts.template)) ?? []
 
-    let document = try Self.readDescription(in: url, excluding: parts.pages)
+    let document = try Self.readDescription(in: url, excluding: pages)
     var record = JSONObject()
     record["formatVersion"] = .integer(Int64(try DossierTabs.bundled().formatVersion))
     record["character"] = .string(current.character)
@@ -99,7 +120,7 @@ extension DossierBundle {
     let view = DossierBundle(url: url, manifest: embedded, member: member)
     let filler = try PageFiller(
       bundle: view, record: record, findings: banner, document: document, template: parts.template,
-      excluding: parts.pages, lenient: true)
+      excluding: pages, lenient: true)
     return PreviewPage(html: try filler.html(), key: parts.key, banner: filler.bannerFindings)
   }
 

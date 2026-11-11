@@ -208,15 +208,6 @@ struct PreviewTests {
     #expect(throws: CharacterDescriptionError.self) { try project.open().previewPage() }
   }
 
-  @Test("The key follows the files, and nothing else")
-  func key() throws {
-    let project = try RenderProject(description: synthetic(body: body))
-    let first = try project.open().previewKey()
-    #expect(try project.open().previewKey() == first)
-    try project.addImage(.portrait)
-    #expect(try project.open().previewKey() != first)
-  }
-
   @Test("The cache builds a page once, rebuilds it after an edit, and keeps only the latest")
   func cacheLifecycle() throws {
     let project = try RenderProject(description: synthetic(body: body))
