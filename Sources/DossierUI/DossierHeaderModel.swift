@@ -44,6 +44,23 @@ public struct DossierHeaderModel: Sendable {
     self.rebuild = rebuild
   }
 
+  /// A model from resolved values, for previews and tests.
+  init(
+    project: DossierProjectContext = DossierProjectContext(),
+    character: String,
+    displayName: String? = nil,
+    role: String? = nil,
+    update: UpdateStatus,
+    rebuild: DossierRebuildAction
+  ) {
+    self.project = project
+    self.character = character
+    self.displayName = Self.displayName(displayName)
+    self.role = role
+    self.update = update
+    self.rebuild = rebuild
+  }
+
   // MARK: - Resolution
 
   /// A bundle directory's name without `.dossier`.
