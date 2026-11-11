@@ -409,7 +409,10 @@ generated: 2026-11-10
 **Exit criteria**:
 - [ ] `TEST_FILTER=ManifestWatcherTests make test` passes, with at least 4 tests.
 - [ ] `TEST_FILTER=DossierViewModelTests make test` passes.
-- [ ] `grep -rn "Timer\|asyncAfter\|Task.sleep" Sources/DossierUI` prints nothing.
+- [ ] `grep -rn "Timer\|asyncAfter\|Task.sleep" Sources/DossierUI` prints exactly one line:
+      Sortie 8's one-shot marker-expiry wait in `DossierViewModel.swift` (a marker can
+      expire with nothing on disk changing, so the watcher can't see it). Sortie 9 adds no
+      other timer, sleep or polling. (Amended 2026-11-10 by user decision during execution.)
 
 ### Sortie 10: The preview web view and its navigation policy
 
