@@ -10,7 +10,7 @@ struct PreviewCommandTests {
   /// `dossier` for a command that suspends.
   private func run(_ arguments: [String]) async -> Ran {
     let sink = BufferSink()
-    let status = await DossierCLI.run(arguments, sink: sink)
+    let status = await DossierCLI.runAsync(arguments, sink: sink)
     return Ran(status: status, stdout: sink.stdout, stderr: sink.stderr)
   }
 

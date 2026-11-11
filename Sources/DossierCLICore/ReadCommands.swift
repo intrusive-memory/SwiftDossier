@@ -412,7 +412,7 @@ struct PreviewCommand: AsyncDossierSubcommand {
   }
 
   func execute(io: CommandIO) throws -> Int32 {
-    throw CLIFailure("async-required", "preview must be run through the async DossierCLI.run", status: 70)
+    throw CLIFailure("async-required", "preview must be run through DossierCLI.runAsync", status: 70)
   }
 
   func executeAsync(io: CommandIO) async throws -> Int32 {

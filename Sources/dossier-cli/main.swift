@@ -1,4 +1,4 @@
 import DossierCLICore
 import Foundation
 
-exit(await DossierCLI.run(Array(CommandLine.arguments.dropFirst()), sink: ConsoleOutputSink()))
+exit(await DossierCLI.runAsync(Array(CommandLine.arguments.dropFirst()), sink: ConsoleOutputSink()))

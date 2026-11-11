@@ -39,7 +39,7 @@ extension DossierSubcommand {
 }
 
 /// A subcommand that suspends. The synchronous ``DossierCLI/run(_:sink:)`` refuses it
-/// (`async-required`); the `async` one runs it.
+/// (`async-required`); ``DossierCLI/runAsync(_:sink:)`` runs it.
 protocol AsyncDossierSubcommand: DossierSubcommand {
   func executeAsync(io: CommandIO) async throws -> Int32
 }
@@ -97,7 +97,7 @@ public enum DossierCLI {
 
   /// ``run(_:sink:)`` for a caller that can `await`: it also runs a command that suspends, such as
   /// `preview --rebuild`, without blocking a thread. `main.swift` calls this one.
-  public static func run(_ arguments: [String], sink: any OutputSink) async -> Int32 {
+  public static func runAsync(_ arguments: [String], sink: any OutputSink) async -> Int32 {
     var failureStatus: Int32 = 1
     do {
       guard let command = try parse(arguments, sink: sink) else { return 0 }
