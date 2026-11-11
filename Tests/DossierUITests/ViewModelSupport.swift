@@ -182,3 +182,38 @@ extension DossierViewModel.State {
     return nil
   }
 }
+
+/// A watch source a test fires by hand, so nothing waits on the file system.
+final class ManualWatching: ManifestWatchStarting {
+  private struct Log {
+    var started: [URL] = []
+    var cancelled: [URL] = []
+    var handlers: [URL: @Sendable () -> Void] = [:]
+  }
+
+  private final class Handle: ManifestWatching {
+    let url: URL
+    let owner: ManualWatching
+    init(url: URL, owner: ManualWatching) {
+      self.url = url
+      self.owner = owner
+    }
+    func cancel() { owner.log.withLock { $0.cancelled.append(url) } }
+  }
+
+  private let log = Mutex(Log())
+
+  var started: [URL] { log.withLock { $0.started } }
+  var cancelled: [URL] { log.withLock { $0.cancelled } }
+
+  func watch(bundleURL: URL, onChange: @escaping @Sendable () -> Void) -> (any ManifestWatching)? {
+    log.withLock {
+      $0.started.append(bundleURL)
+      $0.handlers[bundleURL] = onChange
+    }
+    return Handle(url: bundleURL, owner: self)
+  }
+
+  /// Delivers an event as the source for `url` would.
+  func fire(_ url: URL) { log.withLock { $0.handlers[url] }?() }
+}

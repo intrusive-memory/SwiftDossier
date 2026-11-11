@@ -13,7 +13,7 @@ struct DossierViewModelTests {
   func missLoadsThenShows() async throws {
     let project = try UIProject()
     let builder = RecordingBuilder()
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
     let log = StateLog(model)
 
     await model.inFlight?.value
@@ -31,7 +31,7 @@ struct DossierViewModelTests {
     let project = try UIProject()
     let stored = try project.storePreview()
     let builder = RecordingBuilder()
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
     let log = StateLog(model)
 
     #expect(model.inFlight == nil)
@@ -45,7 +45,7 @@ struct DossierViewModelTests {
   @Test("No CHARACTER.md gives failed, in plain words")
   func noDescriptionFails() async throws {
     let project = try UIProject(description: nil)
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder())
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder(), watching: ManualWatching())
     let log = StateLog(model)
 
     await model.inFlight?.value
@@ -58,14 +58,14 @@ struct DossierViewModelTests {
   func otherFailures() async throws {
     let project = try UIProject()
     try Data([0x2D, 0x2D, 0x2D, 0x0A, 0xFF, 0xFE, 0x0A]).write(to: project.descriptionURL)
-    let notUTF8 = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder())
+    let notUTF8 = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder(), watching: ManualWatching())
     await notUTF8.inFlight?.value
     #expect(notUTF8.state.failure == .characterDescriptionNotUTF8)
 
     let empty = project.root.appendingPathComponent("characters/NOBODY.dossier", isDirectory: true)
     try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
     let builder = RecordingBuilder()
-    let notABundle = DossierViewModel(bundleURL: empty, builder: builder)
+    let notABundle = DossierViewModel(bundleURL: empty, builder: builder, watching: ManualWatching())
     #expect(notABundle.state.failure == .notABundle)
     #expect(notABundle.inFlight == nil)
     #expect(builder.calls.isEmpty)
@@ -76,7 +76,7 @@ struct DossierViewModelTests {
     let first = try UIProject()
     let second = try UIProject()
     let builder = RecordingBuilder(holding: [.build(first.bundleURL)])
-    let model = DossierViewModel(bundleURL: first.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: first.bundleURL, builder: builder, watching: ManualWatching())
     let log = StateLog(model)
     await builder.waitUntilStarted(.build(first.bundleURL))
     let held = try #require(model.inFlight)
@@ -102,7 +102,7 @@ struct DossierViewModelTests {
   func castChangeCancels() async throws {
     let project = try UIProject()
     let builder = RecordingBuilder(holding: [.build(project.bundleURL)])
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
     await builder.waitUntilStarted(.build(project.bundleURL))
     let held = try #require(model.inFlight)
 
@@ -126,7 +126,7 @@ struct DossierViewModelTests {
     let manifestBytes = try Data(contentsOf: manifest)
     try FileManager.default.removeItem(at: manifest)
     let builder = RecordingBuilder()
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
 
     guard case .updating(let storedPage) = model.state else {
       Issue.record("expected updating, got \(StateLog.name(model.state))")
@@ -153,7 +153,7 @@ struct DossierViewModelTests {
     let stored = try project.storePreview()
     let marker = try project.open().beginUpdate(label: "test update")
     let builder = RecordingBuilder()
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
 
     guard case .updating(let storedPage) = model.state else {
       Issue.record("expected updating, got \(StateLog.name(model.state))")
@@ -171,7 +171,7 @@ struct DossierViewModelTests {
   func rebuildKeepsPage() async throws {
     let project = try UIProject()
     let builder = RecordingBuilder(holding: [.rebuild(project.bundleURL)])
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder)
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
     let log = StateLog(model)
     await model.inFlight?.value
     let before = try #require(model.state.page)
@@ -202,7 +202,7 @@ struct DossierViewModelTests {
     let project = try UIProject()
     let portrait = try project.addPortrait()
     try FileManager.default.removeItem(at: project.bundleURL.appendingPathComponent(portrait.path))
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder())
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder(), watching: ManualWatching())
     await model.inFlight?.value
 
     model.rebuild()
@@ -219,7 +219,7 @@ struct DossierViewModelTests {
     try FileManager.default.createDirectory(at: project.storeURL, withIntermediateDirectories: true)
     try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: project.storeURL.path)
     defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: project.storeURL.path) }
-    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder())
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: RecordingBuilder(), watching: ManualWatching())
     await model.inFlight?.value
 
     let page = try #require(model.state.page)
@@ -228,5 +228,72 @@ struct DossierViewModelTests {
     #expect(model.storeNote != nil)
     model.dismissStoreNote()
     #expect(model.storeNote == nil)
+  }
+
+  @Test("A manifest change while on page leads to a new key and page (PV-20)")
+  func manifestChangeShowsNewKey() async throws {
+    let project = try UIProject()
+    try project.storePreview()
+    let builder = RecordingBuilder()
+    let watching = ManualWatching()
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: watching)
+    let firstKey = try #require(model.state.page).key
+    #expect(watching.started == [project.bundleURL])
+
+    let pages = AsyncStream.makeStream(of: PreviewResult.self)
+    model.onStateChange = { state in
+      if let page = state.page { pages.continuation.yield(page) }
+    }
+    try project.addPortrait()  // replaces manifest.json
+    watching.fire(project.bundleURL)  // what the event source would do
+
+    var iterator = pages.stream.makeAsyncIterator()
+    let page = try #require(await iterator.next())
+    #expect(page.key != firstKey)
+    #expect(page.key == (try DossierBundle.openForPreview(at: project.bundleURL, cast: nil).previewKey()))
+    #expect(!page.hit)
+    #expect(builder.calls == [.build(project.bundleURL)])
+  }
+
+  @Test("After bundleURL changes, the old source's events are ignored and its watcher cancelled")
+  func oldSourceIgnored() async throws {
+    let first = try UIProject()
+    let second = try UIProject()
+    try first.storePreview()
+    try second.storePreview()
+    let builder = RecordingBuilder()
+    let watching = ManualWatching()
+    let model = DossierViewModel(bundleURL: first.bundleURL, builder: builder, watching: watching)
+    let oldToken = model.watchGeneration
+
+    model.bundleURL = second.bundleURL
+    #expect(model.watchGeneration == oldToken + 1)
+    #expect(watching.cancelled == [first.bundleURL])
+    #expect(watching.started == [first.bundleURL, second.bundleURL])
+
+    let log = StateLog(model)
+    model.sourceChanged(token: oldToken)
+    #expect(log.names == ["page"])  // nothing shown again
+
+    model.sourceChanged(token: model.watchGeneration)
+    #expect(log.names == ["page", "page"])
+    #expect(builder.calls.isEmpty)
+  }
+
+  @Test("An event during a rebuild doesn't cancel it")
+  func eventDuringRebuild() async throws {
+    let project = try UIProject()
+    let builder = RecordingBuilder(holding: [.rebuild(project.bundleURL)])
+    let model = DossierViewModel(bundleURL: project.bundleURL, builder: builder, watching: ManualWatching())
+    await model.inFlight?.value
+    model.rebuild()
+    let held = try #require(model.inFlight)
+
+    model.sourceChanged(token: model.watchGeneration)
+    #expect(model.isRebuilding)
+    #expect(!held.isCancelled)
+    builder.release(.rebuild(project.bundleURL))
+    await model.inFlight?.value
+    #expect(model.state.page != nil)
   }
 }

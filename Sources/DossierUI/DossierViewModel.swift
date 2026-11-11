@@ -103,7 +103,12 @@ public final class DossierViewModel {
 
   /// The `.dossier` directory. Changing it cancels any build or rebuild in flight (PV-21).
   public var bundleURL: URL {
-    didSet { if bundleURL != oldValue { inputsChanged() } }
+    didSet {
+      if bundleURL != oldValue {
+        startWatching()
+        inputsChanged()
+      }
+    }
   }
 
   /// The project's `CAST.md`, or `nil` (PV-3). Changing it cancels any build or rebuild in flight
@@ -148,6 +153,11 @@ public final class DossierViewModel {
   @ObservationIgnored private(set) var inFlight: Task<Void, Never>?
   /// Called with every new state. For tests.
   @ObservationIgnored var onStateChange: ((State) -> Void)?
+  /// Reports changes to the manifest and the markers of `bundleURL` (PV-20).
+  @ObservationIgnored private var watcher: (any ManifestWatching)?
+  @ObservationIgnored private let watchStarter: any ManifestWatchStarting
+  /// Bumped each time a watcher starts. An event from an older one is ignored.
+  @ObservationIgnored private(set) var watchGeneration = 0
 
   /// A viewer of the bundle at `bundleURL`, which it shows at once: on a hit, `state` is already
   /// `.page`.
@@ -157,17 +167,38 @@ public final class DossierViewModel {
   ///   - cast: The project's `CAST.md`, or `nil`.
   ///   - refreshToken: Any value; see ``refreshToken``.
   ///   - builder: Builds and rebuilds off the main actor. Default: the library's.
+  ///   - watching: Starts the watch on the bundle (PV-20). Default: a file-system event source.
   public init(
     bundleURL: URL, cast: URL? = nil, refreshToken: AnyHashable? = nil,
-    builder: any PreviewBuilding = DossierPreviewBuilder()
+    builder: any PreviewBuilding = DossierPreviewBuilder(),
+    watching: any ManifestWatchStarting = DirectoryWatchStarter()
   ) {
     self.bundleURL = bundleURL
     self.cast = cast
     self.refreshToken = refreshToken
     self.builder = builder
+    watchStarter = watching
     let step = Self.firstStep(bundleURL: bundleURL, cast: cast)
     state = step.state
     take(step)
+    startWatching()
+  }
+
+  /// Watches `bundleURL`, in place of any watcher before. An event shows the bundle again, as a
+  /// `refreshToken` change does, unless a rebuild is running (PV-20).
+  private func startWatching() {
+    watcher?.cancel()
+    watchGeneration += 1
+    let token = watchGeneration
+    watcher = watchStarter.watch(bundleURL: bundleURL) { [weak self] in
+      Task { @MainActor [weak self] in self?.sourceChanged(token: token) }
+    }
+  }
+
+  /// A watcher's event. Ignored when `token` is from a watcher that's been replaced.
+  func sourceChanged(token: Int) {
+    guard token == watchGeneration else { return }
+    recheck()
   }
 
   /// Rebuilds the preview: refreshes the manifest, then builds and stores the page even if it's
