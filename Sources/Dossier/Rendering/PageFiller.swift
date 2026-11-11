@@ -22,6 +22,10 @@ final class PageFiller {
   private let document: CharacterDocument
   private let footnotes: PageFootnotes
   private let inventory: BundleInventory
+  /// Whether a media file that can't be read is left off the page instead of failing it. A
+  /// preview (``DossierCore/DossierBundle/previewPage()``) shows the bundle as it is; a written
+  /// page refuses.
+  private let lenient: Bool
   private var copied: [String: String] = [:]
 
   /// - Parameters:
@@ -30,10 +34,12 @@ final class PageFiller {
   ///   - findings: What the banner may list, computed without the page.
   ///   - document: `CHARACTER.md`.
   ///   - excluding: The page's paths, which aren't read.
+  ///   - lenient: Leave off an image or a sample that can't be read, rather than throw.
   init(
     bundle: DossierBundle, record: JSONObject, findings: [Finding], document: CharacterDocument,
-    template: PageTemplate, excluding: [String]
+    template: PageTemplate, excluding: [String], lenient: Bool = false
   ) throws {
+    self.lenient = lenient
     tabs = try DossierTabs.bundled()
     fragments = PageText.fragments(in: String(decoding: try DossierTemplate.data(at: "fragments.html"), as: UTF8.self))
     copies = try PageCopySettings(data: try DossierTemplate.data(at: "page-copies.json"))
@@ -418,10 +424,16 @@ final class PageFiller {
     guard let kind = source["kind"]?.stringValue, let size = copies.size(ofKind: kind) else {
       throw DossierError.resourceUnreadable("template/page-copies.json: no size for \(asset.kind.rawValue)")
     }
+    let src: String
+    do {
+      src = try pageCopy(of: asset, size: size)
+    } catch DossierWriteError.imageUnreadable where lenient {
+      return nil
+    }
     return try fragment(
       "img",
       [
-        "label": PageText.escaped(label), "src": try pageCopy(of: asset, size: size), "width": String(size.width),
+        "label": PageText.escaped(label), "src": src, "width": String(size.width),
         "height": String(size.height),
       ])
   }
@@ -484,10 +496,13 @@ final class PageFiller {
     guard let audio = row["audio"]?.stringValue, let title = row["title"]?.stringValue,
       let text = row["text"]?.stringValue, let note = row["note"]?.objectValue
     else { throw malformed("\(field.key)'s row") }
-    return try ordered.map { asset in
+    let rows = try ordered.compactMap { asset -> String? in
       guard let path = try assetValue(asset, audio)?.stringValue, let file = inventory.file(at: path),
         let data = try? Data(contentsOf: file.url, options: .mappedIfSafe)
-      else { throw DossierWriteError.fileUnreadable(asset.path) }
+      else {
+        if lenient { return nil }
+        throw DossierWriteError.fileUnreadable(asset.path)
+      }
       return try fragment(
         "audioRow",
         [
@@ -496,6 +511,7 @@ final class PageFiller {
           "text": PageText.escaped(try assetValue(asset, text).flatMap(Self.plain) ?? ""),
           "src": "data:\(PageCopy.audioMIMEType(ofPath: path));base64," + data.base64EncodedString(),
         ])
-    }.joined()
+    }
+    return rows.isEmpty ? nil : rows.joined()
   }
 }

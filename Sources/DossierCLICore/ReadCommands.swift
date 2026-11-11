@@ -271,12 +271,11 @@ struct RenderCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
     commandName: "render", abstract: "Write a bundle's page, or the page of every member of a CAST.md with a dossier.",
     discussion: """
-      dossier render <bundle>               that bundle's page; its member comes from CAST.md
-      dossier render <bundle> --cast CAST.md   the same, from that CAST.md
+      dossier render <bundle> --cast CAST.md   that bundle's page; its member comes from CAST.md
       dossier render --cast CAST.md         every member with a dossier, reported one by one
 
-      A page needs its CAST.md member (§7). Without --cast, CAST.md is looked for in the \
-      bundle's parent directory and then its grandparent, and nowhere else. A member that \
+      A page needs its CAST.md member (§7), so a bundle needs --cast; CAST.md is never searched \
+      for. Without it the render fails with cast-required and writes nothing. A member that \
       doesn't point at the bundle is refused.
 
       The same inputs give the same bytes. A render that fails leaves the previous page and \
@@ -301,7 +300,11 @@ struct RenderCommand: DossierSubcommand {
       return try renderAll(cast: fileURL(cast), io: io)
     }
     let directory = fileURL(bundle)
-    let castURL = try cast.map(fileURL) ?? Self.findCast(near: directory)
+    guard let cast else {
+      throw CLIFailure(
+        "cast-required", "A page needs its CAST.md member (§7); pass --cast CAST.md. Nothing was written.")
+    }
+    let castURL = fileURL(cast)
     let loaded = try Cast.load(castURL)
     guard let member = castMember(pointingAt: directory, in: loaded) else {
       throw CLIFailure("member-not-found", "No member of \(castURL.path) points at \(directory.path)")
@@ -314,20 +317,6 @@ struct RenderCommand: DossierSubcommand {
       io.line("Rendered \(page.url.path) (\(page.sizeBytes) bytes)")
     }
     return 0
-  }
-
-  /// SPEC-GAP: §7, §11: a page's `castMember` input needs a member and a bundle doesn't hold one.
-  /// §3 only starts discovery from `CAST.md`, so nothing says how to get from a bundle to it. This
-  /// looks where a project's layout puts it, the bundle's parent and then its grandparent, with no
-  /// scanning, and otherwise refuses.
-  static func findCast(near bundle: URL) throws -> URL {
-    let parent = bundle.deletingLastPathComponent()
-    for directory in [parent, parent.deletingLastPathComponent()] {
-      let candidate = directory.appendingPathComponent("CAST.md")
-      if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
-    }
-    throw CLIFailure(
-      "cast-not-found", "No CAST.md in the bundle's parent or grandparent directory; pass --cast CAST.md")
   }
 
   private func renderAll(cast castURL: URL, io: CommandIO) throws -> Int32 {
@@ -384,5 +373,98 @@ struct MigrateCommand: DossierSubcommand {
   func execute(io: CommandIO) throws -> Int32 {
     throw CLIFailure(
       "not-available", "migrate is not available: it is phase 4 of the plan and has not been built", status: 69)
+  }
+}
+
+struct PreviewCommand: AsyncDossierSubcommand {
+  static let configuration = CommandConfiguration(
+    commandName: "preview", abstract: "Build a bundle's page for viewing, writing only into the bundle's .preview/.",
+    discussion: """
+      dossier preview <bundle>                 the page, stored in the bundle's .preview/; prints its path
+      dossier preview <bundle> --cast CAST.md  the same, with the bundle's cast member on the page
+      dossier preview <bundle> --rebuild       brings the manifest up to the disk, then builds and \
+      stores the page even when it is already stored
+      dossier preview <bundle> --to F          the page, written to F; nothing is stored in the bundle
+
+      The page is built from the bundle as it is, ignoring any page it holds. A file that \
+      doesn't match its entry is listed on the page rather than refusing it, and an image or \
+      sample that can't be read is left off. Without --cast the page has no CAST.md member; no \
+      CAST.md is looked for. --to and --rebuild can't be combined: --rebuild writes to the bundle.
+
+      With --json: character, bundle, page, key, hit (the stored page was already there) and \
+      member, plus refreshError (code, message) when --rebuild's refresh refused; the page was \
+      then built from the manifest as it was, and the exit status is still 0.
+
+      Exits 0, or 1 when the page can't be built (CHARACTER.md missing or not UTF-8) or can't \
+      be stored.
+      """)
+
+  @Argument(help: "The bundle.") var bundle: String
+  @Option(help: "The project's CAST.md, for the page's cast member.") var cast: String?
+  @Flag(help: "Refresh the manifest, then build and store the page even when it is stored.") var rebuild = false
+  @Option(help: "Where to write the page, instead of the bundle's .preview/.") var to: String?
+  @OptionGroup var output: OutputOptions
+
+  func validate() throws {
+    if rebuild && to != nil {
+      throw ValidationError("--rebuild writes to the bundle's .preview/ and can't be combined with --to.")
+    }
+  }
+
+  func execute(io: CommandIO) throws -> Int32 {
+    throw CLIFailure("async-required", "preview must be run through DossierCLI.runAsync", status: 70)
+  }
+
+  func executeAsync(io: CommandIO) async throws -> Int32 {
+    let directory = fileURL(bundle)
+    // The member is the one `--cast` names, and nothing is looked for without it (PV-3, PV-27).
+    var target = try DossierBundle.openForPreview(at: directory, cast: cast.map(fileURL))
+    var file: URL
+    var key: String
+    var hit = false
+    var refreshError: (any Error)?
+    if let to {
+      file = fileURL(to)
+      key = try target.previewKey()
+      try Data(try target.previewPage().html.utf8).write(to: file, options: .atomic)
+    } else {
+      let result: PreviewResult
+      if rebuild {
+        let rebuilt = try await target.rebuild(cast: cast.map(fileURL))
+        result = rebuilt.preview
+        refreshError = rebuilt.refreshError
+      } else {
+        result = try target.showPreview()
+      }
+      guard let stored = result.pageURL else {
+        throw CLIFailure(
+          "preview-not-stored",
+          "the page was built but couldn't be stored in \(PreviewStore(bundle: directory).directory.path): "
+            + (result.storeError?.localizedDescription ?? "unknown error"))
+      }
+      file = stored
+      key = result.key
+      hit = result.hit
+    }
+    if io.json {
+      var object: [String: Any] = [
+        "character": target.manifest.character, "bundle": directory.path, "page": file.path,
+        "key": key, "hit": hit, "member": target.member != nil,
+      ]
+      if let refreshError {
+        let name = String(String(describing: refreshError).prefix { $0 != "(" })
+        object["refreshError"] = [
+          "code": name,
+          "message": (refreshError as? LocalizedError)?.errorDescription ?? refreshError.localizedDescription,
+        ]
+      }
+      io.emit(object)
+    } else {
+      if let refreshError {
+        io.note("warning: the manifest wasn't refreshed: \((refreshError as? LocalizedError)?.errorDescription ?? refreshError.localizedDescription)")
+      }
+      io.line(file.path)
+    }
+    return 0
   }
 }

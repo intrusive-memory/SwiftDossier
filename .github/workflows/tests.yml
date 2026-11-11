@@ -22,6 +22,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+
       - name: Resolve package dependencies
         run: make resolve
 
@@ -41,6 +44,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
 
       - name: Test
         run: make test-ios

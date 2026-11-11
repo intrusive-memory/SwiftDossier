@@ -38,6 +38,12 @@ extension DossierSubcommand {
   static var failureStatus: Int32 { 1 }
 }
 
+/// A subcommand that suspends. The synchronous ``DossierCLI/run(_:sink:)`` refuses it
+/// (`async-required`); ``DossierCLI/runAsync(_:sink:)`` runs it.
+protocol AsyncDossierSubcommand: DossierSubcommand {
+  func executeAsync(io: CommandIO) async throws -> Int32
+}
+
 /// A command's way out: the sink, and whether it speaks JSON.
 struct CommandIO {
   let sink: any OutputSink
@@ -79,39 +85,67 @@ public enum DossierCLI {
   /// - Returns: The exit status. `validate` gives 0 clean, 1 warnings only, 2 errors; `update run`
   ///   its command's; the other commands give 0 or 1; a bad command line gives ArgumentParser's own.
   public static func run(_ arguments: [String], sink: any OutputSink) -> Int32 {
-    let json = arguments.prefix { $0 != "--" }.contains("--json")
     var failureStatus: Int32 = 1
     do {
-      let parsed = try DossierCommand.parseAsRoot(arguments)
-      guard let command = parsed as? any DossierSubcommand else {
-        // `add --help` parses as ArgumentParser's own help command, whose type says nothing about
-        // which command was asked about, so the command line has to say.
-        sink.writeOutput(DossierCommand.helpMessage(for: helpTarget(arguments)) + "\n")
-        return 0
-      }
+      guard let command = try parse(arguments, sink: sink) else { return 0 }
       failureStatus = type(of: command).failureStatus
       return try command.execute(io: CommandIO(sink: sink, json: command.output.json))
-    } catch let failure as CLIFailure {
+    } catch {
+      return fail(error, arguments: arguments, failureStatus: failureStatus, sink: sink)
+    }
+  }
+
+  /// ``run(_:sink:)`` for a caller that can `await`: it also runs a command that suspends, such as
+  /// `preview --rebuild`, without blocking a thread. `main.swift` calls this one.
+  public static func runAsync(_ arguments: [String], sink: any OutputSink) async -> Int32 {
+    var failureStatus: Int32 = 1
+    do {
+      guard let command = try parse(arguments, sink: sink) else { return 0 }
+      failureStatus = type(of: command).failureStatus
+      let io = CommandIO(sink: sink, json: command.output.json)
+      if let asynchronous = command as? any AsyncDossierSubcommand {
+        return try await asynchronous.executeAsync(io: io)
+      }
+      return try command.execute(io: io)
+    } catch {
+      return fail(error, arguments: arguments, failureStatus: failureStatus, sink: sink)
+    }
+  }
+
+  /// The parsed subcommand, or `nil` after writing help.
+  private static func parse(_ arguments: [String], sink: any OutputSink) throws -> (any DossierSubcommand)? {
+    let parsed = try DossierCommand.parseAsRoot(arguments)
+    guard let command = parsed as? any DossierSubcommand else {
+      // `add --help` parses as ArgumentParser's own help command, whose type says nothing about
+      // which command was asked about, so the command line has to say.
+      sink.writeOutput(DossierCommand.helpMessage(for: helpTarget(arguments)) + "\n")
+      return nil
+    }
+    return command
+  }
+
+  private static func fail(_ error: Error, arguments: [String], failureStatus: Int32, sink: any OutputSink) -> Int32 {
+    let json = arguments.prefix { $0 != "--" }.contains("--json")
+    if let failure = error as? CLIFailure {
       report(code: failure.code, message: failure.message, json: json, sink: sink)
       return failure.status
-    } catch {
-      let status = DossierCommand.exitCode(for: error)
-      let message = DossierCommand.message(for: error)
-      if status == .success {
-        sink.writeOutput(message + "\n")
-        return 0
-      }
-      if status == .validationFailure {
-        report(code: "usage", message: message, json: json, sink: sink)
-        return status.rawValue
-      }
-      let described = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-      let name = String(String(describing: error).prefix { $0 != "(" })
-      var paths: [String]?
-      if case DossierWriteError.assetFilesMissing(let missing) = error { paths = missing }
-      report(code: name, message: described, paths: paths, json: json, sink: sink)
-      return failureStatus
     }
+    let status = DossierCommand.exitCode(for: error)
+    let message = DossierCommand.message(for: error)
+    if status == .success {
+      sink.writeOutput(message + "\n")
+      return 0
+    }
+    if status == .validationFailure {
+      report(code: "usage", message: message, json: json, sink: sink)
+      return status.rawValue
+    }
+    let described = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    let name = String(String(describing: error).prefix { $0 != "(" })
+    var paths: [String]?
+    if case DossierWriteError.assetFilesMissing(let missing) = error { paths = missing }
+    report(code: name, message: described, paths: paths, json: json, sink: sink)
+    return failureStatus
   }
 
   /// The command a help request is about: `add --help`, `help add`, `update run -h`, or `update`.

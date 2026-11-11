@@ -10,11 +10,11 @@ struct RenderCommandTests {
 
   private func page(_ project: TempProject) -> String { project.path("\(bundleName)/\(pageName)") }
 
-  @Test("A bundle, finding CAST.md in its grandparent directory")
-  func bundleFindsCast() throws {
+  @Test("A bundle, with --cast")
+  func bundleWithCast() throws {
     let project = try TempProject(copyOf: "valid/complete-lead")
     let before = try sha256(of: page(project))
-    let ran = dossier(["render", project.path(bundleName), "--json"])
+    let ran = dossier(["render", project.path(bundleName), "--cast", project.cast.path, "--json"])
     #expect(ran.status == 0, "\(ran.stdout)")
     let object = try ran.object()
     #expect(object["character"] as? String == "WREN HALLOWAY")
@@ -26,7 +26,7 @@ struct RenderCommandTests {
     #expect(try sha256(of: page(project)) != before)
 
     let first = try sha256(of: page(project))
-    let again = dossier(["render", project.path(bundleName)])
+    let again = dossier(["render", project.path(bundleName), "--cast", project.cast.path])
     #expect(again.status == 0, "\(again.stderr)")
     #expect(again.stdout.contains("Rendered"))
     #expect(try sha256(of: page(project)) == first)
@@ -37,47 +37,24 @@ struct RenderCommandTests {
     #expect(!findings.contains { $0["code"] as? String == "W-STALE" }, "\(findings)")
   }
 
-  @Test("A bundle, finding CAST.md in its parent directory first")
-  func bundleFindsParent() throws {
+  @Test("A bundle with no --cast fails with cast-required, even with a CAST.md in its parent and grandparent")
+  func castRequired() throws {
     let project = try TempProject(copyOf: "valid/complete-lead")
-    // A CAST.md beside the bundle wins over the project's.
+    // The grandparent already holds the project's CAST.md; put one in the parent too.
     try FileManager.default.copyItem(at: project.cast, to: project.characters.appendingPathComponent("CAST.md"))
-    var text = String(decoding: try Data(contentsOf: project.characters.appendingPathComponent("CAST.md")), as: UTF8.self)
-    text = text.replacingOccurrences(of: "manifest: characters/", with: "manifest: ")
-    try Data(text.utf8).write(to: project.characters.appendingPathComponent("CAST.md"))
-    try FileManager.default.removeItem(at: project.cast)
-    let ran = dossier(["render", project.path(bundleName), "--json"])
-    #expect(ran.status == 0, "\(ran.stdout)")
-  }
-
-  @Test("With no CAST.md it refuses and says to pass --cast")
-  func noCast() throws {
-    let project = try TempProject(copyOf: "valid/complete-lead")
-    try FileManager.default.removeItem(at: project.cast)
     let before = try sha256(of: page(project))
     let ran = dossier(["render", project.path(bundleName)])
     #expect(ran.status == 1)
-    #expect(ran.stderr.contains("--cast"))
-    #expect(try sha256(of: page(project)) == before)
+    #expect(ran.stderr.contains("--cast CAST.md"))
     let json = dossier(["render", project.path(bundleName), "--json"])
+    #expect(json.status == 1)
     let error = try #require(try json.object()["error"] as? [String: Any])
-    #expect(error["code"] as? String == "cast-not-found")
-  }
+    #expect(error["code"] as? String == "cast-required")
+    #expect(try sha256(of: page(project)) == before)
 
-  @Test("It looks only in the parent and the grandparent: a CAST.md further up isn't used")
-  func noScanning() throws {
-    let project = try TempProject(copyOf: "valid/complete-lead")
-    let deeper = project.root.appendingPathComponent("a/b", isDirectory: true)
-    try FileManager.default.createDirectory(at: deeper, withIntermediateDirectories: true)
-    let moved = deeper.appendingPathComponent("WREN HALLOWAY.dossier")
-    try FileManager.default.moveItem(at: URL(fileURLWithPath: project.path(bundleName)), to: moved)
-    let inner = deeper.appendingPathComponent("c", isDirectory: true)
-    try FileManager.default.createDirectory(at: inner, withIntermediateDirectories: true)
-    let target = inner.appendingPathComponent("WREN HALLOWAY.dossier")
-    try FileManager.default.moveItem(at: moved, to: target)
-    let ran = dossier(["render", target.path])
-    #expect(ran.status == 1)
-    #expect(ran.stderr.contains("--cast"))
+    let withCast = dossier(["render", project.path(bundleName), "--cast", project.cast.path])
+    #expect(withCast.status == 0, "\(withCast.stderr)")
+    #expect(try sha256(of: page(project)) != before)
   }
 
   @Test("A member that doesn't point at the bundle is refused")
@@ -138,7 +115,7 @@ struct RenderCommandTests {
   func failure() throws {
     let project = try TempProject(copyOf: "valid/empty-background")
     let bundle = project.path("characters/BYSTANDER #2.dossier")
-    let ran = dossier(["render", bundle, "--json"])
+    let ran = dossier(["render", bundle, "--cast", project.cast.path, "--json"])
     #expect(ran.status == 1)
     #expect(try ran.object()["error"] is [String: Any])
   }
