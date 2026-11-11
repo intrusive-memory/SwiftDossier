@@ -20,10 +20,6 @@ private let body = """
 
 @Suite("previewPage")
 struct PreviewTests {
-  private func cache() throws -> DossierPreviewCache {
-    DossierPreviewCache(directory: try RenderProject.temporaryRoot().appendingPathComponent("cache"))
-  }
-
   @Test("A preview writes nothing into the bundle")
   func writesNothing() throws {
     let project = try RenderProject(description: synthetic(body: body))
@@ -206,23 +202,5 @@ struct PreviewTests {
     let project = try RenderProject(description: synthetic(body: body))
     try FileManager.default.removeItem(at: project.bundleURL.appendingPathComponent("CHARACTER.md"))
     #expect(throws: CharacterDescriptionError.self) { try project.open().previewPage() }
-  }
-
-  @Test("The cache builds a page once, rebuilds it after an edit, and keeps only the latest")
-  func cacheLifecycle() throws {
-    let project = try RenderProject(description: synthetic(body: body))
-    let cache = try cache()
-    let first = try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast)
-    #expect(first.path.hasPrefix(cache.directory.path))
-    let made = try FileManager.default.attributesOfItem(atPath: first.path)[.modificationDate] as? Date
-
-    #expect(try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast) == first)
-    #expect(try FileManager.default.attributesOfItem(atPath: first.path)[.modificationDate] as? Date == made)
-
-    try project.addImage(.portrait)
-    let second = try cache.pageURL(forBundleAt: project.bundleURL, cast: project.cast)
-    #expect(second != first)
-    #expect(!FileManager.default.fileExists(atPath: first.path))
-    #expect(try String(contentsOf: second, encoding: .utf8).contains("data:image/jpeg;base64,"))
   }
 }

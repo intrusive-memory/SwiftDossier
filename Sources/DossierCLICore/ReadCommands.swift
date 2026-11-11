@@ -389,9 +389,9 @@ struct MigrateCommand: DossierSubcommand {
 
 struct PreviewCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
-    commandName: "preview", abstract: "Build a bundle's page for viewing, writing nothing into the bundle.",
+    commandName: "preview", abstract: "Build a bundle's page for viewing, writing only into the bundle's .preview/.",
     discussion: """
-      dossier preview <bundle>                 the page, written to the preview cache; prints its path
+      dossier preview <bundle>                 the page, stored in the bundle's .preview/; prints its path
       dossier preview <bundle> --to F          the page, written to F
 
       The page is built from the bundle as it is, ignoring any page it holds. A file that \
@@ -402,7 +402,7 @@ struct PreviewCommand: DossierSubcommand {
       """)
 
   @Argument(help: "The bundle.") var bundle: String
-  @Option(help: "Where to write the page, instead of the preview cache.") var to: String?
+  @Option(help: "Where to write the page, instead of the bundle's .preview/.") var to: String?
   @OptionGroup var output: OutputOptions
 
   func execute(io: CommandIO) throws -> Int32 {
@@ -414,7 +414,14 @@ struct PreviewCommand: DossierSubcommand {
       file = fileURL(to)
       try Data(try target.previewPage().html.utf8).write(to: file, options: .atomic)
     } else {
-      file = try DossierPreviewCache().pageURL(for: target)
+      let result = try target.showPreview()
+      guard let stored = result.pageURL else {
+        throw CLIFailure(
+          "preview-not-stored",
+          "the page was built but couldn't be stored in \(PreviewStore(bundle: directory).directory.path): "
+            + (result.storeError?.localizedDescription ?? "unknown error"))
+      }
+      file = stored
     }
     if io.json {
       io.emit([
