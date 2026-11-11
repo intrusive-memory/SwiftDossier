@@ -33,7 +33,7 @@ struct FileAcceptanceCommandTests {
     let bundle = project.path(bundleName)
     let file = try edit(project)
 
-    let refused = dossier(["render", bundle])
+    let refused = dossier(["render", bundle, "--cast", project.cast.path])
     #expect(refused.status == 1)
     #expect(refused.stderr.contains("E-FILE-HASH CHARACTER.md") && refused.stderr.contains("dossier refresh"), "\(refused.stderr)")
 
@@ -41,7 +41,7 @@ struct FileAcceptanceCommandTests {
     #expect(try codes(project).contains("E-FILE-HASH"))
     #expect(!(try codes(project).contains("E-CHECKSUM")))
     #expect(try Data(contentsOf: file) == Data(editedText.utf8))
-    #expect(dossier(["render", bundle]).status == 1)
+    #expect(dossier(["render", bundle, "--cast", project.cast.path]).status == 1)
 
     let refreshed = dossier(["refresh", bundle])
     #expect(refreshed.status == 0, "\(refreshed.stderr)")
@@ -49,7 +49,7 @@ struct FileAcceptanceCommandTests {
     #expect(!(try codes(project).contains("E-FILE-HASH")))
     #expect(!(try codes(project).contains("E-CHECKSUM")))
 
-    let rendered = dossier(["render", bundle])
+    let rendered = dossier(["render", bundle, "--cast", project.cast.path])
     #expect(rendered.status == 0, "\(rendered.stderr)")
   }
 
@@ -59,7 +59,7 @@ struct FileAcceptanceCommandTests {
     let bundle = project.path(bundleName)
     _ = try edit(project)
 
-    let refused = dossier(["render", bundle, "--json"])
+    let refused = dossier(["render", bundle, "--cast", project.cast.path, "--json"])
     #expect(refused.status == 1)
     #expect(refused.stdout.contains("dossier refresh"), "\(refused.stdout)")
 
@@ -113,7 +113,7 @@ struct FileAcceptanceCommandTests {
       let changed = try syntheticPNG(shade: 201)
       try changed.write(to: file)
       #expect(try codes(project).contains("E-FILE-HASH"))
-      #expect(dossier(["render", bundle]).status == 1)
+      #expect(dossier(["render", bundle, "--cast", project.cast.path]).status == 1)
 
       if json {
         let ran = dossier(["refresh", bundle, "--json"])
@@ -129,7 +129,7 @@ struct FileAcceptanceCommandTests {
         #expect(ran.stdout.contains("Name no longer matches its hash, and is kept: \(view)"), "\(ran.stdout)")
       }
       #expect(!(try codes(project).contains("E-FILE-HASH")))
-      let rendered = dossier(["render", bundle])
+      let rendered = dossier(["render", bundle, "--cast", project.cast.path])
       #expect(rendered.status == 0, "\(rendered.stderr)")
       #expect(try Data(contentsOf: file) == changed)
     }
@@ -162,7 +162,7 @@ struct FileAcceptanceCommandTests {
       #expect(try Data(contentsOf: manifest) != before)
       #expect(!(try codes(project).contains("E-FILE-MISSING")))
       #expect(!(try codes(project).contains("E-CHECKSUM")))
-      #expect(dossier(["render", bundle]).status == 0)
+      #expect(dossier(["render", bundle, "--cast", project.cast.path]).status == 0)
     }
   }
 
@@ -171,7 +171,7 @@ struct FileAcceptanceCommandTests {
     let project = try TempProject(copyOf: "valid/complete-lead")
     let bundle = project.path(bundleName)
     try FileManager.default.removeItem(atPath: bundle + "/CHARACTER.md")
-    let refused = dossier(["render", bundle])
+    let refused = dossier(["render", bundle, "--cast", project.cast.path])
     #expect(refused.status == 1)
     #expect(refused.stderr.contains("E-FILE-MISSING CHARACTER.md") && refused.stderr.contains("restored"), "\(refused.stderr)")
 

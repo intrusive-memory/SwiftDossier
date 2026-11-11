@@ -271,12 +271,11 @@ struct RenderCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
     commandName: "render", abstract: "Write a bundle's page, or the page of every member of a CAST.md with a dossier.",
     discussion: """
-      dossier render <bundle>               that bundle's page; its member comes from CAST.md
-      dossier render <bundle> --cast CAST.md   the same, from that CAST.md
+      dossier render <bundle> --cast CAST.md   that bundle's page; its member comes from CAST.md
       dossier render --cast CAST.md         every member with a dossier, reported one by one
 
-      A page needs its CAST.md member (§7). Without --cast, CAST.md is looked for in the \
-      bundle's parent directory and then its grandparent, and nowhere else. A member that \
+      A page needs its CAST.md member (§7), so a bundle needs --cast; CAST.md is never searched \
+      for. Without it the render fails with cast-required and writes nothing. A member that \
       doesn't point at the bundle is refused.
 
       The same inputs give the same bytes. A render that fails leaves the previous page and \
@@ -301,7 +300,11 @@ struct RenderCommand: DossierSubcommand {
       return try renderAll(cast: fileURL(cast), io: io)
     }
     let directory = fileURL(bundle)
-    let castURL = try cast.map(fileURL) ?? Self.findCast(near: directory)
+    guard let cast else {
+      throw CLIFailure(
+        "cast-required", "A page needs its CAST.md member (§7); pass --cast CAST.md. Nothing was written.")
+    }
+    let castURL = fileURL(cast)
     let loaded = try Cast.load(castURL)
     guard let member = castMember(pointingAt: directory, in: loaded) else {
       throw CLIFailure("member-not-found", "No member of \(castURL.path) points at \(directory.path)")
@@ -314,20 +317,6 @@ struct RenderCommand: DossierSubcommand {
       io.line("Rendered \(page.url.path) (\(page.sizeBytes) bytes)")
     }
     return 0
-  }
-
-  /// SPEC-GAP: §7, §11: a page's `castMember` input needs a member and a bundle doesn't hold one.
-  /// §3 only starts discovery from `CAST.md`, so nothing says how to get from a bundle to it. This
-  /// looks where a project's layout puts it, the bundle's parent and then its grandparent, with no
-  /// scanning, and otherwise refuses.
-  static func findCast(near bundle: URL) throws -> URL {
-    let parent = bundle.deletingLastPathComponent()
-    for directory in [parent, parent.deletingLastPathComponent()] {
-      let candidate = directory.appendingPathComponent("CAST.md")
-      if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
-    }
-    throw CLIFailure(
-      "cast-not-found", "No CAST.md in the bundle's parent or grandparent directory; pass --cast CAST.md")
   }
 
   private func renderAll(cast castURL: URL, io: CommandIO) throws -> Int32 {
