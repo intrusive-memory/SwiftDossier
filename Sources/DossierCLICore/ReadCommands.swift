@@ -376,34 +376,66 @@ struct MigrateCommand: DossierSubcommand {
   }
 }
 
-struct PreviewCommand: DossierSubcommand {
+struct PreviewCommand: AsyncDossierSubcommand {
   static let configuration = CommandConfiguration(
     commandName: "preview", abstract: "Build a bundle's page for viewing, writing only into the bundle's .preview/.",
     discussion: """
       dossier preview <bundle>                 the page, stored in the bundle's .preview/; prints its path
-      dossier preview <bundle> --to F          the page, written to F
+      dossier preview <bundle> --cast CAST.md  the same, with the bundle's cast member on the page
+      dossier preview <bundle> --rebuild       brings the manifest up to the disk, then builds and \
+      stores the page even when it is already stored
+      dossier preview <bundle> --to F          the page, written to F; nothing is stored in the bundle
 
       The page is built from the bundle as it is, ignoring any page it holds. A file that \
       doesn't match its entry is listed on the page rather than refusing it, and an image or \
-      sample that can't be read is left off. The page has no CAST.md member.
+      sample that can't be read is left off. Without --cast the page has no CAST.md member; no \
+      CAST.md is looked for. --to and --rebuild can't be combined: --rebuild writes to the bundle.
 
-      Exits 0, or 1 when the page can't be built (CHARACTER.md missing or not UTF-8).
+      With --json: character, bundle, page, key, hit (the stored page was already there) and \
+      member, plus refreshError (code, message) when --rebuild's refresh refused; the page was \
+      then built from the manifest as it was, and the exit status is still 0.
+
+      Exits 0, or 1 when the page can't be built (CHARACTER.md missing or not UTF-8) or can't \
+      be stored.
       """)
 
   @Argument(help: "The bundle.") var bundle: String
+  @Option(help: "The project's CAST.md, for the page's cast member.") var cast: String?
+  @Flag(help: "Refresh the manifest, then build and store the page even when it is stored.") var rebuild = false
   @Option(help: "Where to write the page, instead of the bundle's .preview/.") var to: String?
   @OptionGroup var output: OutputOptions
 
+  func validate() throws {
+    if rebuild && to != nil {
+      throw ValidationError("--rebuild writes to the bundle's .preview/ and can't be combined with --to.")
+    }
+  }
+
   func execute(io: CommandIO) throws -> Int32 {
+    throw CLIFailure("async-required", "preview must be run through the async DossierCLI.run", status: 70)
+  }
+
+  func executeAsync(io: CommandIO) async throws -> Int32 {
     let directory = fileURL(bundle)
-    // No CAST.md is read until `--cast` arrives (PV-3, PV-27): the page has no member.
-    let target = try DossierBundle.openForPreview(at: directory, cast: nil)
-    let file: URL
+    // The member is the one `--cast` names, and nothing is looked for without it (PV-3, PV-27).
+    var target = try DossierBundle.openForPreview(at: directory, cast: cast.map(fileURL))
+    var file: URL
+    var key: String
+    var hit = false
+    var refreshError: (any Error)?
     if let to {
       file = fileURL(to)
+      key = try target.previewKey()
       try Data(try target.previewPage().html.utf8).write(to: file, options: .atomic)
     } else {
-      let result = try target.showPreview()
+      let result: PreviewResult
+      if rebuild {
+        let rebuilt = try await target.rebuild(cast: cast.map(fileURL))
+        result = rebuilt.preview
+        refreshError = rebuilt.refreshError
+      } else {
+        result = try target.showPreview()
+      }
       guard let stored = result.pageURL else {
         throw CLIFailure(
           "preview-not-stored",
@@ -411,13 +443,26 @@ struct PreviewCommand: DossierSubcommand {
             + (result.storeError?.localizedDescription ?? "unknown error"))
       }
       file = stored
+      key = result.key
+      hit = result.hit
     }
     if io.json {
-      io.emit([
+      var object: [String: Any] = [
         "character": target.manifest.character, "bundle": directory.path, "page": file.path,
-        "member": target.member != nil,
-      ])
+        "key": key, "hit": hit, "member": target.member != nil,
+      ]
+      if let refreshError {
+        let name = String(String(describing: refreshError).prefix { $0 != "(" })
+        object["refreshError"] = [
+          "code": name,
+          "message": (refreshError as? LocalizedError)?.errorDescription ?? refreshError.localizedDescription,
+        ]
+      }
+      io.emit(object)
     } else {
+      if let refreshError {
+        io.note("warning: the manifest wasn't refreshed: \((refreshError as? LocalizedError)?.errorDescription ?? refreshError.localizedDescription)")
+      }
       io.line(file.path)
     }
     return 0

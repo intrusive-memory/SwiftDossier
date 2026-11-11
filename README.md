@@ -27,4 +27,16 @@ Version 0.2.0-dev implements dossier-format `v2.0.0-rc.7`, a release candidate: 
 
 Build the tool from a checkout with `make release`, which puts it in `bin/`. Requires macOS 26 or iOS 26, and Swift 6.2.
 
+## Command line: preview and render
+
+```
+dossier preview <bundle> [--cast CAST.md] [--rebuild] [--to FILE] [--json]
+dossier render  <bundle> --cast CAST.md [--json]
+dossier render  --cast CAST.md [--json]
+```
+
+`preview` builds the bundle's page for viewing and never touches the committed page. With no options it stores the page in the bundle's `.preview/` and prints its path; asking again for an unchanged bundle is a hit and writes nothing. `--rebuild` first brings the manifest up to the disk, then builds and stores the page even when it is already stored. `--to FILE` writes the page to FILE and stores nothing in the bundle (it can't be combined with `--rebuild`). Without `--cast` the page has no cast member; no CAST.md is searched for. `--json` gives `character`, `bundle`, `page`, `key`, `hit` and `member`, plus `refreshError` (`code`, `message`) when `--rebuild`'s refresh refused: the page is then built from the manifest as it was and the exit status is 0. It exits 1 when `CHARACTER.md` is missing or the page can't be stored.
+
+`render` writes the committed `<NAME>-dossier.html` into the bundle. A bundle needs `--cast`; without it the command fails with `cast-required` (exit 1). With `--cast` alone it renders every member that has a dossier.
+
 Part of the [intrusive-memory](https://github.com/intrusive-memory) ecosystem.
