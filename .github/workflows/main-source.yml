@@ -1,0 +1,28 @@
+name: Main source
+
+# main takes merges from development only. GitHub can't restrict a PR's source
+# branch, so this job fails any PR into main whose head isn't this repo's
+# development branch, and branch protection on main requires it.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  require-development:
+    # Branch-protection context: renaming this silently drops the gate.
+    name: Source is development
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the PR's head branch
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ "$HEAD_REF" != "development" ] || [ "$HEAD_REPO" != "$REPO" ]; then
+            echo "::error::main takes merges from development only (this PR is from $HEAD_REPO:$HEAD_REF)."
+            exit 1
+          fi
+          echo "Source is $REPO:development."
