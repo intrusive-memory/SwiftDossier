@@ -85,6 +85,48 @@ struct PreviewTests {
     #expect(preview.html.contains("A tinker who mends radios."))
   }
 
+  @Test("A zero-byte image is on the banner as E-ZERO-BYTE, and the page still builds")
+  func zeroByteImage() throws {
+    let project = try RenderProject(description: synthetic(body: body))
+    let portrait = try project.addImage(.portrait)
+    try Data().write(to: project.bundleURL.appendingPathComponent(portrait.path))
+
+    let preview = try project.open().previewPage()
+    #expect(preview.banner.contains { $0.code == .zeroByte })
+    #expect(preview.html.contains("A tinker who mends radios."))
+  }
+
+  @Test("A stray HTML file in the bundle's root is absent from the embedded manifest")
+  func strayHTMLNotEmbedded() throws {
+    let project = try RenderProject(description: synthetic(body: body))
+    try project.addImage(.portrait)
+    try Data("<p>notes</p>".utf8).write(to: project.bundleURL.appendingPathComponent("notes.html"))
+
+    let preview = try project.open().previewPage()
+    let record = try PageReader(text: preview.html).record()
+    guard case .object(let manifest)? = record["manifest"] else {
+      Issue.record("the record has no manifest")
+      return
+    }
+    let text = String(describing: manifest)
+    #expect(!text.contains("notes.html"))
+    #expect(text.contains("images/"))
+    #expect(!preview.html.contains("<p>notes</p>"))
+  }
+
+  @Test("Front matter that is a YAML list still builds, with the body shown")
+  func listFrontMatter() throws {
+    let project = try RenderProject(description: "---\n- one\n- two\n---\n" + body)
+    let page = try project.open().previewPage()
+    #expect(page.html.contains("A tinker who mends radios."))
+    let record = try PageReader(text: page.html).record()
+    guard case .object(let front)? = record["frontMatter"] else {
+      Issue.record("frontMatter is not an object")
+      return
+    }
+    #expect(front.isEmpty)
+  }
+
   @Test("No CAST.md passed, a missing one, or one with no member previews with no member")
   func noMember() throws {
     let project = try RenderProject(description: synthetic(body: body))
