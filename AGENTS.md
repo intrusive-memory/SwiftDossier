@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftDossier — Agent Instructions
-updated: 2026-11-02
+updated: 2026-11-10
 ---
 
 # AGENTS.md
@@ -12,6 +12,7 @@ symlinks to this file.
 ## What this package is
 
 The Swift implementation of dossier-format: read, write, validate, migrate and render .dossier character bundles; the `dossier` CLI. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Adopters integrating the libraries into an app or tool should read [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 ## Rules
 

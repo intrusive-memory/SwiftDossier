@@ -1,6 +1,6 @@
 ---
 type: doc
-updated: 2026-11-01
+updated: 2026-11-10
 ---
 
 # SwiftDossier
@@ -11,7 +11,7 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.2.0-dev implements dossier-format `v2.0.0-rc.7`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md` and renders the page. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.2.0-dev implements dossier-format `v2.0.0-rc.8`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md` and renders the page. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 
@@ -23,7 +23,10 @@ Version 0.2.0-dev implements dossier-format `v2.0.0-rc.7`, a release candidate: 
 |---------|-----|
 | `DossierCore` | Read bundles. No ImageIO, Vision or ArgumentParser. |
 | `Dossier` | Write bundles, crop faces, check descriptions. |
+| `DossierUI` | Show one bundle in SwiftUI: `DossierView`, the preview viewer. |
 | `dossier` | The command-line tool. Run `dossier help`. |
+
+To use the libraries from code, see [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 Build the tool from a checkout with `make release`, which puts it in `bin/`. Requires macOS 26 or iOS 26, and Swift 6.2.
 
