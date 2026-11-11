@@ -78,6 +78,31 @@ struct CommandTests {
     #expect(!FileManager.default.fileExists(atPath: project.path("characters/THE TINKER.dossier")))
   }
 
+  @Test("create --cast <missing> fails with castUnreadable and creates no file at that path")
+  func createMissingCast() throws {
+    let project = try TempProject()
+    let missing = project.path("nowhere/CAST.md")
+    let ran = dossier(["create", "THE TINKER", "--role", "guest", "--in", project.characters.path, "--cast", missing, "--json"])
+    #expect(ran.status != 0)
+    let error = try #require(try ran.object()["error"] as? [String: Any])
+    #expect(error["code"] as? String == "castUnreadable")
+    #expect(!FileManager.default.fileExists(atPath: missing))
+  }
+
+  @Test("two creates with one --cast leave one CAST.md with both members, and no other CAST.md")
+  func createTwiceOneCast() throws {
+    let project = try TempProject(castText: plainCast)
+    for name in ["THE TINKER", "THE WEAVER"] {
+      let ran = dossier(["create", name, "--role", "guest", "--in", project.characters.path, "--cast", project.cast.path])
+      #expect(ran.status == 0, "\(ran.stderr)")
+    }
+    let text = String(decoding: try project.castBytes(), as: UTF8.self)
+    #expect(text.contains("THE TINKER") && text.contains("THE WEAVER"))
+    let found = FileManager.default.enumerator(atPath: project.root.path)?
+      .compactMap { $0 as? String }.filter { $0.hasSuffix("CAST.md") } ?? []
+    #expect(found == ["CAST.md"], "\(found)")
+  }
+
   /// A project with one bundle, and a PNG to add.
   private func bundleWithImage() throws -> (project: TempProject, bundle: String, image: URL) {
     let project = try TempProject()

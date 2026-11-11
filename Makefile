@@ -5,7 +5,7 @@
 # through xcodebuild; SwiftPM's own drivers are not used in this project.
 
 # The pinned dossier-format revision. Defined ONLY here.
-DOSSIER_FORMAT_REF = v2.0.0-rc.7
+DOSSIER_FORMAT_REF = v2.0.0-rc.8
 DOSSIER_FORMAT_URL = https://github.com/intrusive-memory/dossier-format
 FIXTURES_DIR = .dossier-format
 
@@ -138,6 +138,12 @@ smoke:
 	cd "$$(mktemp -d)" && \
 	"$$BIN" validate "$$FIX/characters/WREN HALLOWAY.dossier" --cast "$$FIX/CAST.md" --json >/dev/null && \
 	echo "smoke: $(BINARY) found its resources and validated the fixture"
+	@FIX="$$(cd $(FIXTURES_DIR)/examples/valid/complete-lead && pwd)"; BIN="$$(cd $(BIN_DIR) && pwd)/$(BINARY)"; \
+	TMP="$$(mktemp -d)"; cp -R "$$FIX" "$$TMP/project"; B="$$TMP/project/characters/WREN HALLOWAY.dossier"; \
+	"$$BIN" preview "$$B" --cast "$$TMP/project/CAST.md" --json >"$$TMP/one.json" || { echo "smoke: preview failed" >&2; cat "$$TMP/one.json" >&2; exit 1; }; \
+	"$$BIN" preview "$$B" --cast "$$TMP/project/CAST.md" --json >"$$TMP/two.json" || { echo "smoke: second preview failed" >&2; cat "$$TMP/two.json" >&2; exit 1; }; \
+	grep -q '"hit" : false' "$$TMP/one.json" && grep -q '"hit" : true' "$$TMP/two.json" || { echo "smoke: preview didn't store, then hit" >&2; cat "$$TMP/one.json" "$$TMP/two.json" >&2; exit 1; }; \
+	echo "smoke: $(BINARY) preview stored the page, then hit"
 
 install: resolve
 	xcodebuild build -scheme $(CLI_SCHEME) \
