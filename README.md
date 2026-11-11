@@ -39,4 +39,43 @@ dossier render  --cast CAST.md [--json]
 
 `render` writes the committed `<NAME>-dossier.html` into the bundle. A bundle needs `--cast`; without it the command fails with `cast-required` (exit 1). With `--cast` alone it renders every member that has a dossier.
 
+## DossierUI
+
+`DossierView` is the whole viewer of one `.dossier` bundle, for SwiftUI on macOS 26 and iOS 26: the preview page in a web view, a header with **Rebuild**, and notes above the page (the bundle is being updated, a refresh refusal you can dismiss, a preview that couldn't be saved).
+
+```swift
+import DossierUI
+
+DossierView(bundleURL: bundle, cast: castURL)                    // cast is CAST.md, or nil
+DossierView(bundleURL: bundle, cast: castURL, refreshToken: n)   // change n to show the bundle again
+```
+
+The view watches `manifest.json` and shows the bundle again when it changes. Changing `bundleURL` or `cast` cancels any build in flight.
+
+**Accessory.** Put your own controls in the header, after Rebuild, with a trailing view builder. The view has no app-specific actions of its own.
+
+```swift
+DossierView(bundleURL: bundle, cast: castURL) {
+  Button("Edit in Personaje") { openInPersonaje(bundle) }
+}
+```
+
+**Binding Rebuild to a menu.** The view publishes a `DossierRebuildAction` with `focusedSceneValue`, and puts it in the environment (`@Environment(\.dossierRebuild)`) for the accessory. Read it in a command:
+
+```swift
+struct DossierCommands: Commands {
+  @FocusedValue(\.dossierRebuild) private var rebuild
+
+  var body: some Commands {
+    CommandGroup(after: .toolbar) {
+      Button("Rebuild Preview") { rebuild?() }
+        .keyboardShortcut("r", modifiers: [.command, .shift])
+        .disabled(rebuild == nil || rebuild?.isRebuilding == true)
+    }
+  }
+}
+```
+
+**Security scope.** The view needs nothing the app doesn't already hold. The app's existing security scope on the project folder covers the reads and the writes to `.preview/` and `manifest.json`.
+
 Part of the [intrusive-memory](https://github.com/intrusive-memory) ecosystem.
