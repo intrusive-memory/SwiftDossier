@@ -44,7 +44,7 @@ dossier render  --cast CAST.md [--json]
 
 ## DossierUI
 
-`DossierView` is the whole viewer of one `.dossier` bundle, for SwiftUI on macOS 26 and iOS 26: the preview page in a web view, a header with **Rebuild**, and notes above the page (the bundle is being updated, a refresh refusal you can dismiss, a preview that couldn't be saved).
+`DossierView` is the whole viewer of one `.dossier` bundle, for SwiftUI on macOS 26 and iOS 26: the preview page in a web view, a standard header, and notes under the header (the bundle is being updated, a refresh refusal you can dismiss, a preview that couldn't be saved).
 
 ```swift
 import DossierUI
@@ -55,6 +55,8 @@ DossierView(bundleURL: bundle, cast: castURL, refreshToken: n)   // change n to 
 
 The view watches `manifest.json` and shows the bundle again when it changes. Changing `bundleURL` or `cast` cancels any build in flight.
 
+**The standard header.** `DossierHeader` is a 40 pt bar: a breadcrumb (the project's title, then the character's name), the role as a badge, an update state while another writer holds the bundle, **Rebuild**, and then your accessory. The name is the cast member's `displayName` when `CAST.md` has one, else the character's name. At compact horizontal width the role badge and the update label drop out, in that order.
+
 **Accessory.** Put your own controls in the header, after Rebuild, with a trailing view builder. The view has no app-specific actions of its own.
 
 ```swift
@@ -63,7 +65,40 @@ DossierView(bundleURL: bundle, cast: castURL) {
 }
 ```
 
-**Binding Rebuild to a menu.** The view publishes a `DossierRebuildAction` with `focusedSceneValue`, and puts it in the environment (`@Environment(\.dossierRebuild)`) for the accessory. Read it in a command:
+**Project context.** `DossierProjectContext` is what the host knows about the project. SwiftDossier never reads `PROJECT.md`; you pass in what the header shows. Both fields are optional.
+
+```swift
+let project = DossierProjectContext(
+  title: "The Lighthouse Keepers",                  // the breadcrumb's first segment
+  bundlePath: "characters/WREN HALLOWAY.dossier"    // help text and accessibility hint only
+)
+DossierView(bundleURL: bundle, cast: castURL, project: project)
+```
+
+**Field clicks.** `onField` is called on the main actor with the key of each field clicked in the page, such as `expressions.happy`. Leave it `nil` to ignore clicks.
+
+```swift
+DossierView(bundleURL: bundle, cast: castURL, onField: { key in
+  inspector.show(field: key)
+})
+```
+
+**Your own header.** Pass `header:` to replace the standard header. The closure receives a `DossierHeaderModel` (`project`, `character`, `displayName`, `role`, `update`, `rebuild`), and the view draws no header of its own. The notes, the page and the states are unchanged.
+
+```swift
+DossierView(bundleURL: bundle, cast: castURL, project: project, header: { model in
+  HStack {
+    Text(model.displayName ?? model.character)
+    Spacer()
+    Button("Rebuild") { model.rebuild() }.disabled(model.rebuild.isRebuilding)
+  }
+  .padding(.horizontal, 12)
+})
+```
+
+`project:` and `onField:` work with both forms. `DossierView`'s generic parameter is the header's type, so avoid naming it.
+
+**Binding Rebuild to a menu.** The view publishes a `DossierRebuildAction` with `focusedSceneValue`, and puts it in the environment (`@Environment(\.dossierRebuild)`) for the accessory and a custom header. Read it in a command:
 
 ```swift
 struct DossierCommands: Commands {
