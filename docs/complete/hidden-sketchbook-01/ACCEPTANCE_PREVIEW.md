@@ -3,6 +3,9 @@ type: acceptance-report
 date: 2026-11-11T02:18:12Z
 swiftdossier_commit: e96a68b
 binary: /Users/stovak/Projects/package-collection/pkg/SwiftDossier/bin/dossier
+state: completed
+mission: hidden-sketchbook-01
+updated: 2026-11-10
 ---
 
 # Acceptance: dossier preview on mr-mr-charles (item 16)

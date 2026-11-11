@@ -1,6 +1,5 @@
 ---
 type: recon-report
-state: current
 requirements_file: REQUIREMENTS-preview.md
 requirements_sha256: 1f1d64994d38d555e8d96677609315aff26dbafdaa16909d43c3f46145fd85bf
 project_head: e35023cb0df41121f4a05238647f6a3a5c91e6fd
@@ -8,6 +7,9 @@ search_root: ~/Projects
 generated: 2026-11-10
 verdict: CLEAR
 run: 2
+state: completed
+mission: hidden-sketchbook-01
+updated: 2026-11-10
 ---
 
 # RECON_REPORT.md — SwiftDossier: Dossier preview and viewer

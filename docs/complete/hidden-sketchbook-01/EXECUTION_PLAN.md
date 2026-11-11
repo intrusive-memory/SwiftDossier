@@ -4,11 +4,13 @@ feature_name: OPERATION HIDDEN SKETCHBOOK
 starting_point_commit: e35023cb0df41121f4a05238647f6a3a5c91e6fd
 mission_branch: mission/hidden-sketchbook/01
 iteration: 1
-state: refined
 refined: 2026-11-10
 requirements_file: REQUIREMENTS-preview.md
 recon_report: RECON_REPORT.md
 generated: 2026-11-10
+state: completed
+mission: hidden-sketchbook-01
+updated: 2026-11-10
 ---
 
 # EXECUTION_PLAN.md — SwiftDossier: Dossier preview and viewer
