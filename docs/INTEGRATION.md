@@ -322,13 +322,16 @@ previews are never committed. Building writes nothing in the bundle outside `.pr
 ## 8. Embed the viewer (`DossierUI`)
 
 The README shows the basics: `DossierView(bundleURL:cast:)`, the `refreshToken` variant, the
-accessory, and a `Commands` that reads `@FocusedValue(\.dossierRebuild)`. This section adds
-what you need to wire it into an app.
+standard header, the accessory, `project:`, `onField:`, `header:`, and a `Commands` that reads
+`@FocusedValue(\.dossierRebuild)`. This section adds what you need to wire it into an app.
 
 ```swift
 import DossierUI
 
-// In the accessory: DossierView(bundleURL: url, cast: castURL) { RebuildBadge() }
+// In the accessory, with the project's title and a field handler:
+//   DossierView(bundleURL: url, cast: castURL,
+//               project: DossierProjectContext(title: "The Lighthouse Keepers"),
+//               onField: { key in selectedField = key }) { RebuildBadge() }
 struct RebuildBadge: View {
   @Environment(\.dossierRebuild) private var rebuild
   var body: some View {
@@ -337,6 +340,20 @@ struct RebuildBadge: View {
 }
 ```
 
+- **The header (DH-3 to DH-8).** The standard `DossierHeader` shows the breadcrumb (project
+  title, then the character), the role badge, an update state, Rebuild and your accessory. The
+  character's name is `CastMember.displayName` from `CAST.md`, else the canonical name; that is
+  why SwiftReparto 0.3.0 is the floor. Pass `project: DossierProjectContext(title:bundlePath:)`
+  to fill the breadcrumb and its help text. The package never reads `PROJECT.md`, so read it
+  in the host. With no title the breadcrumb is the character alone.
+- **`onField` (DH-12).** `onField: (@MainActor (String) -> Void)?` receives the key of a field
+  clicked in the page, such as `expressions.happy`. Messages other than a string body from the
+  page's `dossier` handler are ignored, and the handler is installed only when `onField` is
+  non-nil.
+- **A custom header (DH-9).** `header: (DossierHeaderModel) -> some View` replaces the standard
+  header. `DossierHeader(model:)` is public, so a custom header can wrap it.
+  `DossierHeaderModel` carries `project`, `character`, `displayName`, `role`, `update` and
+  `rebuild`. The notes stay under whichever header is used.
 - **What it shows.** On a hit the stored page appears at once. On a miss it builds off the
   main actor and shows a spinner. While another writer holds an update marker it shows the
   last stored page with a note, and computes nothing until the marker clears.

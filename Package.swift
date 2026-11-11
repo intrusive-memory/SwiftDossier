@@ -20,7 +20,7 @@ let package = Package(
     .executable(name: "dossier", targets: ["dossier"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.2.1")),
+    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.3.0")),
     .package(url: "https://github.com/jpsim/Yams.git", .upToNextMajor(from: "6.2.2")),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
   ],
@@ -65,8 +65,13 @@ let package = Package(
     .target(
       name: "DossierUI",
       // `DossierCore` is already `Dossier`'s; it's named because `UpdateStatus` and
-      // `DossierError` are used directly.
-      dependencies: ["Dossier", "DossierCore"],
+      // `DossierError` are used directly. SwiftReparto is named because `DossierHeaderModel`
+      // takes a `CastMember`.
+      dependencies: [
+        "Dossier",
+        "DossierCore",
+        .product(name: "SwiftReparto", package: "SwiftReparto"),
+      ],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")],
       linkerSettings: [
         .linkedFramework("SwiftUI"),
@@ -108,7 +113,10 @@ let package = Package(
         "DossierUI",
         "Dossier",
         "DossierCore",
+        .product(name: "SwiftReparto", package: "SwiftReparto"),
       ],
+      // Read from the source tree through `#filePath`, as `.dossier-format/` is.
+      exclude: ["Fixtures"],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
     .testTarget(

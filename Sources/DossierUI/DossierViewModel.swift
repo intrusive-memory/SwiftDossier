@@ -138,6 +138,17 @@ public final class DossierViewModel {
   /// from memory.
   public private(set) var storeNote: String?
 
+  /// The bundle as last opened for this ``bundleURL`` and ``cast``, or `nil` when it couldn't be
+  /// opened. A header reads its `character`, member and role from it, so the header costs no
+  /// reads of its own (DH-11).
+  ///
+  /// While the bundle is being updated it isn't opened again, so the copy from the last open of
+  /// the same directory stays.
+  public private(set) var bundle: DossierBundle?
+
+  /// The update markers as last read, when the bundle was last shown.
+  public private(set) var updateStatus: UpdateStatus
+
   /// Whether a rebuild is running.
   public var isRebuilding: Bool {
     if case .rebuilding = state { return true }
@@ -180,6 +191,8 @@ public final class DossierViewModel {
     watchStarter = watching
     let step = Self.firstStep(bundleURL: bundleURL, cast: cast)
     state = step.state
+    updateStatus = step.status
+    bundle = step.bundle
     take(step)
     startWatching()
   }
@@ -215,9 +228,11 @@ public final class DossierViewModel {
     do {
       bundle = try DossierBundle.openForPreview(at: bundleURL, cast: cast)
     } catch {
+      self.bundle = nil
       state = .failed(FailureReason(error))
       return
     }
+    self.bundle = bundle
     state = .rebuilding(showing)
     let generation = self.generation
     let builder = self.builder
@@ -250,14 +265,25 @@ public final class DossierViewModel {
 
   // MARK: - Showing
 
-  /// What §11.1's steps 1 to 3 give, before anything is built.
-  private enum Step {
-    case updating(storedPage: URL?, until: Date?)
-    case shown(State)
-    case build(DossierBundle)
+  /// What §11.1's steps 1 to 3 give, before anything is built, with what they read on the way.
+  private struct Step {
+    enum Next {
+      case updating(storedPage: URL?, until: Date?)
+      case shown(State)
+      case build(DossierBundle)
+    }
+
+    let next: Next
+    /// The markers, as step 1 read them.
+    let status: UpdateStatus
+    /// The bundle, as step 2 opened it. `nil` while updating, when it isn't opened, and when it
+    /// can't be opened.
+    let bundle: DossierBundle?
+    /// Whether step 2 ran. When it didn't, the bundle from an earlier open can stand.
+    let opened: Bool
 
     var state: State {
-      switch self {
+      switch next {
       case .updating(let page, _): return .updating(storedPage: page)
       case .shown(let state): return state
       case .build: return .loading
@@ -270,16 +296,24 @@ public final class DossierViewModel {
   private static func firstStep(bundleURL: URL, cast: URL?) -> Step {
     let status = UpdateStatus.read(bundle: bundleURL, at: Date())
     if status.isUpdating {
-      return .updating(
+      let next = Step.Next.updating(
         storedPage: PreviewStore(bundle: bundleURL).anyStoredPage(),
         until: status.activeMarkers.map(\.expiresAt).min())
+      return Step(next: next, status: status, bundle: nil, opened: false)
+    }
+    let bundle: DossierBundle
+    do {
+      bundle = try DossierBundle.openForPreview(at: bundleURL, cast: cast)
+    } catch {
+      return Step(next: .shown(.failed(FailureReason(error))), status: status, bundle: nil, opened: true)
     }
     do {
-      let bundle = try DossierBundle.openForPreview(at: bundleURL, cast: cast)
-      if let hit = try bundle.storedPreview() { return .shown(.page(hit)) }
-      return .build(bundle)
+      if let hit = try bundle.storedPreview() {
+        return Step(next: .shown(.page(hit)), status: status, bundle: bundle, opened: true)
+      }
+      return Step(next: .build(bundle), status: status, bundle: bundle, opened: true)
     } catch {
-      return .shown(.failed(FailureReason(error)))
+      return Step(next: .shown(.failed(FailureReason(error))), status: status, bundle: bundle, opened: true)
     }
   }
 
@@ -293,6 +327,12 @@ public final class DossierViewModel {
     cancelInFlight()
     let step = Self.firstStep(bundleURL: bundleURL, cast: cast)
     state = step.state
+    updateStatus = step.status
+    if step.opened {
+      bundle = step.bundle
+    } else if bundle?.url.standardizedFileURL != bundleURL.standardizedFileURL {
+      bundle = nil
+    }
     take(step)
   }
 
@@ -300,7 +340,7 @@ public final class DossierViewModel {
   /// can expire with nothing on disk changing (§12), so nothing else would show the bundle then.
   private func take(_ step: Step) {
     let generation = self.generation
-    switch step {
+    switch step.next {
     case .shown(let state):
       if case .page(let result) = state { storeNote = result.storeError.map(Self.storeNote(for:)) }
     case .updating(_, let until):

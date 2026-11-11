@@ -50,42 +50,93 @@ private final class ModelHolder {
   }
 }
 
-/// The whole viewer of one `.dossier` bundle (PV-18): the page in a web view, a header with
-/// **Rebuild**, and notes above the page.
+/// The whole viewer of one `.dossier` bundle (PV-18): the standard ``DossierHeader``, notes under
+/// it, and the page in a web view.
 ///
-/// The header has Rebuild and then `accessory`. The view has no other controls and no app-specific
-/// actions (PV-24).
+/// The header has the breadcrumb, the role, the update state, **Rebuild** and then the host's
+/// `accessory` (DH-8). A host that needs its own header passes `header:` instead, and the view
+/// draws none of its own (DH-9). The notes stay under whichever header is used (DH-10). The view
+/// has no other controls and no app-specific actions (PV-24).
 ///
 /// The view needs nothing the app doesn't already hold: the app's security scope on the project
 /// folder covers the reads and the `.preview/` and `manifest.json` writes (PV-25).
-public struct DossierView<Accessory: View>: View {
+public struct DossierView<Header: View>: View {
   private let bundleURL: URL
   private let cast: URL?
   private let refreshToken: AnyHashable?
-  private let accessory: Accessory
+  private let project: DossierProjectContext
+  private let onField: (@MainActor (String) -> Void)?
+  private let makeHeader: (DossierHeaderModel) -> Header
+  /// Whether the header is the standard ``DossierHeader`` (DH-8), or the host's own (DH-9).
+  let drawsStandardHeader: Bool
   @State private var holder = ModelHolder()
 
-  /// - Parameters:
-  ///   - bundleURL: The `.dossier` directory.
-  ///   - cast: The project's `CAST.md`, or `nil`.
-  ///   - refreshToken: Any value; changing it shows the bundle again.
-  ///   - accessory: Controls the app adds to the header, after Rebuild.
-  public init(
-    bundleURL: URL, cast: URL?, refreshToken: AnyHashable? = nil,
-    @ViewBuilder accessory: () -> Accessory
+  private init(
+    bundleURL: URL, cast: URL?, refreshToken: AnyHashable?, project: DossierProjectContext,
+    onField: (@MainActor (String) -> Void)?, drawsStandardHeader: Bool,
+    header: @escaping (DossierHeaderModel) -> Header
   ) {
     self.bundleURL = bundleURL
     self.cast = cast
     self.refreshToken = refreshToken
-    self.accessory = accessory()
+    self.project = project
+    self.onField = onField
+    self.drawsStandardHeader = drawsStandardHeader
+    makeHeader = header
+  }
+
+  /// A viewer with the standard ``DossierHeader`` (DH-8).
+  ///
+  /// - Parameters:
+  ///   - bundleURL: The `.dossier` directory.
+  ///   - cast: The project's `CAST.md`, or `nil`.
+  ///   - refreshToken: Any value; changing it shows the bundle again.
+  ///   - project: What the host knows about the project. The header shows its title.
+  ///   - onField: Called with the key of each field clicked in the page, e.g.
+  ///     `expressions.happy` (DH-12). `nil` ignores clicks.
+  ///   - accessory: Controls the app adds to the header, after Rebuild.
+  public init<Accessory: View>(
+    bundleURL: URL, cast: URL?, refreshToken: AnyHashable? = nil,
+    project: DossierProjectContext = DossierProjectContext(),
+    onField: (@MainActor (String) -> Void)? = nil,
+    @ViewBuilder accessory: () -> Accessory
+  ) where Header == DossierHeader<Accessory> {
+    let accessory = accessory()
+    self.init(
+      bundleURL: bundleURL, cast: cast, refreshToken: refreshToken, project: project,
+      onField: onField, drawsStandardHeader: true
+    ) { model in
+      DossierHeader(model: model) { accessory }
+    }
+  }
+
+  /// A viewer with the host's own header in place of the standard one (DH-9). The notes, the page
+  /// and the states are the same.
+  ///
+  /// - Parameters:
+  ///   - bundleURL: The `.dossier` directory.
+  ///   - cast: The project's `CAST.md`, or `nil`.
+  ///   - refreshToken: Any value; changing it shows the bundle again.
+  ///   - project: What the host knows about the project. It's passed on in the header's model.
+  ///   - onField: Called with the key of each field clicked in the page (DH-12). `nil` ignores
+  ///     clicks.
+  ///   - header: Draws the header from what the standard one would show.
+  public init(
+    bundleURL: URL, cast: URL?, refreshToken: AnyHashable? = nil,
+    project: DossierProjectContext = DossierProjectContext(),
+    onField: (@MainActor (String) -> Void)? = nil,
+    @ViewBuilder header: @escaping (DossierHeaderModel) -> Header
+  ) {
+    self.init(
+      bundleURL: bundleURL, cast: cast, refreshToken: refreshToken, project: project,
+      onField: onField, drawsStandardHeader: false, header: header)
   }
 
   public var body: some View {
     let model = holder.model(bundleURL: bundleURL, cast: cast, refreshToken: refreshToken)
     let action = DossierRebuildAction(isRebuilding: model.isRebuilding) { [model] in model.rebuild() }
     VStack(spacing: 0) {
-      header(model, action)
-      Divider()
+      makeHeader(Self.headerModel(model, project: project, rebuild: action))
       notes(model)
       content(model, action)
     }
@@ -98,22 +149,31 @@ public struct DossierView<Accessory: View>: View {
 
   // MARK: Header
 
-  private func header(_ model: DossierViewModel, _ action: DossierRebuildAction) -> some View {
-    HStack(spacing: 8) {
-      Button {
-        action()
-      } label: {
-        Label("Rebuild", systemImage: "arrow.clockwise")
-      }
-      .disabled(model.isRebuilding)
-      if model.isRebuilding {
-        ProgressView().controlSize(.small)
-      }
-      Spacer()
-      accessory
+  /// The header's model, from the bundle the view model already opened (DH-11).
+  static func headerModel(
+    _ model: DossierViewModel, project: DossierProjectContext, rebuild: DossierRebuildAction
+  ) -> DossierHeaderModel {
+    let bundle = model.bundle
+    return DossierHeaderModel(
+      project: project, bundleURL: model.bundleURL, bundle: bundle, member: bundle?.member?.fields,
+      update: model.updateStatus, rebuild: rebuild)
+  }
+
+  // MARK: Field clicks
+
+  /// Passes a page message on to `onField` when it's a `dossier` message with a string body, a
+  /// field key (DH-12). Any other message is ignored.
+  @MainActor
+  static func handleMessage(name: String, body: Any, onField: (@MainActor (String) -> Void)?) {
+    guard let onField, name == previewMessageHandlerName, let key = body as? String else { return }
+    onField(key)
+  }
+
+  private var messageHandler: ((String, Any) -> Void)? {
+    guard let onField else { return nil }
+    return { name, body in
+      MainActor.assumeIsolated { Self.handleMessage(name: name, body: body, onField: onField) }
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 8)
   }
 
   // MARK: Notes
@@ -122,15 +182,19 @@ public struct DossierView<Accessory: View>: View {
   private func notes(_ model: DossierViewModel) -> some View {
     if case .updating = model.state {
       note("This character is being updated. Showing the last saved preview.", systemImage: "arrow.triangle.2.circlepath")
+        .accessibilityIdentifier("dossier.note.updating")
     }
     if let text = model.refreshNote {
       note(text, systemImage: "exclamationmark.triangle") { model.dismissRefreshNote() }
+        .accessibilityIdentifier("dossier.note.refresh")
     }
     if let text = model.storeNote {
       note(text, systemImage: "externaldrive.badge.exclamationmark") { model.dismissStoreNote() }
+        .accessibilityIdentifier("dossier.note.store")
     }
   }
 
+  /// One note. It's a container, so the caller's identifier keeps its Dismiss button reachable.
   private func note(_ text: String, systemImage: String, dismiss: (() -> Void)? = nil) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 8) {
       Image(systemName: systemImage)
@@ -144,6 +208,7 @@ public struct DossierView<Accessory: View>: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
     .background(.yellow.opacity(0.15))
+    .accessibilityElement(children: .contain)
   }
 
   // MARK: Body
@@ -151,12 +216,12 @@ public struct DossierView<Accessory: View>: View {
   @ViewBuilder
   private func content(_ model: DossierViewModel, _ action: DossierRebuildAction) -> some View {
     switch model.state {
-    case .loading:
-      ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+    case .loading, .rebuilding(nil):
+      ProgressView()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("dossier.loading")
     case .page(let result), .rebuilding(let result?):
-      PreviewWebView(content: Self.content(for: result, bundleURL: model.bundleURL))
-    case .rebuilding(nil):
-      ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+      page(Self.content(for: result, bundleURL: model.bundleURL))
     case .failed(let reason):
       VStack(spacing: 12) {
         Text(reason.message).multilineTextAlignment(.center)
@@ -164,13 +229,21 @@ public struct DossierView<Accessory: View>: View {
       }
       .padding()
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .accessibilityElement(children: .contain)
+      .accessibilityIdentifier("dossier.failed")
     case .updating(let storedPage):
       if let storedPage {
-        PreviewWebView(content: .stored(page: storedPage, bundleURL: model.bundleURL))
+        page(.stored(page: storedPage, bundleURL: model.bundleURL))
       } else {
         Spacer(minLength: 0)
       }
     }
+  }
+
+  private func page(_ content: PreviewContent) -> some View {
+    PreviewWebView(content: content, onMessage: messageHandler)
+      .accessibilityElement(children: .contain)
+      .accessibilityIdentifier("dossier.page")
   }
 
   private static func content(for result: PreviewResult, bundleURL: URL) -> PreviewContent {
@@ -179,9 +252,16 @@ public struct DossierView<Accessory: View>: View {
   }
 }
 
-extension DossierView where Accessory == EmptyView {
-  /// A viewer with nothing in the header after Rebuild.
-  public init(bundleURL: URL, cast: URL?, refreshToken: AnyHashable? = nil) {
-    self.init(bundleURL: bundleURL, cast: cast, refreshToken: refreshToken) { EmptyView() }
+extension DossierView where Header == DossierHeader<EmptyView> {
+  /// A viewer with the standard header and nothing in it after Rebuild.
+  public init(
+    bundleURL: URL, cast: URL?, refreshToken: AnyHashable? = nil,
+    project: DossierProjectContext = DossierProjectContext(),
+    onField: (@MainActor (String) -> Void)? = nil
+  ) {
+    self.init(
+      bundleURL: bundleURL, cast: cast, refreshToken: refreshToken, project: project,
+      onField: onField
+    ) { EmptyView() }
   }
 }
