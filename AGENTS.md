@@ -34,7 +34,7 @@ Adopters integrating the libraries into an app or tool should read [docs/INTEGRA
 ## Queryable Codemap
 
 A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
-codebase lives in [`graphify-out/`](graphify-out/) (2979 nodes · 6563 edges). **Prefer
+codebase lives in [`graphify-out/`](graphify-out/) (3174 nodes · 7056 edges). **Prefer
 querying it before grepping** for architecture or "what connects to what" questions:
 
 ```bash
