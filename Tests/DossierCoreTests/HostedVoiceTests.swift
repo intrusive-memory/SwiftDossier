@@ -2,7 +2,7 @@ import DossierCore
 import Foundation
 import Testing
 
-/// rc.9's rules on synthetic projects, so each is tested apart from the fixtures: the `voice`
+/// 2.0.0's hosted-voice and import rules on synthetic projects, so each is tested apart from the fixtures: the `voice`
 /// input (§7, DF-76), the inputs read from the member, imported assets (DF-77) and the hosted
 /// tier rule (§8.3, DF-78). Invented characters and voice IDs only.
 private final class SyntheticProject {

@@ -466,5 +466,4 @@ Copies of a `DossierBundle` share no state: reopen to see another writer's chang
   writes its `.gitignore`.
 - **Write `CAST.md` through SwiftReparto.** SwiftDossier sets only a member's `role` and
   `manifest`, and only through Reparto.
-- **The format is a release candidate.** This version pins dossier-format `v2.0.0-rc.9`.
-  Expect changes before 2.0.0.
+- **The format is 2.0.0.** This version pins dossier-format `v2.0.0`.
