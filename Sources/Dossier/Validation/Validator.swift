@@ -422,6 +422,11 @@ private struct BundleValidation {
         message = "Made under another art style than \(current ?? "none")"
       case .pageTemplate(let recorded, let current):
         message = "Made with template \(recorded); the current one is \(current)"
+      case .voice(let provider, let voiceId, let current):
+        message =
+          current == nil
+          ? "Its voice input names \(provider), and the member's voices has no \(provider) key"
+          : "The member's voices.\(provider) no longer names its voice \(voiceId)"
       }
       add(.stale, message, path: stale.path)
     }

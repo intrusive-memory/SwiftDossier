@@ -39,8 +39,8 @@ public enum SchemaError: Error, Equatable, Sendable, LocalizedError {
 
 /// A small JSON Schema evaluator for exactly the keywords the pinned schemas use (SD-13):
 /// `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`,
-/// `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`, `$defs`, and
-/// `$ref`, either to another loaded schema or a `#/` pointer into its own.
+/// `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`/`else`, `contains`,
+/// `$defs`, and `$ref`, either to another loaded schema or a `#/` pointer into its own.
 /// `$id`, `$schema`, `title` and `description` are ignored.
 ///
 /// Loading fails on any other keyword, so a schema change that adds one can't pass silently.
@@ -48,7 +48,8 @@ public struct SchemaEvaluator: Sendable {
   private static let ignored: Set<String> = ["$id", "$schema", "title", "description"]
   private static let supported: Set<String> = [
     "type", "required", "properties", "additionalProperties", "items", "enum", "const",
-    "pattern", "minimum", "minLength", "minItems", "allOf", "oneOf", "if", "then", "$ref", "$defs",
+    "pattern", "minimum", "minLength", "minItems", "allOf", "oneOf", "if", "then", "else", "contains",
+    "$ref", "$defs",
   ]
   private static let typeNames: Set<String> = [
     "null", "boolean", "object", "array", "number", "integer", "string",
@@ -154,7 +155,7 @@ public struct SchemaEvaluator: Sendable {
             property.value, schema: schema,
             location: location + "/properties/" + property.key, known: known, patterns: &patterns)
         }
-      case "additionalProperties", "items", "if", "then":
+      case "additionalProperties", "items", "if", "then", "else", "contains":
         try sub(value, keyword)
       case "$defs":
         guard let definitions = value.objectValue else {
@@ -289,8 +290,11 @@ public struct SchemaEvaluator: Sendable {
       let count = subschemas.filter(passes).count
       if count != 1 { fail("oneOf", "matches \(count) alternatives, expected exactly 1") }
     }
-    if let condition = object["if"], let then = object["then"], passes(condition) {
-      evaluate(instance, then, base: base, path: path, into: &violations)
+    // `then` and `else` without an `if` have no effect.
+    if let condition = object["if"] {
+      if let branch = passes(condition) ? object["then"] : object["else"] {
+        evaluate(instance, branch, base: base, path: path, into: &violations)
+      }
     }
 
     switch instance {
@@ -317,6 +321,14 @@ public struct SchemaEvaluator: Sendable {
         for (index, item) in items.enumerated() {
           evaluate(item, itemSchema, base: base, path: path + "/\(index)", into: &violations)
         }
+      }
+      // 2020-12 with no `minContains`: at least one item matches.
+      if let wanted = object["contains"], !items.contains(where: { item in
+        var scratch: [SchemaViolation] = []
+        evaluate(item, wanted, base: base, path: path, into: &scratch)
+        return scratch.isEmpty
+      }) {
+        fail("contains", "no item matches")
       }
     case .object(let members):
       if let required = object["required"]?.arrayValue {

@@ -147,7 +147,8 @@ extension DossierBundle {
           asset.training = options.training
           if let inputs = try DerivedInputs.resolve(
             kind: kind, path: path, explicit: options.derivedFrom, references: provenance.references,
-            template: options.template, member: member, manifest: manifest, scan: scan)
+            imported: asset.isImported, template: options.template, member: member, manifest: manifest,
+            scan: scan)
           {
             asset.derivedFrom = inputs
           }
@@ -445,12 +446,22 @@ extension DossierBundle {
 /// SD-10: `derivedFrom` in §7's array shape.
 enum DerivedInputs {
   /// The inputs a kind records, or `nil` for a kind that has none and was given none.
+  ///
+  /// An imported `face`, `view` or `expression` (§7, DF-77) needs none, so it records only what
+  /// it's given. A `voiceSample` given its inputs needs a `vox` or a `voice` one (DF-76); with
+  /// none given, its `vox` is looked up.
   static func resolve(
     kind: AssetKind, path: String, explicit: [DerivedInput]?, references: [ProvenanceReference],
-    template: PageTemplate?, member: Cast.Member?, manifest: Manifest, scan: BundleScan
+    imported: Bool = false, template: PageTemplate?, member: Cast.Member?, manifest: Manifest, scan: BundleScan
   ) throws -> [DerivedInput]? {
-    let required = requiredRoles(of: kind)
+    let required = imported ? [] : requiredRoles(of: kind)
     if let explicit {
+      if kind == .voiceSample {
+        guard explicit.contains(where: { $0.role == "vox" || $0.role == "voice" }) else {
+          throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: "vox or voice")
+        }
+        return explicit
+      }
       for role in required where !explicit.contains(where: { $0.role == role }) {
         throw DossierWriteError.missingDerivedInput(kind: kind.rawValue, role: role)
       }

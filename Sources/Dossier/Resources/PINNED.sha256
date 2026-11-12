@@ -1,6 +1,6 @@
-# dossier-format v2.0.0-rc.8
+# dossier-format v2.0.0
 cdb4a97d92296505b5e2a0d6b34a0f5fd5c5b5b30dac3805a8f122cb201bc270  schemas/manifest-v1.schema.json
-0f51df482416e52dd37ed28fb4ba68fa8bdafc86cf50739207e48168279d4d24  schemas/manifest-v2.schema.json
+881ff349e133c2fefed37384e3c02cbaec816403a357f1b3225d0c934b93200c  schemas/manifest-v2.schema.json
 6f46bc94e10353aa4a5ad83b0c03a6ef987a8a3db656dfafee7d57c0cbeabef9  schemas/record.schema.json
 1cae8588a5bab868efecd4007d88d917ae87f9cede5534516ecb0f32198edacf  schemas/samples.schema.json
 5c1976323979c5b9366f24144601b5c95fd49a3ba4c1e1da96473d60f0a085c1  schemas/update-marker.schema.json

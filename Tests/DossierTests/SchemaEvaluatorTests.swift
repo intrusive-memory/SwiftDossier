@@ -167,6 +167,31 @@ enum SchemaEvaluatorTests {
       #expect(try valid(body, "{}"))
     }
 
+    @Test func ifThenElse() throws {
+      let body = #"""
+        "if": {"required": ["copiedFrom"]},
+        "then": {"required": ["source"]},
+        "else": {"required": ["derivedFrom"]}
+        """#
+      #expect(try valid(body, #"{"copiedFrom": "a", "source": 1}"#))
+      #expect(try !valid(body, #"{"copiedFrom": "a", "derivedFrom": []}"#))
+      #expect(try valid(body, #"{"derivedFrom": []}"#))
+      #expect(try violations(body, "{}").map(\.keyword) == ["required"])
+      // Without an `if`, `then` and `else` do nothing.
+      #expect(try valid(#""else": false"#, "{}"))
+      #expect(try valid(#""then": false"#, "{}"))
+    }
+
+    @Test func containsKeyword() throws {
+      let body = #""contains": {"properties": {"role": {"enum": ["vox", "voice"]}}, "required": ["role"]}"#
+      #expect(try valid(body, #"[{"role": "description"}, {"role": "voice"}]"#))
+      #expect(try violations(body, #"[{"role": "description"}]"#).map(\.keyword) == ["contains"])
+      #expect(try !valid(body, "[]"))
+      #expect(try valid(body, #"{"role": "x"}"#))  // only arrays are constrained
+      // The items that don't match report nothing of their own.
+      #expect(try violations(body, #"[{"role": 1}, {}]"#).map(\.keyword) == ["contains"])
+    }
+
     @Test func booleanSubschemas() throws {
       #expect(try valid(#""properties": {"a": true}"#, #"{"a": 1}"#))
       #expect(try !valid(#""properties": {"a": false}"#, #"{"a": 1}"#))
@@ -264,9 +289,9 @@ enum SchemaEvaluatorTests {
     }
 
     @Test(arguments: [
-      "format", "default", "else", "not", "anyOf", "patternProperties", "maxLength", "maximum",
-      "uniqueItems", "$defs", "definitions", "contains", "dependentRequired", "propertyNames",
-      "maxItems", "multipleOf", "exclusiveMinimum", "$anchor",
+      "format", "default", "not", "anyOf", "patternProperties", "maxLength", "maximum",
+      "uniqueItems", "$defs", "definitions", "minContains", "maxContains", "dependentRequired",
+      "propertyNames", "maxItems", "multipleOf", "exclusiveMinimum", "$anchor",
     ])
     func unsupportedKeywordIsAFailure(keyword: String) {
       #expect(throws: SchemaError.self) { try evaluator(#""\#(keyword)": true"#) }
@@ -305,6 +330,7 @@ enum SchemaEvaluatorTests {
       (#"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"#, "0000000000000000000000100000"),
       (#"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"#, "0000000000000000000000100000"),
       (#"^[^/:.][^/:]*$"#, "0000010000011110001111000010"),
+      (#"^[^A-Z]+$"#, "1011111111111111111110000011"),
     ]
 
     @Test(arguments: expectations.map { $0.pattern })
@@ -429,7 +455,7 @@ enum SchemaEvaluatorTests {
     @Test func validFixturesValidateAgainstManifestV2() throws {
       let evaluator = try SchemaEvaluator.pinned()
       let found = try Self.manifests(under: "valid")
-      if SpecTree.isOverridden { #expect(found.count >= 21) } else { #expect(found.count == 21) }
+      if SpecTree.isOverridden { #expect(found.count >= 24) } else { #expect(found.count == 24) }
       for (name, manifest) in found {
         let result = try evaluator.validate(manifest, against: "manifest-v2.schema.json")
         #expect(result.isEmpty, "\(name): \(result)")
@@ -439,7 +465,7 @@ enum SchemaEvaluatorTests {
     @Test func schemaErrorFixtureFails() throws {
       let evaluator = try SchemaEvaluator.pinned()
       let found = try Self.manifests(under: "errors") { $0.hasPrefix("E-SCHEMA") }
-      #expect(found.count == 1)
+      if SpecTree.isOverridden { #expect(found.count >= 3) } else { #expect(found.count == 3) }
       for (name, manifest) in found {
         let result = try evaluator.validate(manifest, against: "manifest-v2.schema.json")
         #expect(!result.isEmpty, "\(name) should fail manifest-v2")
