@@ -925,6 +925,45 @@ struct WriterTests {
     try expectClean(bundle)
   }
 
+  @Test("DF-76: a voiceSample given a voice input needs no vox; given neither vox nor voice, it's refused")
+  func hostedVoiceSample() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let source = try Synthetic.file("sample-neutral.m4a", Data("line".utf8), in: root)
+    let options = { (inputs: [DerivedInput]) in
+      AddOptions(
+        variant: "neutral", model: "invented-hosted", sampleText: "Hold still.",
+        provenance: try Synthetic.object(#"{"instructMethod": "audio-tag", "instructApplied": "unverified"}"#),
+        derivedFrom: inputs, select: true)
+    }
+    let other = DerivedInput(role: "description", sha256: String(repeating: "0", count: 64), path: "CHARACTER.md")
+    expectWriteError(.missingDerivedInput(kind: "voiceSample", role: "vox or voice")) {
+      try bundle.add(source, kind: .voiceSample, options: try options([other]))
+    }
+    let voice = DerivedInput(voiceProvider: "invented", voiceId: "INVENTED0VOICE01")
+    let sample = try bundle.add(source, kind: .voiceSample, options: try options([voice]))
+    #expect(sample.derivedFrom == [voice])
+    #expect(sample.provenance.instructMethod == "audio-tag")
+    try expectClean(bundle)
+  }
+
+  @Test("DF-77: an imported view needs no input, and records none unless given one")
+  func importedView() throws {
+    let root = try Synthetic.temporaryDirectory()
+    var bundle = try Synthetic.bundle(in: root)
+    let source = try Synthetic.file("v.png", Synthetic.png(shade: 21), in: root)
+    let view = try bundle.add(
+      source, kind: .view,
+      options: AddOptions(
+        variant: "front", provenance: try Synthetic.object(#"{"copiedFrom": "art/tinker-front.png"}"#), select: true))
+    #expect(view.isImported)
+    #expect(view.json["derivedFrom"] == nil)
+    try expectClean(bundle)
+    // A face without copiedFrom still needs its portrait input.
+    let face = try Synthetic.file("f.png", Synthetic.png(width: 16, height: 16), in: root)
+    expectWriteError(.missingDerivedInput(kind: "face", role: "portrait")) { try bundle.add(face, kind: .face) }
+  }
+
   // MARK: select, reject, remove, delete
 
   @Test("SD-8: selecting demotes the previous selection of that kind and variant, only")

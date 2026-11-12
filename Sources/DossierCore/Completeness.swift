@@ -102,7 +102,8 @@ extension DossierBundle {
   /// Completeness against a tier, from `tiers.json` (§8.3). `nil` on a version 1 manifest,
   /// to which completeness doesn't apply (Appendix A).
   ///
-  /// With no ``member``, the `voicePrompt` row is unsatisfied: no member has one.
+  /// With no ``member``, the `voicePrompt` row is unsatisfied: no member has one, and no voice
+  /// is hosted (DF-78), since no `voice` input can be current.
   ///
   /// - Throws: ``DossierError/unknownCheckRow(_:)`` for a check row with no implementation,
   ///   and ``DossierError/resourceUnreadable(_:)`` when the table can't be read.
@@ -139,10 +140,10 @@ extension DossierBundle {
     case "description.full": return hasSelectedDescription(sections: CharacterDocument.fullSections)
     case "description.short": return hasSelectedDescription(sections: CharacterDocument.shortSections)
     case "voicePrompt": return !(member?.fields.voicePrompt ?? "").isEmpty
-    case "vox.1.7b": return selectedVoxHolds("1.7b")
-    case "vox.0.6b": return selectedVoxHolds("0.6b")
-    case "sample.neutral.1.7b": return hasNeutralSample(model: "1.7b")
-    case "sample.neutral.0.6b": return hasNeutralSample(model: "0.6b")
+    case "vox.1.7b": return isHosted || selectedVoxHolds("1.7b")
+    case "vox.0.6b": return isHosted || selectedVoxHolds("0.6b")
+    case "sample.neutral.1.7b": return hasNeutralSample(model: "1.7b") || hasHostedNeutralSample
+    case "sample.neutral.0.6b": return hasNeutralSample(model: "0.6b") || hasHostedNeutralSample
     case "sample.range":
       return selectedSamples.filter { !($0.variant?.hasSameBytes(as: "neutral") ?? false) }.count >= 3
     case "pronunciation": return description?.hasNonEmptySection("Pronunciation") ?? false
@@ -166,6 +167,16 @@ extension DossierBundle {
 
   private var selectedSamples: [Asset] {
     manifest.assets.filter { $0.kind == .voiceSample && $0.status == .selected }
+  }
+
+  /// §8.3, DF-78: the voice is hosted when a selected sample has a current `voice` input. Then
+  /// the `vox` rows are satisfied. Never with no member, which has no `voices` to hold the ID.
+  private var isHosted: Bool { selectedSamples.contains(where: hasCurrentVoiceInput) }
+
+  /// §8.3, DF-78: one selected `neutral` sample with a current `voice` input, whatever its
+  /// `model`, satisfies both neutral rows. A sample made from a `vox` counts only for its size.
+  private var hasHostedNeutralSample: Bool {
+    selectedSamples.contains { ($0.variant?.hasSameBytes(as: "neutral") ?? false) && hasCurrentVoiceInput($0) }
   }
 
   private func hasNeutralSample(model: String) -> Bool {
