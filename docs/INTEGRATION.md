@@ -1,7 +1,7 @@
 ---
 type: doc
 title: Integrating SwiftDossier
-updated: 2026-11-10
+updated: 2026-11-12
 ---
 
 # Integrating SwiftDossier
@@ -74,6 +74,36 @@ Reading API at a glance:
 
 `Asset`, `Manifest` and the other model types are read-only views over the manifest JSON.
 Their setters are not public.
+
+### Inputs, staleness and completeness
+
+`asset.derivedFrom` is the asset's `[DerivedInput]` (§7). Most inputs name a file or record by
+its `sha256`. A hosted voice, one a service keeps, is a `voice` input instead, with `provider`
+(lowercase, as the member's normal-form `voices` key) and `voiceId`, and no hash. A
+`voiceSample` has a `vox` or a `voice` input. `asset.provenance.instructMethod` says how a
+sample's delivery instruction was sent (`parameter`, `audio-tag`, or a tool's own word; any
+string is returned).
+
+`stale(template:)` reports each selected asset whose input no longer matches (§7):
+
+- A file input is stale when its hash differs from the current selection of that role, or the
+  role has none (`.input(role:recorded:current:)`).
+- A `voice` input is stale when the member's normal-form `voices[provider]` doesn't hold its
+  `voiceId`, including when the member has no key for that provider
+  (`.voice(provider:voiceId:current:)`; `current` is `nil` when the key is absent).
+- `castMember` and `voice` inputs are read from the member. Open the bundle without one and
+  neither is checked, so neither makes anything stale.
+- An image whose `provenance.artStyle` differs from `CHARACTER.md`'s is stale (`.artStyle`).
+- An imported `face`, `view` or `expression`, one with `provenance.copiedFrom`
+  (`asset.isImported`), is never stale: neither its inputs nor its `artStyle` are compared. A
+  portrait with `copiedFrom` keeps its `artStyle` check.
+
+`completeness()` reads the rows of `data/tiers.json` against the member's tier (§8.3). The voice
+is hosted when a selected `voiceSample` has a current `voice` input. Then `vox.1.7b` and
+`vox.0.6b` are satisfied, and one selected `neutral` sample with a current `voice` input, whatever
+its `model`, satisfies both `sample.neutral` rows. A `neutral` sample made from a `.vox` counts
+only for its own size. `sample.range` and `voicePrompt` don't change. Without a member, no voice
+is hosted.
 
 ## 3. Validate and handle findings (`Dossier`)
 
@@ -148,6 +178,12 @@ try bundle.setPrompt(.identity, "A tall woman in her forties")
 `referenceRoles`, `provenance`, `derivedFrom`, `createdAt`, `select` and more. `JSONObject`
 has no public initializer, so build `provenance` by parsing JSON:
 `try JSONValue.parse(Data(#"{"notes":"hand-picked"}"#.utf8)).objectValue`.
+
+Without `derivedFrom`, `add` works the inputs out from the current selection. A `voiceSample`
+made with a hosted voice has no `.vox` to look up, so pass its `voice` input, parsed the same
+way, as `DerivedInput(json:)`. An explicit list for a `voiceSample` must hold a `vox` or a `voice`
+input. A `face`, `view` or `expression` whose `provenance` has `copiedFrom` is imported: `add`
+records no inputs for it unless you pass some.
 
 ### How refresh works
 
@@ -430,5 +466,5 @@ Copies of a `DossierBundle` share no state: reopen to see another writer's chang
   writes its `.gitignore`.
 - **Write `CAST.md` through SwiftReparto.** SwiftDossier sets only a member's `role` and
   `manifest`, and only through Reparto.
-- **The format is a release candidate.** This version pins dossier-format `v2.0.0-rc.8`.
+- **The format is a release candidate.** This version pins dossier-format `v2.0.0-rc.9`.
   Expect changes before 2.0.0.

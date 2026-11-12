@@ -174,14 +174,23 @@ public struct DerivedInput: Sendable, Equatable {
     if let version { json["version"] = .string(version) }
   }
 
-  /// `portrait`, `face`, `vox`, `description`, `castMember`, `bundle` or `template`.
+  /// A hosted-voice record (§7, DF-76): no path and no hash.
+  package init(voiceProvider provider: String, voiceId: String) {
+    json = JSONObject([("role", .string("voice")), ("provider", .string(provider)), ("voiceId", .string(voiceId))])
+  }
+
+  /// `portrait`, `face`, `vox`, `description`, `castMember`, `bundle`, `template` or `voice`.
   public var role: String { json["role"]?.stringValue ?? "" }
-  /// The input's hash when the asset was made.
+  /// The input's hash when the asset was made. Empty on a `voice` input, which has none.
   public var sha256: String { json["sha256"]?.stringValue ?? "" }
   /// The bundle path, on an asset input.
   public var path: String? { json["path"]?.stringValue }
   /// The template version, on a template input.
   public var version: String? { json["version"]?.stringValue }
+  /// The member's `voices` key for the service, lowercased, on a `voice` input (§7).
+  public var provider: String? { json["provider"]?.stringValue }
+  /// The identifier the tool sent, on a `voice` input (§7).
+  public var voiceId: String? { json["voiceId"]?.stringValue }
 }
 
 /// One reference image sent to an engine (§6), a view over its JSON.
@@ -294,10 +303,14 @@ public struct Provenance: Sendable, Equatable {
   }
   /// The voice-design prompt of a `.vox`.
   public var voicePrompt: String? { text("voicePrompt") }
-  /// The project-relative path an existing `.vox` was copied from.
+  /// The project-relative path the file was brought in from, unchanged, on any kind (§6). A
+  /// `face`, `view` or `expression` with one isn't derived (§7, DF-77).
   public var copiedFrom: String? { text("copiedFrom") }
   /// The delivery instruction sent.
   public var instruct: String? { text("instruct") }
+  /// How ``instruct`` reached the engine (§6, DF-75): `parameter`, `audio-tag`, or a tool's own
+  /// word. Any string is returned as written.
+  public var instructMethod: String? { text("instructMethod") }
   /// `yes`, `no` or `unverified`.
   public var instructApplied: String? { text("instructApplied") }
   /// Where a sample's line comes from.
@@ -399,5 +412,16 @@ public struct Asset: Sendable, Equatable {
   public package(set) var training: JSONObject? {
     get { json["training"]?.objectValue }
     set { json["training"] = newValue.map(JSONValue.object) }
+  }
+
+  /// Whether this is an imported asset (§7, DF-77): a `face`, `view` or `expression` with
+  /// `provenance.copiedFrom`. It isn't derived: it needs no `derivedFrom` and is never stale.
+  /// Any other kind with `copiedFrom`, a portrait included, is read as before. The key's
+  /// presence decides, as the schema's conditional has it; a non-string value is `E-SCHEMA`.
+  public var isImported: Bool {
+    switch kind {
+    case .face, .view, .expression: return provenance.json["copiedFrom"] != nil
+    default: return false
+    }
   }
 }

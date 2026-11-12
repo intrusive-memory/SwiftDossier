@@ -1,6 +1,6 @@
 ---
 type: doc
-updated: 2026-11-10
+updated: 2026-11-12
 ---
 
 # SwiftDossier
@@ -11,7 +11,7 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.4.0-dev (development after v0.4.0) implements dossier-format `v2.0.0-rc.8`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.4.0-dev (development after v0.4.0) implements dossier-format `v2.0.0-rc.9`, a release candidate: the format can still change. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow rc.9: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 

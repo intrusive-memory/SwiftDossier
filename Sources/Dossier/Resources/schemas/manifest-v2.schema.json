@@ -315,10 +315,16 @@
               "copiedFrom": {
                 "type": "string",
                 "minLength": 1,
-                "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$"
+                "pattern": "^(?!/)(?![^/]*:)(?!.*\\\\)(?!.*(^|/)\\.{0,2}(/|$)).+$",
+                "description": "§6. Any kind. On a face, view or expression it waives the derivedFrom requirement (§7)."
               },
               "instruct": {
                 "type": "string"
+              },
+              "instructMethod": {
+                "type": "string",
+                "minLength": 1,
+                "description": "§6. Known values: parameter, audio-tag. A tool MAY use its own word."
               },
               "instructApplied": {
                 "enum": [
@@ -412,6 +418,30 @@
                     "sha256": {
                       "type": "string",
                       "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "provider",
+                    "voiceId"
+                  ],
+                  "description": "§7: a hosted voice. provider is lowercase, as the member's normal-form voices keys.",
+                  "properties": {
+                    "role": {
+                      "const": "voice"
+                    },
+                    "provider": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[^A-Z]+$"
+                    },
+                    "voiceId": {
+                      "type": "string",
+                      "minLength": 1
                     }
                   }
                 }
@@ -515,9 +545,25 @@
             },
             "then": {
               "required": [
-                "variant",
-                "derivedFrom"
-              ]
+                "variant"
+              ],
+              "if": {
+                "required": [
+                  "provenance"
+                ],
+                "properties": {
+                  "provenance": {
+                    "required": [
+                      "copiedFrom"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "required": [
+                  "derivedFrom"
+                ]
+              }
             }
           },
           {
@@ -530,9 +576,25 @@
             },
             "then": {
               "required": [
-                "variant",
-                "derivedFrom"
-              ]
+                "variant"
+              ],
+              "if": {
+                "required": [
+                  "provenance"
+                ],
+                "properties": {
+                  "provenance": {
+                    "required": [
+                      "copiedFrom"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "required": [
+                  "derivedFrom"
+                ]
+              }
             }
           },
           {
@@ -544,9 +606,23 @@
               }
             },
             "then": {
-              "required": [
-                "derivedFrom"
-              ]
+              "if": {
+                "required": [
+                  "provenance"
+                ],
+                "properties": {
+                  "provenance": {
+                    "required": [
+                      "copiedFrom"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "required": [
+                  "derivedFrom"
+                ]
+              }
             }
           },
           {
@@ -563,7 +639,25 @@
                 "model",
                 "sampleText",
                 "derivedFrom"
-              ]
+              ],
+              "properties": {
+                "derivedFrom": {
+                  "contains": {
+                    "type": "object",
+                    "required": [
+                      "role"
+                    ],
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "vox",
+                          "voice"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
             }
           },
           {

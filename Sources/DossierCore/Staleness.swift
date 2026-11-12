@@ -26,6 +26,9 @@ public struct StaleFinding: Sendable, Equatable {
     case artStyle(recorded: String, current: String?)
     /// The `dossier-template` meta element's hash differs from the current template's.
     case pageTemplate(recorded: String, current: String)
+    /// A `voice` input's `voiceId` isn't in the member's normal-form `voices[provider]` (§7,
+    /// DF-76). `current` is that array, or `nil` when the member has no such key.
+    case voice(provider: String, voiceId: String, current: [String]?)
   }
 
   /// The stale asset's bundle path.
@@ -37,8 +40,10 @@ public struct StaleFinding: Sendable, Equatable {
 extension DossierBundle {
   /// The reasons selected assets are stale (§7). Empty on a version 1 manifest (Appendix A).
   ///
-  /// The hash of `CAST.md`'s member is compared only when the bundle was opened with its
-  /// ``member``; without one there's no current member.
+  /// The inputs read from the member, `castMember` and `voice`, are compared only when the
+  /// bundle was opened with its ``member``; without one neither is checked, and neither makes
+  /// an asset stale (§7). An imported `face`, `view` or `expression` (``Asset/isImported``)
+  /// is never reported: neither its inputs nor its `artStyle` are compared (DF-77).
   ///
   /// - Parameter template: The current template; `Dossier` bundles one as `DossierTemplate.current`.
   ///   `nil` makes no template comparison (§11).
@@ -46,8 +51,12 @@ extension DossierBundle {
     guard manifest.manifestVersion == 2 else { return [] }
     var findings: [StaleFinding] = []
     let currentArtStyle = artStyle
-    for asset in manifest.assets where asset.status == .selected {
+    for asset in manifest.assets where asset.status == .selected && !asset.isImported {
       for input in asset.derivedFrom {
+        if input.role == "voice" {
+          if let reason = staleVoice(input) { findings.append(StaleFinding(path: asset.path, reason: reason)) }
+          continue
+        }
         guard case .compare(let current) = comparison(for: input, template: template) else { continue }
         if !(current?.hasSameBytes(as: input.sha256) ?? false) {
           findings.append(
@@ -97,6 +106,28 @@ extension DossierBundle {
       // SPEC-GAP: §7: an input role outside the table isn't defined, so it isn't compared.
       return .skip
     }
+  }
+
+  /// §7's `voice` input, against the member's normal form. `nil` when it's current, or when
+  /// there's no member to check it against.
+  private func staleVoice(_ input: DerivedInput) -> StaleFinding.Reason? {
+    guard let member else { return nil }
+    let provider = input.provider ?? ""
+    let voiceId = input.voiceId ?? ""
+    let current = member.voiceIDs(provider: provider)
+    // SPEC-GAP: §7: a record with no provider or voiceId is E-SCHEMA; it matches no key or
+    // element, so it reads as stale too.
+    if input.provider != nil, input.voiceId != nil, current?.contains(where: { $0.hasSameBytes(as: voiceId) }) ?? false {
+      return nil
+    }
+    return .voice(provider: provider, voiceId: voiceId, current: current)
+  }
+
+  /// Whether a selected asset has a `voice` input that is current (§7): the member's
+  /// normal-form `voices[provider]` holds its `voiceId`. `false` with no member.
+  package func hasCurrentVoiceInput(_ asset: Asset) -> Bool {
+    guard member != nil else { return false }
+    return asset.derivedFrom.contains { $0.role == "voice" && staleVoice($0) == nil }
   }
 
   /// §7's `bundle` input: `manifestChecksum` over every file except the page.

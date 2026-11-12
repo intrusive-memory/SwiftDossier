@@ -1,5 +1,5 @@
 {
-  "$comment": "docs/DOSSIER-FORMAT.md §8.3. Rows are 'asset' (a selected asset of the kind; with 'variants', one selected per variant) or 'check' (defined by ID in §8.3). Cells: required | recommended | none.",
+  "$comment": "docs/DOSSIER-FORMAT.md §8.3. Rows are 'asset' (a selected asset of the kind; with 'variants', one selected per variant) or 'check' (defined by ID in §8.3, where a hosted voice satisfies the vox and neutral-sample checks). Cells: required | recommended | none.",
   "formatVersion": 2,
   "tiers": [
     "lead",
@@ -192,7 +192,7 @@
     {
       "id": "vox.1.7b",
       "type": "check",
-      "label": ".vox, 1.7B",
+      "label": ".vox, 1.7B, or a hosted voice",
       "levels": {
         "lead": "required",
         "supporting": "required",
@@ -206,7 +206,7 @@
     {
       "id": "vox.0.6b",
       "type": "check",
-      "label": ".vox, 0.6B",
+      "label": ".vox, 0.6B, or a hosted voice",
       "levels": {
         "lead": "required",
         "supporting": "required",
@@ -220,7 +220,7 @@
     {
       "id": "sample.neutral.1.7b",
       "type": "check",
-      "label": "Voice sample, neutral (1.7B)",
+      "label": "Voice sample, neutral (1.7B, or hosted)",
       "levels": {
         "lead": "required",
         "supporting": "required",
@@ -234,7 +234,7 @@
     {
       "id": "sample.neutral.0.6b",
       "type": "check",
-      "label": "Voice sample, neutral (0.6B)",
+      "label": "Voice sample, neutral (0.6B, or hosted)",
       "levels": {
         "lead": "required",
         "supporting": "required",

@@ -5,7 +5,7 @@
 # through xcodebuild; SwiftPM's own drivers are not used in this project.
 
 # The pinned dossier-format revision. Defined ONLY here.
-DOSSIER_FORMAT_REF = v2.0.0-rc.8
+DOSSIER_FORMAT_REF = v2.0.0-rc.9
 DOSSIER_FORMAT_URL = https://github.com/intrusive-memory/dossier-format
 FIXTURES_DIR = .dossier-format
 

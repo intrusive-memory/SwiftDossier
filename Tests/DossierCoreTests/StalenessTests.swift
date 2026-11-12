@@ -35,7 +35,7 @@ struct StalenessTests {
       }
       measured += 1
     }
-    #expect(staleCount == 10)
+    #expect(SpecTree.isOverridden ? staleCount >= 12 : staleCount == 12)
     #expect(measured >= 80)
   }
 
@@ -59,6 +59,21 @@ struct StalenessTests {
     #expect(
       noSelection.contains {
         if case .input("portrait", _, nil) = $0.reason { return true }
+        return false
+      })
+    // §7's worked example: both samples' voice input, the ID changed or the key gone.
+    let changed = try findings("warnings/W-STALE-input-voice", template: current)
+    #expect(changed.count == 2)
+    #expect(
+      changed.allSatisfy {
+        if case .voice("vocalsmith", "FIXTURE0VOICE0000001", ["FIXTURE0VOICE0000002"]) = $0.reason { return true }
+        return false
+      })
+    let absent = try findings("warnings/W-STALE-input-voice-provider-absent", template: current)
+    #expect(absent.count == 2)
+    #expect(
+      absent.allSatisfy {
+        if case .voice("vocalsmith", _, nil) = $0.reason { return true }
         return false
       })
     let art = try findings("warnings/W-STALE-art-style", template: current)
@@ -94,6 +109,19 @@ struct StalenessTests {
   @Test("valid/not-reported: a stale candidate and an image with no artStyle aren't reported")
   func notReported() throws {
     #expect(try findings("valid/not-reported", template: try template()).isEmpty)
+  }
+
+  @Test("§7: opened without a CAST.md, W-STALE-input-voice's samples aren't stale")
+  func voiceWithoutMember() throws {
+    let bundle = try DossierBundle.open(
+      at: Fixtures.project("warnings/W-STALE-input-voice").appendingPathComponent("characters/THE NIGHT CALLER.dossier"))
+    #expect(bundle.stale(template: try template()).isEmpty)
+  }
+
+  @Test("DF-77: valid/imported-view's front view differs in artStyle and isn't stale")
+  func importedView() throws {
+    let current = try template()
+    #expect(try findings("valid/imported-view", template: current).isEmpty)
   }
 
   @Test("With no member, the castMember input isn't compared")

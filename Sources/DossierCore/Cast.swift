@@ -66,6 +66,12 @@ public struct Cast: Sendable {
     public var character: String { fields.character }
     /// The member's `manifest:`. `nil` means no dossier, which is valid (§3).
     public var pointer: ManifestPointer? { fields.manifest.map(ManifestPointer.init) }
+    /// The normal form's `voices[provider]` (§7): the voice IDs, or paths, the member names
+    /// for that provider. `nil` when it has no such key. The key compares by bytes, so pass it
+    /// lowercased, as the normal form holds it.
+    public func voiceIDs(provider: String) -> [String]? {
+      normalForm.objectValue?["voices"]?.objectValue?[provider]?.arrayValue?.compactMap(\.stringValue)
+    }
   }
 
   /// The `CAST.md` file.
