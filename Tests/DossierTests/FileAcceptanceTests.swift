@@ -184,7 +184,9 @@ struct FileAcceptanceTests {
     ("images/portrait-0123abc.png", nil),
     ("images/portrait-0123abcde.png", nil),
     ("images/nested/portrait-0123abcd.png", nil),
-    ("images/portrait-0123abcd.jpg", nil),
+    // DF-87: an imported JPEG keeps its format, and its name has the same form.
+    ("images/portrait-0123abcd.jpg", "0123abcd"),
+    ("images/portrait-0123abcd.jpeg", nil),
     ("source/portrait-0123abcd.png", nil),
     ("CHARACTER.md", nil),
   ] as [(String, String?)])

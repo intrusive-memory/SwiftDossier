@@ -198,7 +198,7 @@ struct ValidatorEntryPointTests {
     for code in Finding.Code.allCases {
       #expect(code.level == (code.rawValue.hasPrefix("E-") ? .error : .warning))
     }
-    #expect(Finding.Code.allCases.count == 31)
+    #expect(Finding.Code.allCases.count == 33)
     let warning = Finding(code: .role, message: "", path: nil)
     let error = Finding(code: .path, message: "", path: nil)
     #expect(ValidationReport(findings: [], completeness: []).exitStatus == 0)

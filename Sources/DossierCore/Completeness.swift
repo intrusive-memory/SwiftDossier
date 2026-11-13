@@ -93,14 +93,16 @@ extension CastRole {
 
 extension DossierBundle {
   /// Completeness against the member's tier. `nil` when there's no member or it has no
-  /// `role`, where completeness isn't defined (§8.3), and on version 1 (Appendix A).
+  /// `role`, where completeness isn't defined (§8.3), on version 1 (Appendix A), and on a
+  /// location bundle (§16.4).
   public func completeness() throws -> CompletenessReport? {
     guard let role = member?.fields.role else { return nil }
     return try completeness(tier: role)
   }
 
   /// Completeness against a tier, from `tiers.json` (§8.3). `nil` on a version 1 manifest,
-  /// to which completeness doesn't apply (Appendix A).
+  /// to which completeness doesn't apply (Appendix A), and on a location bundle, which has no
+  /// tier (§16.4).
   ///
   /// With no ``member``, the `voicePrompt` row is unsatisfied: no member has one, and no voice
   /// is hosted (DF-78), since no `voice` input can be current.
@@ -108,7 +110,7 @@ extension DossierBundle {
   /// - Throws: ``DossierError/unknownCheckRow(_:)`` for a check row with no implementation,
   ///   and ``DossierError/resourceUnreadable(_:)`` when the table can't be read.
   public func completeness(tier: CastRole) throws -> CompletenessReport? {
-    guard manifest.manifestVersion == 2 else { return nil }
+    guard manifest.manifestVersion == 2, !isLocation else { return nil }
     let table = try TierTable.bundled.get()
     let rows = try table.rows.map { row -> CompletenessReport.Row in
       guard let text = row.levels[tier.rawValue], let level = CompletenessReport.Level(rawValue: text)

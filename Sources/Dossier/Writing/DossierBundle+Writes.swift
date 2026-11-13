@@ -3,7 +3,8 @@ import Foundation
 
 /// What ``DossierBundle/add(_:kind:options:)`` needs besides the file and its kind.
 public struct AddOptions: Sendable {
-  /// §8.1's variant, on `view`, `expression` and `voiceSample`.
+  /// §8.1's variant, on `view`, `expression`, `voiceSample` and `plate` (§16.4, where it is
+  /// required).
   public var variant: String?
   /// The size a `voiceSample` was rendered with (§5.4).
   public var model: String?
@@ -13,6 +14,9 @@ public struct AddOptions: Sendable {
   public var language: String?
   /// Display text (§5.4).
   public var label: String?
+  /// The phrase a storyboard tool uses for the image when it sends it as a reference (§5.4,
+  /// DF-89). Display text.
+  public var storyboardLabel: String?
   /// The `lora` object, which a `lora` asset needs (§8.4). Its `version` names the file.
   public var lora: JSONObject?
   /// The `training` object, which a `training` asset needs (§8.4).
@@ -38,7 +42,7 @@ public struct AddOptions: Sendable {
     variant: String? = nil, model: String? = nil, sampleText: String? = nil, language: String? = nil,
     label: String? = nil, lora: JSONObject? = nil, training: JSONObject? = nil, sidecar: URL? = nil,
     referenceRoles: [String] = [], provenance: JSONObject? = nil, derivedFrom: [DerivedInput]? = nil,
-    template: PageTemplate? = nil, createdAt: Date? = nil, select: Bool = false
+    template: PageTemplate? = nil, createdAt: Date? = nil, select: Bool = false, storyboardLabel: String? = nil
   ) {
     self.variant = variant
     self.model = model
@@ -54,6 +58,7 @@ public struct AddOptions: Sendable {
     self.template = template
     self.createdAt = createdAt
     self.select = select
+    self.storyboardLabel = storyboardLabel
   }
 }
 
@@ -78,6 +83,10 @@ extension DossierBundle {
   /// read first, every other chunk stays byte for byte, and the hash, size and `<sha8>` are the
   /// stripped bytes'. A malformed one is refused. Other formats are copied as they are. A file
   /// already in the bundle is never modified: it keeps its bytes and its name.
+  ///
+  /// An imported image, one whose ``AddOptions/provenance`` has `copiedFrom` (§6), keeps its bytes
+  /// and its format (DF-87): a PNG isn't stripped, and a JPEG is stored as `.jpg`. Any other image
+  /// under `images/` must be a PNG.
   ///
   /// A file this call writes is recorded as written. One it finds in place, with the bytes it would
   /// write, was not written by it: if it's already listed, its entry stays, so a file that was
@@ -109,16 +118,20 @@ extension DossierBundle {
     guard !data.isEmpty else { throw DossierWriteError.zeroByteFiles([source.lastPathComponent]) }
 
     let inPlace = try bundlePath(ofFile: file)
+    let importing = kind.isImage && options.provenance?["copiedFrom"] != nil
+    let isJPEG = data.starts(with: [0xFF, 0xD8, 0xFF])
     var stored = data
-    if inPlace == nil, kind.isImage, VinetasPNG.isPNG(data) {
+    if inPlace == nil, kind.isImage, !importing, VinetasPNG.isPNG(data) {
       guard let stripped = PNGMetadata.stripped(data) else { throw DossierWriteError.pngMalformed(source.path) }
       stored = stripped
     }
     let named = try Self.destination(
       of: kind, sourceName: file.lastPathComponent, sha256: Checksum.sha256(stored),
-      character: current.character, options: options)
+      character: current.character, options: options, fileExtension: importing && isJPEG ? "jpg" : "png")
     let path = inPlace ?? named
-    if path.hasPrefix("images/"), !VinetasPNG.isPNG(data) { throw DossierWriteError.notPNG(source.path) }
+    if path.hasPrefix("images/"), !VinetasPNG.isPNG(data), !(importing && isJPEG) {
+      throw DossierWriteError.notPNG(source.path)
+    }
     if current.assets.contains(where: { $0.hasPath(path) }) { throw DossierWriteError.assetExists(path) }
 
     var folded = try FoldedProvenance(
@@ -143,6 +156,7 @@ extension DossierBundle {
           asset.sampleText = options.sampleText
           asset.language = options.language
           asset.label = options.label
+          asset.storyboardLabel = options.storyboardLabel
           asset.lora = options.lora
           asset.training = options.training
           if let inputs = try DerivedInputs.resolve(
@@ -322,7 +336,8 @@ extension DossierBundle {
   /// §4 gives `source/` and `training/` no naming rule, and the fixtures keep a plain name there,
   /// so the file keeps its own, and a name that's taken by other bytes is refused.
   static func destination(
-    of kind: AssetKind, sourceName: String, sha256: String, character: String, options: AddOptions
+    of kind: AssetKind, sourceName: String, sha256: String, character: String, options: AddOptions,
+    fileExtension: String = "png"
   ) throws -> String {
     func usable(_ name: String) throws -> String {
       guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains("\\") else {
@@ -334,15 +349,18 @@ extension DossierBundle {
     switch kind {
     case .view, .expression, .voiceSample:
       break
+    case .plate:
+      // §16.4: a plate's variant names its view, and is required.
+      guard options.variant != nil else { throw DossierWriteError.variantNotAllowed("a plate needs a variant") }
     default:
       if let variant = options.variant {
         throw DossierWriteError.variantNotAllowed("\(kind.rawValue) has no variants, and was given \(variant)")
       }
     }
     switch kind {
-    case .portrait, .face, .view, .expression, .crowdRef:
+    case .portrait, .face, .view, .expression, .crowdRef, .plate:
       let stem = [kind.rawValue, options.variant, String(sha256.prefix(8))].compactMap { $0 }.joined(separator: "-")
-      guard let name = try? usable(stem + ".png") else {
+      guard let name = try? usable(stem + "." + fileExtension) else {
         throw DossierWriteError.variantNotAllowed(options.variant ?? stem)
       }
       return "images/" + name

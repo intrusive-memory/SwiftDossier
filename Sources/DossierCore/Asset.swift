@@ -1,6 +1,6 @@
 import Foundation
 
-/// What an asset is (§8.1), including the retired version 1 kinds (§8.1, Appendix A).
+/// What an asset is (§8.1, §16.4), including the retired version 1 kinds (§8.1, Appendix A).
 public enum AssetKind: Hashable, Sendable {
   /// `CHARACTER.md`.
   case description
@@ -26,6 +26,8 @@ public enum AssetKind: Hashable, Sendable {
   case training
   /// A reference for a background character.
   case crowdRef
+  /// A location's empty set for one view (§16.4, DF-82). Only in a location bundle.
+  case plate
   /// Retired: a view, in version 1.
   case turnaround
   /// Retired: the face, in version 1.
@@ -54,6 +56,7 @@ public enum AssetKind: Hashable, Sendable {
     case "lora": self = .lora
     case "training": self = .training
     case "crowdRef": self = .crowdRef
+    case "plate": self = .plate
     case "turnaround": self = .turnaround
     case "faceSheet": self = .faceSheet
     case "expressions": self = .expressions
@@ -78,6 +81,7 @@ public enum AssetKind: Hashable, Sendable {
     case .lora: return "lora"
     case .training: return "training"
     case .crowdRef: return "crowdRef"
+    case .plate: return "plate"
     case .turnaround: return "turnaround"
     case .faceSheet: return "faceSheet"
     case .expressions: return "expressions"
@@ -98,7 +102,7 @@ public enum AssetKind: Hashable, Sendable {
   /// Whether files of this kind are images, the kinds §6's "images" keys apply to (§8.1).
   public var isImage: Bool {
     switch self {
-    case .portrait, .face, .view, .expression, .sourcePhoto, .training, .crowdRef: return true
+    case .portrait, .face, .view, .expression, .sourcePhoto, .training, .crowdRef, .plate: return true
     default: return false
     }
   }
@@ -205,8 +209,12 @@ public struct ProvenanceReference: Sendable, Equatable {
   public var sha256: String? { json["sha256"]?.stringValue }
   /// The bundle path of the asset with that hash at the time of writing.
   public var path: String? { json["path"]?.stringValue }
-  /// Why it was sent.
+  /// Why it was sent: `portrait`, `face`, `view:<variant>`, `plate:<variant>` (§16.4), or a
+  /// tool's own word.
   public var role: String? { json["role"]?.stringValue }
+  /// The project-relative path of an image sent that isn't in the bundle (§6, DF-95).
+  /// Informational.
+  public var source: String? { json["source"]?.stringValue }
 }
 
 /// How a file was made (§6), a view over its JSON. Unknown keys stay in ``json``.
@@ -219,6 +227,19 @@ public struct Provenance: Sendable, Equatable {
     public let version: String?
     /// Informational; never relied on.
     public let binary: String?
+  }
+
+  /// Processing applied to a generated file after it was made (§6, DF-92). The file in the
+  /// bundle is the processed one; staleness doesn't read this.
+  public struct PostProcess: Sendable, Equatable {
+    /// The program that processed it.
+    public let tool: Tool?
+    /// The tool's identifier for the processing.
+    public let chain: String?
+    /// The project-relative path of the unprocessed original, kept outside the bundle.
+    public let dry: String?
+    /// Free text.
+    public let notes: String?
   }
 
   /// A hand-set face box, in source pixels, origin top-left (§6, §8.5).
@@ -304,8 +325,26 @@ public struct Provenance: Sendable, Equatable {
   /// The voice-design prompt of a `.vox`.
   public var voicePrompt: String? { text("voicePrompt") }
   /// The project-relative path the file was brought in from, unchanged, on any kind (§6). A
-  /// `face`, `view` or `expression` with one isn't derived (§7, DF-77).
+  /// `face`, `view`, `expression` or `plate` with one isn't derived (§7, DF-77, DF-86).
   public var copiedFrom: String? { text("copiedFrom") }
+  /// The SHA-256 of the file at ``copiedFrom`` when it was copied (§6, DF-90). Valid only with
+  /// ``copiedFrom``. Informational: the source is outside the bundle.
+  public var copiedFromSha256: String? { text("copiedFromSha256") }
+  /// The hosted voice's identifier as sent to the service (§6, DF-91). Informational: staleness
+  /// reads `derivedFrom` (§7).
+  public var voiceId: String? { text("voiceId") }
+  /// What the service charged for the generation, in its own units (§6, DF-91). Informational.
+  public var creditsUsed: Double? { json["creditsUsed"]?.doubleValue }
+  /// Processing applied after generation (§6, DF-92), or `nil`.
+  public var postProcess: PostProcess? {
+    guard let object = json["postProcess"]?.objectValue else { return nil }
+    let tool = object["tool"]?.objectValue.map {
+      Tool(name: $0["name"]?.stringValue, version: $0["version"]?.stringValue, binary: $0["binary"]?.stringValue)
+    }
+    return PostProcess(
+      tool: tool, chain: object["chain"]?.stringValue, dry: object["dry"]?.stringValue,
+      notes: object["notes"]?.stringValue)
+  }
   /// The delivery instruction sent.
   public var instruct: String? { text("instruct") }
   /// How ``instruct`` reached the engine (§6, DF-75): `parameter`, `audio-tag`, or a tool's own
@@ -313,7 +352,8 @@ public struct Provenance: Sendable, Equatable {
   public var instructMethod: String? { text("instructMethod") }
   /// `yes`, `no` or `unverified`.
   public var instructApplied: String? { text("instructApplied") }
-  /// Where a sample's line comes from.
+  /// Where the content came from: on a `voiceSample`, the line's `file:line` or `sampleLine`; on
+  /// any other kind, the project-relative path it came from (§6, DF-95).
   public var source: String? { text("source") }
   /// A producing tool's process gate that was skipped.
   public var gateOverridden: String? { text("gateOverridden") }
@@ -368,6 +408,12 @@ public struct Asset: Sendable, Equatable {
     get { json["label"]?.stringValue }
     set { set("label", newValue) }
   }
+  /// The phrase a storyboard or image tool uses for this image when it sends it as a reference
+  /// (§5.4, DF-89). Display text, like ``label``: nothing in the format reads it.
+  public package(set) var storyboardLabel: String? {
+    get { json["storyboardLabel"]?.stringValue }
+    set { set("storyboardLabel", newValue) }
+  }
   /// When the file was made. Sometimes absent in version 1.
   public package(set) var createdAt: String? {
     get { json["createdAt"]?.stringValue }
@@ -414,13 +460,14 @@ public struct Asset: Sendable, Equatable {
     set { json["training"] = newValue.map(JSONValue.object) }
   }
 
-  /// Whether this is an imported asset (§7, DF-77): a `face`, `view` or `expression` with
-  /// `provenance.copiedFrom`. It isn't derived: it needs no `derivedFrom` and is never stale.
-  /// Any other kind with `copiedFrom`, a portrait included, is read as before. The key's
-  /// presence decides, as the schema's conditional has it; a non-string value is `E-SCHEMA`.
+  /// Whether this is an imported asset (§7, DF-77, DF-86): a `face`, `view`, `expression` or
+  /// `plate` with `provenance.copiedFrom`. It isn't derived: it needs no `derivedFrom`, is never
+  /// stale, and isn't checked for shape (`W-SHAPE`). Any other kind with `copiedFrom`, a portrait
+  /// included, is read as before. The key's presence decides, as the schema's conditional has it;
+  /// a non-string value is `E-SCHEMA`.
   public var isImported: Bool {
     switch kind {
-    case .face, .view, .expression: return provenance.json["copiedFrom"] != nil
+    case .face, .view, .expression, .plate: return provenance.json["copiedFrom"] != nil
     default: return false
     }
   }

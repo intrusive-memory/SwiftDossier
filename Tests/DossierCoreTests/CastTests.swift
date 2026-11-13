@@ -14,7 +14,10 @@ struct CastTests {
     var refused = 0
     for entry in conformance.fixtures {
       let url = Fixtures.project(entry.path).appendingPathComponent("CAST.md")
-      if entry.codes.contains("E-CAST") {
+      // §16.2: E-CAST also covers PROJECT.md and the locations index, whose fixtures have a
+      // CAST.md that loads.
+      let isAboutLocations = entry.path.hasPrefix("errors/E-CAST-project-") || entry.path.hasPrefix("errors/E-CAST-locations-")
+      if entry.codes.contains("E-CAST"), !isAboutLocations {
         #expect(throws: DossierError.self, "\(entry.path)") { try Cast.load(url) }
         refused += 1
       } else {
