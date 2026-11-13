@@ -1,3 +1,4 @@
+import CoreGraphics
 import CryptoKit
 import DossierCore
 import Foundation
@@ -107,6 +108,49 @@ struct LocationsTests {
     }
   }
 
+  @Test("Writers: a plate needs a variant and is content-named; an imported JPEG keeps its bytes")
+  func writers() throws {
+    let root = try copy(of: "valid/location")
+    defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+    let index = try #require(DossierProject(directory: root).discoverLocations().index)
+    var bundle = try #require(try index.openBundle(for: index.entries[0]))
+    let sources = root.appendingPathComponent("incoming")
+    try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+
+    let plate = sources.appendingPathComponent("stair.png")
+    try RenderImages.png(width: 320, height: 180, shade: 90).write(to: plate)
+    let provenance = JSONObject([("provider", .string("vinetas"))])
+    #expect(throws: DossierWriteError.self) {
+      try bundle.add(plate, kind: .plate, options: AddOptions(provenance: provenance))
+    }
+    let added = try bundle.add(
+      plate, kind: .plate,
+      options: AddOptions(
+        variant: "stair-from-below", provenance: provenance, select: true, storyboardLabel: "the stair, from below"))
+    #expect(added.path.hasPrefix("images/plate-stair-from-below-"))
+    #expect(added.path.hasSuffix(".png"))
+    #expect(added.storyboardLabel == "the stair, from below")
+    #expect(bundle.selectedPlates.map(\.variant) == ["dock", "lamp-room", "stair-from-below"])
+
+    let drawing = sources.appendingPathComponent("design.jpg")
+    let jpeg = try RenderImages.encoded(width: 100, height: 50, type: .jpeg) { context in
+      context.setFillColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1)
+      context.fill(CGRect(x: 0, y: 0, width: 100, height: 50))
+    }
+    try jpeg.write(to: drawing)
+    let imported = try bundle.add(
+      drawing, kind: .view,
+      options: AddOptions(
+        variant: "storyboard-wide",
+        provenance: JSONObject([("provider", .string("import")), ("copiedFrom", .string("storyboards/design.jpg"))])))
+    #expect(imported.path.hasSuffix(".jpg"))
+    #expect(try Data(contentsOf: bundle.url.appendingPathComponent(imported.path)) == jpeg)
+
+    try FileManager.default.removeItem(at: sources)
+    let report = try DossierBundle.validate(cast: root.appendingPathComponent("CAST.md"), template: try DossierTemplate.current)
+    #expect(report.findings.isEmpty, "\(report.findings)")
+  }
+
   // MARK: Discovery (§16.2)
 
   @Test("PROJECT.md's five outcomes", arguments: [
@@ -164,6 +208,17 @@ struct LocationsTests {
     #expect(try DossierBundle.validate(at: bundle).findings.isEmpty)
     let misnamed = project("errors/E-NAME-MISMATCH-location").appendingPathComponent("locations/HARBOR-LIGHT.dossier")
     #expect(try DossierBundle.validate(at: misnamed).findings.map(\.code) == [.nameMismatch])
+  }
+
+  @Test("A location bundle has no page and no preview of its own (§16.6)")
+  func noPageOfItsOwn() throws {
+    let root = try copy(of: "valid/location")
+    defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+    var bundle = try DossierBundle.open(at: root.appendingPathComponent("locations/HARBOR-LIGHT.dossier"))
+    let before = try RenderTree.files(under: bundle.url)
+    #expect(throws: DossierWriteError.self) { try bundle.renderPage() }
+    #expect(throws: DossierWriteError.self) { try bundle.showPreview() }
+    #expect(try RenderTree.files(under: bundle.url) == before)
   }
 
   @Test("View families: storyboard, storyboard-<slug>, look-<slug>")
