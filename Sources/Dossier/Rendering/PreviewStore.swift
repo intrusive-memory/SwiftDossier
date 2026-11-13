@@ -15,6 +15,12 @@ public struct PreviewStore: Sendable {
     directory = bundle.appendingPathComponent(".preview", isDirectory: true)
   }
 
+  /// A store at any directory, for a store with §11.1's rules elsewhere: the LOCATIONS page's
+  /// `.locations-page/` (§16.6).
+  init(storeDirectory: URL) {
+    directory = storeDirectory
+  }
+
   /// `.preview/<key>.html` when it's there as a regular file, or `nil`.
   ///
   /// Only the file's metadata is looked at: a hit reads and writes nothing (PV-11).
@@ -58,7 +64,12 @@ public struct PreviewStore: Sendable {
   ///   writing `.gitignore` or the page, or renaming it. Nothing is removed when it throws.
   @discardableResult
   public func store(_ page: PreviewPage) throws -> URL {
-    guard Self.isKey(page.key) else { throw PreviewStoreError.invalidKey(page.key) }
+    try store(key: page.key, html: page.html)
+  }
+
+  /// ``store(_:)`` for any page with a key.
+  func store(key: String, html: String) throws -> URL {
+    guard Self.isKey(key) else { throw PreviewStoreError.invalidKey(key) }
     let manager = FileManager.default
     try manager.createDirectory(at: directory, withIntermediateDirectories: true)
     let gitignore = directory.appendingPathComponent(Self.gitignoreName)
@@ -66,10 +77,10 @@ public struct PreviewStore: Sendable {
       try Data("*\n".utf8).write(to: gitignore)
     }
 
-    let file = pageURL(forKey: page.key)
-    let temporary = directory.appendingPathComponent("\(page.key).html.\(UUID().uuidString).tmp")
+    let file = pageURL(forKey: key)
+    let temporary = directory.appendingPathComponent("\(key).html.\(UUID().uuidString).tmp")
     do {
-      try Data(page.html.utf8).write(to: temporary)
+      try Data(html.utf8).write(to: temporary)
       // rename(2) replaces an existing `<key>.html` in one step.
       guard rename(temporary.path, file.path) == 0 else {
         throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)

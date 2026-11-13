@@ -42,10 +42,17 @@ enum Conformance {
     let missingRequired: [String]?
     /// `examples/README.md`: `at` is the time to use as `now`, and `updating` is §5.7's answer.
     let updateStatus: UpdateAssertion?
+    /// §16.6: the LOCATIONS page key, and whether the store already holds that page.
+    let locationsPage: LocationsPageAssertion?
 
     struct UpdateAssertion: Decodable, Sendable {
       let at: String
       let updating: Bool
+    }
+
+    struct LocationsPageAssertion: Decodable, Sendable {
+      let key: String
+      let hit: Bool
     }
 
     var testDescription: String { path }
@@ -54,6 +61,8 @@ enum Conformance {
   struct Document: Decodable {
     let templateVersion: String
     let templateSha256: String
+    let locationsTemplateVersion: String?
+    let locationsTemplateSha256: String?
     let fixtures: [Entry]
   }
 
@@ -137,6 +146,14 @@ struct ConformanceTests {
       #expect(found.report.missingRequired == entry.missingRequired?.sorted())
     }
 
+    if let assertion = entry.locationsPage {
+      let index = try #require(
+        DossierProject(directory: Conformance.root.appendingPathComponent(entry.path)).discoverLocations().index)
+      let title = DossierProject(directory: Conformance.root.appendingPathComponent(entry.path)).title
+      #expect(try index.locationsPageKey(title: title, template: try LocationsTemplate.current) == assertion.key)
+      #expect((try index.storedLocationsPage(title: title) != nil) == assertion.hit)
+    }
+
     if let assertion = entry.updateStatus {
       let now = try #require(UpdateMarker.date(fromTimestamp: assertion.at), "updateStatus.at: \(assertion.at)")
       let bundle = try DossierBundle.open(
@@ -198,7 +215,7 @@ struct ValidatorEntryPointTests {
     for code in Finding.Code.allCases {
       #expect(code.level == (code.rawValue.hasPrefix("E-") ? .error : .warning))
     }
-    #expect(Finding.Code.allCases.count == 31)
+    #expect(Finding.Code.allCases.count == 33)
     let warning = Finding(code: .role, message: "", path: nil)
     let error = Finding(code: .path, message: "", path: nil)
     #expect(ValidationReport(findings: [], completeness: []).exitStatus == 0)

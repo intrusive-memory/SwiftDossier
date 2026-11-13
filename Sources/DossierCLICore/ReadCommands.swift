@@ -67,6 +67,9 @@ struct ValidateCommand: DossierSubcommand {
       dossier validate --cast CAST.md       every member's bundle, the pointers and orphans
       dossier validate <bundle> --cast CAST.md   the findings for that bundle, from the project
 
+      With --cast, the project's locations are included: PROJECT.md beside CAST.md names the \
+      locations index, and a location bundle is reported on as its entry sees it.
+
       A page is compared with the template this tool carries: another template, older or \
       newer, is W-STALE.
 
@@ -160,6 +163,31 @@ struct ValidateCommand: DossierSubcommand {
     guard let cast = try? Cast.load(castURL) else {
       // The project run reports the unreadable CAST.md as E-CAST.
       return (try DossierBundle.validate(cast: castURL, template: template), [])
+    }
+    // §16.1: a location bundle is reached from the locations index PROJECT.md names, not from a
+    // member, so its findings are the project run's about it, with paths relative to the bundle.
+    if let opened = try? DossierBundle.open(at: bundle), opened.isLocation {
+      let project = try DossierBundle.validate(cast: castURL, template: template)
+      let base = cast.directory.standardizedFileURL.path
+      let full = bundle.standardizedFileURL.path
+      guard full.hasPrefix(base + "/") else { return (try DossierBundle.validate(at: bundle, template: template), []) }
+      let relative = String(full.dropFirst(base.count + 1))
+      let findings = project.findings.compactMap { finding -> Finding? in
+        guard let path = finding.path else { return nil }
+        if path == relative { return Finding(code: finding.code, message: finding.message, path: nil) }
+        guard path.hasPrefix(relative + "/") else { return nil }
+        return Finding(code: finding.code, message: finding.message, path: String(path.dropFirst(relative.count + 1)))
+      }
+      // §16.7: a location bundle no entry points at is still reported on, alone.
+      let index = DossierProject(directory: cast.directory).discoverLocations().index
+      let isListed = index?.entries.contains { entry in
+        index?.manifestURL(of: entry)?.deletingLastPathComponent().standardizedFileURL.path == full
+      } ?? false
+      if !isListed {
+        let alone = try DossierBundle.validate(at: bundle, template: template)
+        return (ValidationReport(findings: alone.findings + findings, completeness: []), [])
+      }
+      return (ValidationReport(findings: findings, completeness: []), [])
     }
     guard let member = castMember(pointingAt: bundle, in: cast) else {
       let alone = try DossierBundle.validate(at: bundle, template: template)

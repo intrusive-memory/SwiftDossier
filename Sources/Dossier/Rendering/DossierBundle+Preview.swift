@@ -83,7 +83,9 @@ extension DossierBundle {
   }
 
   func previewParts(template: PageTemplate) throws -> PreviewParts {
-    PreviewParts(template: template, key: try previewKey(template: template))
+    // §16.6: a viewer builds no preview of a location bundle; the LOCATIONS page shows it.
+    guard !isLocation else { throw DossierWriteError.kindNotWritable("dossier, in a location bundle (§16.6)") }
+    return PreviewParts(template: template, key: try previewKey(template: template))
   }
 
   func previewParts() throws -> PreviewParts {

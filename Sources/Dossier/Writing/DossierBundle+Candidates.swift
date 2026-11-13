@@ -82,7 +82,15 @@ extension DossierBundle {
     guard let first = parts.first else { return (nil, nil) }
     let kind = AssetKind(rawValue: first)
     switch kind {
-    case .view, .expression:
+    case .view, .expression, .plate:
+      // A variant can hold hyphens (`lamp-room`, `look-evening`): before a last part of 8 hex
+      // digits, everything between it and the kind is the variant.
+      if parts.count > 2, let last = parts.last, last.utf8.count == 8,
+        last.utf8.allSatisfy({ (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }),
+        parts.dropFirst().dropLast().allSatisfy({ !$0.isEmpty })
+      {
+        return (kind, parts.dropFirst().dropLast().joined(separator: "-"))
+      }
       return (kind, parts.count > 1 && !parts[1].isEmpty ? parts[1] : nil)
     case .portrait, .face, .crowdRef, .sourcePhoto, .training:
       return (kind, nil)

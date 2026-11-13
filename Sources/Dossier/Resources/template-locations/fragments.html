@@ -1,0 +1,26 @@
+<!-- fragment: project -->
+<p class="locations-project t-label">{{text}}</p>
+<!-- fragment: location -->
+<section class="location"{{id}} data-location="{{name}}" aria-label="{{heading}}"><p class="location-name t-monoSmall">{{name}}</p><h2 class="location-heading t-sectionTitle">{{heading}}</h2>{{content}}</section>
+<!-- fragment: id -->
+ id="{{id}}"
+<!-- fragment: description -->
+<div class="location-description field-value t-body">{{markup}}</div>
+<!-- fragment: mark -->
+<sup class="mark">{{number}}</sup>
+<!-- fragment: markSeparator -->
+<sup class="mark">, </sup>
+<!-- fragment: sources -->
+<h3 class="location-subheading t-label">Sources</h3><ol class="location-sources t-body">{{items}}</ol>
+<!-- fragment: sourceItem -->
+<li>{{text}}</li>
+<!-- fragment: missing -->
+<p class="location-missing t-viewMissing">{{text}}</p>
+<!-- fragment: plates -->
+<h3 class="location-subheading t-label">Plates</h3><div class="location-images location-plates">{{items}}</div>
+<!-- fragment: views -->
+<h3 class="location-subheading t-label">Views</h3><div class="location-images location-views">{{items}}</div>
+<!-- fragment: imageItem -->
+<figure class="image"><div class="image-frame">{{img}}</div><figcaption class="item-caption"><span class="t-captionLabel">{{label}}</span></figcaption></figure>
+<!-- fragment: img -->
+<img alt="{{label}}" src="{{src}}" width="{{width}}" height="{{height}}">

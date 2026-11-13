@@ -26,54 +26,36 @@ extension DossierBundle {
   }
 
   /// Reports on a whole project from its `CAST.md` (§3, §14): every member's bundle, the
-  /// members' pointers, and orphans. Nothing is changed.
+  /// members' pointers, and orphans; and the project's locations, as ``validate(project:template:)``
+  /// reports them, with `CAST.md`'s directory as the project directory. Nothing is changed.
   ///
   /// - Parameters:
   ///   - castURL: The `CAST.md` file.
   ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
   /// - Throws: Only when a resource bundled with this package can't be read.
   public static func validate(cast castURL: URL, template: PageTemplate? = nil) throws -> ValidationReport {
-    let cast: Cast
-    do {
-      cast = try Cast.load(castURL)
-    } catch {
-      let finding = Finding(code: .cast, message: error.localizedDescription, path: castURL.lastPathComponent)
-      return ValidationReport(findings: [finding], completeness: [])
-    }
+    var run = ProjectValidation(directory: castURL.deletingLastPathComponent(), castURL: castURL, template: template)
+    return try run.run()
+  }
 
-    let schemas = try SchemaEvaluator.bundledSchemas.get()
-    let manager = FileManager.default
-    var findings: [Finding] = []
-    var completeness: [ValidationReport.BundleCompleteness] = []
-    var scanned: [[String]] = [["characters"]]
-
-    for member in cast.members {
-      guard let pointer = member.pointer, let manifest = cast.manifestURL(of: member) else { continue }
-      findings += roleFindings(of: member)
-      let directory = manifest.deletingLastPathComponent()
-      let bundleSegments = Array(pointer.segments.dropLast())
-      guard pointer.namesManifest,
-        manager.fileExists(atPath: manifest.path) || manager.fileExists(atPath: directory.path)
-      else {
-        findings.append(
-          Finding(
-            code: .pointer, message: "\(member.character): manifest: leads to no manifest: \(pointer.raw)",
-            path: pointer.raw))
-        continue
-      }
-      scanned.append(Array(bundleSegments.dropLast()))
-      var run = BundleValidation(
-        url: directory, member: member, prefix: bundleSegments.joined(separator: "/") + "/",
-        template: template, schemas: schemas)
-      try run.run()
-      findings += run.findings
-      if let report = run.completeness {
-        completeness.append(.init(bundlePath: bundleSegments.joined(separator: "/"), report: report))
-      }
-    }
-
-    findings += orphanFindings(in: scanned, cast: cast)
-    return ValidationReport(findings: findings, completeness: completeness)
+  /// Reports on a whole project directory (§3, §14, §16.2): its `CAST.md`, when there is one, as
+  /// ``validate(cast:template:)`` does, and its locations, found from `PROJECT.md`'s `locations`
+  /// key: the index's entries, their bundles, pointers and orphans. Nothing is changed.
+  ///
+  /// With no `PROJECT.md`, or none naming an index, the project has no locations and nothing is
+  /// reported about them (§16.2 case 1). Character discovery never reads `PROJECT.md`, so no
+  /// character bundle's findings depend on it.
+  ///
+  /// - Parameters:
+  ///   - directory: The project directory: the one holding `CAST.md`, or, with no `CAST.md`, the
+  ///     one holding `PROJECT.md`.
+  ///   - template: The current template, usually ``DossierTemplate/current``. `nil` makes no template comparison (§11).
+  /// - Throws: Only when a resource bundled with this package can't be read.
+  public static func validate(project directory: URL, template: PageTemplate? = nil) throws -> ValidationReport {
+    let castURL = directory.appendingPathComponent("CAST.md")
+    let hasCast = FileManager.default.fileExists(atPath: castURL.path)
+    var run = ProjectValidation(directory: directory, castURL: hasCast ? castURL : nil, template: template)
+    return try run.run()
   }
 
   private static func validate(
@@ -101,24 +83,193 @@ extension DossierBundle {
     return run.findings
   }
 
-  private static func roleFindings(of member: Cast.Member) -> [Finding] {
+  fileprivate static func roleFindings(of member: Cast.Member) -> [Finding] {
     guard member.pointer != nil, member.fields.role == nil else { return [] }
     return [Finding(code: .role, message: "\(member.character) has a manifest: and no role", path: nil)]
   }
+}
 
-  /// §3: the only directory listing the format uses. `characters/` beside `CAST.md`, and each
-  /// directory holding a bundle a member points at, not recursively.
-  private static func orphanFindings(in directories: [[String]], cast: Cast) -> [Finding] {
+/// A project's checks (§3, §14, §16.2): `CAST.md`'s members, the locations index's entries, the
+/// bundles they point at, and orphans. Reads the disk, and writes nothing.
+private struct ProjectValidation {
+  let directory: URL
+  let castURL: URL?
+  let template: PageTemplate?
+
+  private var findings: [Finding] = []
+  private var completeness: [ValidationReport.BundleCompleteness] = []
+  /// The directories §3 and §16.2 list for orphans, relative to the project directory.
+  private var scanned: [[String]] = []
+  /// Every bundle an entry of either index points at, relative to the project directory, as NFC
+  /// bytes. A `.dossier` directory is an orphan only when none does (§3).
+  private var pointedAt: Set<[UInt8]> = []
+
+  init(directory: URL, castURL: URL?, template: PageTemplate?) {
+    self.directory = directory
+    self.castURL = castURL
+    self.template = template
+  }
+
+  private static func key(_ segments: [String]) -> [UInt8] {
+    Array(segments.joined(separator: "/").precomposedStringWithCanonicalMapping.utf8)
+  }
+
+  /// What a bundle's manifest says it is, when it can be read; `nil` leaves the bundle to its own
+  /// checks (`E-MANIFEST`, `E-VERSION`).
+  private static func readType(at directory: URL) -> (type: DossierType, version: Int)? {
+    guard let data = try? Data(contentsOf: directory.appendingPathComponent("manifest.json")),
+      let manifest = try? Manifest(data: data)
+    else { return nil }
+    return (manifest.dossierType, manifest.manifestVersion)
+  }
+
+  mutating func run() throws -> ValidationReport {
+    let schemas = try SchemaEvaluator.bundledSchemas.get()
+    if let castURL { try checkCast(castURL, schemas: schemas) }
+    try checkLocations(schemas: schemas)
+    findings += orphanFindings()
+    return ValidationReport(findings: findings, completeness: completeness)
+  }
+
+  /// §3: `CAST.md`'s members.
+  private mutating func checkCast(_ castURL: URL, schemas: SchemaEvaluator) throws {
+    let cast: Cast
+    do {
+      cast = try Cast.load(castURL)
+    } catch {
+      findings.append(Finding(code: .cast, message: error.localizedDescription, path: castURL.lastPathComponent))
+      return
+    }
+    scanned.append(["characters"])
+    for member in cast.members {
+      guard let pointer = member.pointer, pointer.namesManifest else { continue }
+      pointedAt.insert(Self.key(Array(pointer.segments.dropLast())))
+    }
+    for member in cast.members {
+      guard let pointer = member.pointer, let manifest = cast.manifestURL(of: member) else { continue }
+      findings += DossierBundle.roleFindings(of: member)
+      let bundle = manifest.deletingLastPathComponent()
+      let bundleSegments = Array(pointer.segments.dropLast())
+      guard Self.leadsToManifest(pointer, manifest) else {
+        findings.append(
+          Finding(
+            code: .pointer, message: "\(member.character): manifest: leads to no manifest: \(pointer.raw)",
+            path: pointer.raw))
+        continue
+      }
+      scanned.append(Array(bundleSegments.dropLast()))
+      // §16.1: the two indexes don't cross.
+      if Self.readType(at: bundle)?.type == .location {
+        findings.append(
+          Finding(
+            code: .typeMismatch, message: "\(member.character): a CAST.md member points at a location bundle",
+            path: bundleSegments.joined(separator: "/")))
+        continue
+      }
+      var run = BundleValidation(
+        url: bundle, member: member, prefix: bundleSegments.joined(separator: "/") + "/",
+        template: template, schemas: schemas)
+      try run.run()
+      findings += run.findings
+      if let report = run.completeness {
+        completeness.append(.init(bundlePath: bundleSegments.joined(separator: "/"), report: report))
+      }
+    }
+  }
+
+  /// §3: a pointer reaches a manifest, or at least its directory, which is then `E-MANIFEST`.
+  private static func leadsToManifest(_ pointer: ManifestPointer, _ manifest: URL) -> Bool {
+    let manager = FileManager.default
+    return pointer.namesManifest
+      && (manager.fileExists(atPath: manifest.path)
+        || manager.fileExists(atPath: manifest.deletingLastPathComponent().path))
+  }
+
+  /// §16.2: `PROJECT.md`, the index it names, and the entries' bundles.
+  private mutating func checkLocations(schemas: SchemaEvaluator) throws {
+    let project = DossierProject(directory: directory)
+    let index: LocationsIndex
+    switch project.discoverLocations() {
+    case .none:
+      return
+    case .projectUnreadable(let error):
+      findings.append(Finding(code: .cast, message: error.localizedDescription, path: DossierProject.projectFileName))
+      return
+    case .indexMissing(let path):
+      findings.append(
+        Finding(code: .pointer, message: "PROJECT.md's locations reaches no file: \(path)", path: path))
+      return
+    case .indexUnreadable(let url, let error):
+      findings.append(Finding(code: .cast, message: error.localizedDescription, path: relativePath(of: url)))
+      return
+    case .index(let found):
+      index = found
+    }
+
+    // The index's directory, relative to the project directory; a valid index path never leaves it.
+    let indexSegments = Array(ManifestPointer(relativePath(of: index.url)).segments.dropLast())
+    func projectSegments(_ pointer: ManifestPointer) -> [String] {
+      ManifestPointer((indexSegments + pointer.segments).joined(separator: "/")).segments
+    }
+    scanned.append(indexSegments + ["locations"])
+    for entry in index.entries {
+      guard let pointer = entry.pointer, pointer.namesManifest else { continue }
+      pointedAt.insert(Self.key(Array(projectSegments(pointer).dropLast())))
+    }
+    for entry in index.entries {
+      if (try? CanonicalName.canonicalize(entry.location)) == nil {
+        findings.append(Finding(code: .name, message: "The entry's location is invalid: \(entry.location)", path: nil))
+      }
+      guard let pointer = entry.pointer, let manifest = index.manifestURL(of: entry) else { continue }
+      let bundle = manifest.deletingLastPathComponent()
+      let bundleSegments = Array(projectSegments(pointer).dropLast())
+      guard Self.leadsToManifest(pointer, manifest) else {
+        findings.append(
+          Finding(
+            code: .pointer, message: "\(entry.location): manifest: leads to no manifest: \(pointer.raw)",
+            path: (indexSegments + [pointer.raw]).joined(separator: "/")))
+        continue
+      }
+      scanned.append(Array(bundleSegments.dropLast()))
+      // §16.1. A version 1 manifest has no `dossierType`; it's `W-V1`, as from a member (§16.2).
+      if let read = Self.readType(at: bundle), read.version == 2, read.type != .location {
+        findings.append(
+          Finding(
+            code: .typeMismatch, message: "\(entry.location): a LOCATIONS.md entry points at a character bundle",
+            path: bundleSegments.joined(separator: "/")))
+        continue
+      }
+      var run = BundleValidation(
+        url: bundle, member: nil, prefix: bundleSegments.joined(separator: "/") + "/",
+        template: template, schemas: schemas, indexName: entry.location)
+      try run.run()
+      findings += run.findings
+    }
+  }
+
+  /// A file's path relative to the project directory, or its full path when it's outside.
+  private func relativePath(of url: URL) -> String {
+    let base = directory.standardizedFileURL.path
+    let path = url.standardizedFileURL.path
+    guard path.hasPrefix(base + "/") else { return path }
+    return String(path.dropFirst(base.count + 1))
+  }
+
+  /// §3, §16.2: the only directory listings the format uses. `characters/` beside `CAST.md`, each
+  /// directory holding a bundle a member points at, and, once the locations index has been read,
+  /// `locations/` beside it and each directory holding a bundle an entry points at. Not
+  /// recursively.
+  private func orphanFindings() -> [Finding] {
     var findings: [Finding] = []
     var seen: Set<[UInt8]> = []
-    for segments in directories {
+    for segments in scanned {
       let relative = segments.joined(separator: "/")
       guard seen.insert(Array(relative.precomposedStringWithCanonicalMapping.utf8)).inserted else { continue }
-      let directory = segments.reduce(cast.directory) { $0.appendingPathComponent($1) }
+      let listed = segments.reduce(directory) { $0.appendingPathComponent($1) }
       let keys: [URLResourceKey] = [.isDirectoryKey, .isSymbolicLinkKey]
       guard
         let entries = try? FileManager.default.contentsOfDirectory(
-          at: directory, includingPropertiesForKeys: keys)
+          at: listed, includingPropertiesForKeys: keys)
       else { continue }
       let names = entries.filter { entry in
         let values = try? entry.resourceValues(forKeys: Set(keys))
@@ -127,9 +278,8 @@ extension DossierBundle {
       }.map(\.lastPathComponent).sorted { $0.utf8.lexicographicallyPrecedes($1.utf8) }
       for name in names {
         let bundle = relative.isEmpty ? name : relative + "/" + name
-        let isPointedAt = cast.members.contains { $0.pointer?.points(at: bundle + "/manifest.json") ?? false }
-        if !isPointedAt {
-          findings.append(Finding(code: .orphan, message: "No CAST.md member points at \(bundle)", path: bundle))
+        if !pointedAt.contains(Self.key(ManifestPointer(bundle).segments)) {
+          findings.append(Finding(code: .orphan, message: "No index entry points at \(bundle)", path: bundle))
         }
       }
     }
@@ -160,10 +310,12 @@ private struct BundleValidation {
   private let described: Manifest?
   /// Paths to treat as absent.
   private let excluding: [String]
+  /// The `LOCATIONS.md` entry's `location`, when the bundle was reached from the index (§16.1).
+  private let indexName: String?
 
   init(
     url: URL, member: Cast.Member?, prefix: String, template: PageTemplate?, schemas: SchemaEvaluator,
-    described: Manifest? = nil, excluding: [String] = []
+    described: Manifest? = nil, excluding: [String] = [], indexName: String? = nil
   ) {
     self.url = url
     self.member = member
@@ -172,6 +324,7 @@ private struct BundleValidation {
     self.schemas = schemas
     self.described = described
     self.excluding = excluding
+    self.indexName = indexName
   }
 
   private mutating func add(_ code: Finding.Code, _ message: String, path: String? = nil) {
@@ -198,6 +351,7 @@ private struct BundleValidation {
     checkShapes(manifest, inventory)
     checkFootnotes(bundle)
     checkVoice(bundle)
+    checkDisplayName(bundle)
     // Appendix A: staleness, completeness and what differs on the page are version 2's.
     if !isV1 {
       try checkVariants(manifest)
@@ -253,11 +407,15 @@ private struct BundleValidation {
     if let member, normal(member.character) != reference {
       add(.nameMismatch, "The member is \(member.character) and the bundle is \(written ?? directoryName)")
     }
-    // §9.1: a `CHARACTER.md` with no front-matter `character` has nothing to compare.
-    if let described = bundle.description?.frontMatterText("character"), normal(described) != reference {
+    if let indexName, normal(indexName) != reference {
+      add(.nameMismatch, "The LOCATIONS.md entry is \(indexName) and the bundle is \(written ?? directoryName)")
+    }
+    // §9.1, §16.3: a description with no front-matter `character` (`location`) has nothing to compare.
+    let key = bundle.isLocation ? "location" : "character"
+    if let described = bundle.description?.frontMatterText(key), normal(described) != reference {
       add(
-        .nameMismatch, "CHARACTER.md says \(described) and the bundle is \(written ?? directoryName)",
-        path: "CHARACTER.md")
+        .nameMismatch, "\(bundle.descriptionPath) says \(described) and the bundle is \(written ?? directoryName)",
+        path: bundle.descriptionPath)
     }
   }
 
@@ -337,7 +495,8 @@ private struct BundleValidation {
     }
   }
 
-  /// `W-VARIANT`, against the variants `tiers.json` lists.
+  /// `W-VARIANT`, against the variants `tiers.json` lists and, for a view, its families (§8.1,
+  /// DF-85). A plate has no standard set (§16.4).
   private mutating func checkVariants(_ manifest: Manifest) throws {
     for kind in [AssetKind.view, .expression] {
       guard let standard = try kind.standardVariants() else {
@@ -347,7 +506,9 @@ private struct BundleValidation {
         guard let variant = asset.variant, !standard.contains(where: { $0.hasSameBytes(as: variant) }) else {
           continue
         }
-        add(.variant, "The \(kind.rawValue) variant \(variant) is outside the standard set", path: asset.path)
+        if kind == .view, ViewVariant.isInFamily(variant) { continue }
+        let outside = kind == .view ? "the standard set and its families" : "the standard set"
+        add(.variant, "The \(kind.rawValue) variant \(variant) is outside \(outside)", path: asset.path)
       }
     }
   }
@@ -367,9 +528,13 @@ private struct BundleValidation {
     }
   }
 
-  /// §8.1. A missing file is only `E-FILE-MISSING`, so it isn't read here.
+  /// §8.1. A missing file is only `E-FILE-MISSING`, so it isn't read here. An imported face, view,
+  /// expression or plate isn't checked (DF-86); an imported portrait is.
   private mutating func checkShapes(_ manifest: Manifest, _ inventory: BundleInventory) {
-    for asset in manifest.assets where asset.status == .selected {
+    // §16.4: a view in a location bundle is always imported (`E-SCHEMA` otherwise), so never W-SHAPE.
+    let isLocation = manifest.dossierType == .location
+    for asset in manifest.assets where asset.status == .selected && !asset.isImported {
+      if isLocation, asset.kind == .view { continue }
       guard let target = ImageShape.target(of: asset.kind), BundlePath.isValid(asset.path),
         let file = inventory.file(at: asset.path)
       else { continue }
@@ -385,12 +550,22 @@ private struct BundleValidation {
     }
   }
 
-  /// §9.3.
+  /// §9.3, and §16.3 for `LOCATION.md`.
   private mutating func checkFootnotes(_ bundle: DossierBundle) {
     guard let body = bundle.description?.body else { return }
     let result = Footnotes.check(body: body)
-    for label in result.undefined { add(.footnote, "[^\(label)] has no definition", path: "CHARACTER.md") }
-    for label in result.unused { add(.footnote, "[^\(label)] is never referenced", path: "CHARACTER.md") }
+    let path = bundle.descriptionPath
+    for label in result.undefined { add(.footnote, "[^\(label)] has no definition", path: path) }
+    for label in result.unused { add(.footnote, "[^\(label)] is never referenced", path: path) }
+  }
+
+  /// §5.1, DF-88: the member's `displayName` wins, and the manifest's is a copy. Only when both are
+  /// present can they differ. A location has none (§16.3).
+  private mutating func checkDisplayName(_ bundle: DossierBundle) {
+    guard !bundle.isLocation, let member, let wins = member.displayName, let copy = bundle.manifest.displayName,
+      !wins.hasSameBytes(as: copy)
+    else { return }
+    add(.displayName, "The manifest's displayName is \(copy); the member's is \(wins)", path: "manifest.json")
   }
 
   /// §8.2. The member is read in §7's normal form, so a legacy `voiceDescription`, a single
@@ -456,6 +631,26 @@ private struct BundleValidation {
     guard let completeness else { return }
     for row in completeness.missingRequired {
       add(.incomplete, "Missing the required row \(row) for \(completeness.tier.rawValue)", path: nil)
+    }
+  }
+}
+
+/// §8.1's view families (DF-85): `storyboard`, `storyboard-<slug>` and `look-<slug>`.
+enum ViewVariant {
+  /// Whether a variant is in a family. `look` alone isn't.
+  static func isInFamily(_ variant: String) -> Bool {
+    if variant == "storyboard" { return true }
+    for family in ["storyboard-", "look-"] where variant.hasPrefix(family) {
+      return isSlug(String(variant.dropFirst(family.count)))
+    }
+    return false
+  }
+
+  /// A slug: lowercase ASCII letters and digits in runs joined by single hyphens (§8.1).
+  static func isSlug(_ text: String) -> Bool {
+    let runs = text.utf8.split(separator: UInt8(ascii: "-"), omittingEmptySubsequences: false)
+    return runs.allSatisfy { run in
+      !run.isEmpty && run.allSatisfy { (0x61...0x7A).contains($0) || (0x30...0x39).contains($0) }
     }
   }
 }
