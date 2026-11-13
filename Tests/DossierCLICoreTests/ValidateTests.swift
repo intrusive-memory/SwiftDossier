@@ -149,4 +149,20 @@ struct ValidateTests {
   func needsSomething() {
     #expect(dossier(["validate"]).status == 64)
   }
+
+  @Test("a location bundle with --cast is reported on as its LOCATIONS.md entry sees it (§16.1)")
+  func locationBundleFromProject() throws {
+    func codes(_ project: String, _ bundle: String) throws -> [String] {
+      let root = FixturePaths.root.appendingPathComponent(project)
+      let ran = dossier([
+        "validate", root.appendingPathComponent(bundle).path, "--cast", root.appendingPathComponent("CAST.md").path,
+        "--json",
+      ])
+      return try self.codes(ran)
+    }
+    #expect(try codes("valid/location", "locations/HARBOR-LIGHT.dossier") == [])
+    #expect(try codes("warnings/W-ORPHAN-location", "locations/HARBOR-LIGHT.dossier") == [])
+    #expect(try codes("warnings/W-ORPHAN-location", "locations/DRY-DOCK.dossier") == ["W-ORPHAN"])
+    #expect(try codes("errors/E-NAME-MISMATCH-location", "locations/HARBOR-LIGHT.dossier") == ["E-NAME-MISMATCH"])
+  }
 }
