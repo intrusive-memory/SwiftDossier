@@ -335,7 +335,7 @@ struct PageMarkdown {
     return String(decoding: out, as: UTF8.self)
   }
 
-  private func append(_ text: String, to tokens: inout [Int32]) {
+  func append(_ text: String, to tokens: inout [Int32]) {
     var escaped: [UInt8] = []
     for byte in text.utf8 { PageText.appendEscaped(byte, to: &escaped) }
     tokens.append(contentsOf: escaped.map(Int32.init))
@@ -343,7 +343,7 @@ struct PageMarkdown {
 
   /// Pairs of a run of `*`, nearest first, with at least one token between. A pair may span a line
   /// break in its block (rule 3).
-  private static func applying(delimiter length: Int, opening: String, closing: String, to tokens: [Int32]) -> [Int32] {
+  static func applying(delimiter length: Int, opening: String, closing: String, to tokens: [Int32]) -> [Int32] {
     let star: Int32 = 0x2A
     func isDelimiter(at index: Int) -> Bool {
       index + length <= tokens.count && tokens[index..<(index + length)].allSatisfy { $0 == star }
