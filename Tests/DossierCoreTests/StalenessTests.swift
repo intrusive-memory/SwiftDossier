@@ -35,7 +35,7 @@ struct StalenessTests {
       }
       measured += 1
     }
-    #expect(SpecTree.isOverridden ? staleCount >= 12 : staleCount == 12)
+    if SpecTree.isOverridden { #expect(staleCount >= 14) } else { #expect(staleCount == 14) }
     #expect(measured >= 80)
   }
 

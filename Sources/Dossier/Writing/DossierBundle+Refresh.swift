@@ -357,14 +357,13 @@ private struct AdoptionPlan {
   }
 }
 
-/// §4's `images/<kind>[-<variant>]-<sha8>.png`.
+/// §4's `images/<kind>[-<variant>]-<sha8>.png`, or `.jpg` for an imported JPEG (DF-87).
 enum ContentName {
   /// The `<sha8>` of a path of that form, or `nil` for any other path: a plain name, a kind §8 doesn't
   /// have, or a last part that isn't 8 lowercase hex digits.
   static func sha8(ofPath path: String) -> String? {
     let prefix = "images/"
-    let suffix = ".png"
-    guard path.hasPrefix(prefix), path.hasSuffix(suffix) else { return nil }
+    guard path.hasPrefix(prefix), let suffix = [".png", ".jpg"].first(where: { path.hasSuffix($0) }) else { return nil }
     let name = path.dropFirst(prefix.count).dropLast(suffix.count)
     guard !name.contains("/") else { return nil }
     let parts = name.split(separator: "-", omittingEmptySubsequences: false)

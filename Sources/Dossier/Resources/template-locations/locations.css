@@ -1,0 +1,23 @@
+/* The LOCATIONS page (DOSSIER-FORMAT §16.6). Written by hand. It uses only the custom properties and classes of template/dossier.css, which the page carries before it, so it follows data/tokens.json, the dark mode and the print rule. */
+.locations-header{padding:var(--layout-headerPadding);border-bottom:var(--border-hairline) solid var(--tabs-divider)}
+.locations-header>*{margin:0}
+.locations-header h1{margin:var(--space-4) 0}
+.location{padding:var(--shared-bodyPaddingTop) var(--layout-sidePadding) var(--shared-bodyPaddingBottom)}
+.location+.location{border-top:var(--border-hairline) solid var(--tabs-divider)}
+.location-name{margin:0;overflow-wrap:anywhere}
+.location-heading{margin:var(--space-2) 0 var(--shared-bodyGap)}
+.location-missing{margin:0}
+.location-subheading{margin:var(--shared-bodyGap) 0 var(--space-8)}
+.location-images{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:var(--shared-imageGridGap)}
+.location .image-frame{aspect-ratio:16 / 9}
+.location-views .image-frame img{object-fit:contain}
+.location-description{max-width:72ch}
+.location-description table{border-collapse:collapse;margin-top:var(--space-6)}
+.location-description th,.location-description td{border:var(--border-hairline) solid var(--tabs-divider);padding:var(--space-4) var(--space-8);text-align:left;vertical-align:top}
+.location-description th{font-weight:600}
+.location-description code{font-family:var(--font-mono);font-size:0.92em}
+.location-sources{margin:0;padding-left:var(--space-18)}
+.location-description p+table,.location-description ul+table,.location-description h4+table,.location-description table+p,.location-description table+ul,.location-description table+h4{margin-top:var(--space-6)}
+@media print{
+  .location{break-inside:avoid-page}
+}

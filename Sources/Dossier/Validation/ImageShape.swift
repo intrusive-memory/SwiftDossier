@@ -9,6 +9,7 @@ enum ImageShape {
     switch kind {
     case .portrait, .view: return (9, 16)
     case .face, .expression: return (1, 1)
+    case .plate: return (16, 9)
     default: return nil
     }
   }

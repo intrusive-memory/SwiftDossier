@@ -12,6 +12,7 @@ DOSSIER_RES=Sources/Dossier/Resources
 SCHEMAS=$DOSSIER_RES/schemas
 DATA=Sources/DossierCore/Resources
 TEMPLATE=$DOSSIER_RES/template
+LOCATIONS_TEMPLATE=$DOSSIER_RES/template-locations
 TOKENS=$DOSSIER_RES/data
 mkdir -p "$SCHEMAS" "$DATA" "$TOKENS"
 
@@ -30,6 +31,17 @@ rm -rf "$TEMPLATE"
     cp "$SRC/template/$file" "$TEMPLATE/$file"
   done
 
+# The LOCATIONS page template (§16.6): the files template-locations/README.md rule 1 hashes
+# that live under template-locations/, plus VERSION.json. Not README.md, not example/, not any
+# path with a segment beginning with a dot. The two files it shares with template/
+# (dossier.css, fonts.css) are already above.
+rm -rf "$LOCATIONS_TEMPLATE"
+(cd "$SRC/template-locations" && find . -type f ! -path './README.md' ! -path './example/*' ! -path '*/.*') |
+  while IFS= read -r file; do
+    mkdir -p "$LOCATIONS_TEMPLATE/$(dirname "$file")"
+    cp "$SRC/template-locations/$file" "$LOCATIONS_TEMPLATE/$file"
+  done
+
 # Resources/PINNED.sha256 lists "<sha256>  <path relative to Resources/>" and
 # opens with a comment naming the ref.
 write_pins() {
@@ -40,6 +52,6 @@ write_pins() {
     (cd "$dir" && shasum -a 256 "$@")
   } > "$dir/PINNED.sha256"
 }
-write_pins "$DOSSIER_RES" $(cd "$DOSSIER_RES" && ls schemas/*.json && find template -type f | LC_ALL=C sort) data/tokens.json
+write_pins "$DOSSIER_RES" $(cd "$DOSSIER_RES" && ls schemas/*.json && find template -type f | LC_ALL=C sort && find template-locations -type f | LC_ALL=C sort) data/tokens.json
 write_pins "$DATA" tiers.json review.json fields.json
 echo "Pinned resources regenerated for $REF"

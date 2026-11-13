@@ -11,12 +11,12 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.5.0 implements dossier-format `v2.0.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.6.0 implements dossier-format `v2.1.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). From 2.1.0 it reads location bundles and their plates, finds a project's locations from `PROJECT.md`'s `locations` key, and builds the project's LOCATIONS page; see [docs/INTEGRATION.md](docs/INTEGRATION.md#11-locations). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 
 ```swift
-.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.5.0"))
+.package(url: "https://github.com/intrusive-memory/SwiftDossier.git", .upToNextMinor(from: "0.6.0"))
 ```
 
 | Product | Use |

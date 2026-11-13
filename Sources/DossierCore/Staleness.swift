@@ -43,7 +43,8 @@ extension DossierBundle {
   /// The inputs read from the member, `castMember` and `voice`, are compared only when the
   /// bundle was opened with its ``member``; without one neither is checked, and neither makes
   /// an asset stale (§7). An imported `face`, `view` or `expression` (``Asset/isImported``)
-  /// is never reported: neither its inputs nor its `artStyle` are compared (DF-77).
+  /// is never reported: neither its inputs nor its `artStyle` are compared (DF-77). Neither is a
+  /// `plate`, which isn't derived (§16.4).
   ///
   /// - Parameter template: The current template; `Dossier` bundles one as `DossierTemplate.current`.
   ///   `nil` makes no template comparison (§11).
@@ -51,7 +52,9 @@ extension DossierBundle {
     guard manifest.manifestVersion == 2 else { return [] }
     var findings: [StaleFinding] = []
     let currentArtStyle = artStyle
-    for asset in manifest.assets where asset.status == .selected && !asset.isImported {
+    // §16.4: a plate isn't derived and is never stale, and a location's views are always imported.
+    for asset in manifest.assets where asset.status == .selected && !asset.isImported && asset.kind != .plate {
+      if isLocation, asset.kind == .view { continue }
       for input in asset.derivedFrom {
         if input.role == "voice" {
           if let reason = staleVoice(input) { findings.append(StaleFinding(path: asset.path, reason: reason)) }

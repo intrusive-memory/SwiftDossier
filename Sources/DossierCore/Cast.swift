@@ -64,6 +64,9 @@ public struct Cast: Sendable {
     public var hash: String { Checksum.sha256(canonicalJSON) }
     /// The member's `character`, exactly as written.
     public var character: String { fields.character }
+    /// The member's `displayName` (§3, §5.1, DF-88): how people name the character in prose,
+    /// captions and prompts. It wins over the manifest's copy. `nil` when absent or not a string.
+    public var displayName: String? { normalForm.objectValue?["displayName"]?.stringValue }
     /// The member's `manifest:`. `nil` means no dossier, which is valid (§3).
     public var pointer: ManifestPointer? { fields.manifest.map(ManifestPointer.init) }
     /// The normal form's `voices[provider]` (§7): the voice IDs, or paths, the member names

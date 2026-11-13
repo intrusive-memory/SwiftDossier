@@ -24,7 +24,8 @@ public struct DossierBundle: Sendable {
   /// bundle doesn't hold it. With none, those comparisons are left out or unsatisfied.
   public let member: Cast.Member?
 
-  /// `CHARACTER.md`, as read when the bundle was opened.
+  /// `CHARACTER.md`, or `LOCATION.md` in a location bundle (§16.3), as read when the bundle was
+  /// opened.
   package let description: CharacterDocument?
 
   /// A bundle over a manifest already read. No check on the directory's name is made,
@@ -33,7 +34,7 @@ public struct DossierBundle: Sendable {
     self.url = url
     self.manifest = manifest
     self.member = member
-    let text = (try? Data(contentsOf: url.appendingPathComponent("CHARACTER.md")))
+    let text = (try? Data(contentsOf: url.appendingPathComponent(Self.descriptionPath(of: manifest.dossierType))))
       .map { String(decoding: $0, as: UTF8.self) }
     description = text.map(CharacterDocument.init(text:))
   }
@@ -110,6 +111,60 @@ public struct DossierBundle: Sendable {
       return asset.model?.hasSameBytes(as: model) ?? false
     }
     return sample.flatMap { fileURL(forPath: $0.path) }
+  }
+
+  /// Which kind of bundle this is (§16.1, DF-79), from the manifest's `dossierType`.
+  public var dossierType: DossierType { manifest.dossierType }
+
+  /// Whether this is a location bundle (§16).
+  public var isLocation: Bool { dossierType == .location }
+
+  /// The description's fixed path: `CHARACTER.md`, or `LOCATION.md` in a location bundle (§16.3).
+  public var descriptionPath: String { Self.descriptionPath(of: dossierType) }
+
+  /// The description's fixed path in a bundle of this type.
+  public static func descriptionPath(of type: DossierType) -> String {
+    type == .location ? "LOCATION.md" : "CHARACTER.md"
+  }
+
+  /// How people name the character (§5.1, DF-88): the member's `displayName`, which wins, or the
+  /// manifest's copy when the member has none or there is no member. `nil` for a location, which
+  /// has no display name (§16.3).
+  public var displayName: String? {
+    guard !isLocation else { return nil }
+    return member?.displayName ?? manifest.displayName
+  }
+
+  /// A location's plates (§16.4), in manifest order: every take of every view. A `nil` variant
+  /// matches any.
+  public func plates(variant: String? = nil) -> [Asset] { assets(kind: .plate, variant: variant) }
+
+  /// The selected plate for a view (§8.1's lookup), or `nil`.
+  public func selectedPlate(variant: String) -> Asset? { selectedAsset(kind: .plate, variant: variant) }
+
+  /// The selected plates, one per variant, in the LOCATIONS page's order (§16.6 step 3): the
+  /// order of the keys of `location.views` as `manifest.json` has them, then the remaining
+  /// variants in byte order. Where a variant has more than one selection (`E-MULTI-SELECTED`),
+  /// the first in manifest order is used.
+  public var selectedPlates: [Asset] {
+    var byVariant: [[UInt8]: Asset] = [:]
+    var variants: [String] = []
+    for asset in manifest.assets where asset.kind == .plate && asset.status == .selected {
+      guard let variant = asset.variant, byVariant[Array(variant.utf8)] == nil else { continue }
+      byVariant[Array(variant.utf8)] = asset
+      variants.append(variant)
+    }
+    var ordered: [Asset] = []
+    var placed: Set<[UInt8]> = []
+    for (variant, _) in manifest.location?.views ?? [] {
+      let key = Array(variant.utf8)
+      guard let plate = byVariant[key], placed.insert(key).inserted else { continue }
+      ordered.append(plate)
+    }
+    for variant in variants.sorted(by: { $0.precedesInByteOrder($1) }) where placed.insert(Array(variant.utf8)).inserted {
+      if let plate = byVariant[Array(variant.utf8)] { ordered.append(plate) }
+    }
+    return ordered
   }
 
   /// `prompts.identity` (§5.5).

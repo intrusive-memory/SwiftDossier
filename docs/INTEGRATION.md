@@ -70,6 +70,9 @@ Reading API at a glance:
 | `bundle.stale(template:)` | `[StaleFinding]`. Pass `try DossierTemplate.current` (from `Dossier`) to include the page template. |
 | `bundle.completeness()` / `completeness(tier:)` | `CompletenessReport?` |
 | `bundle.updateStatus(at:)` | `UpdateStatus`; `isUpdating` is true while another writer holds a marker (§5.7) |
+| `bundle.displayName` | How people name the character (§5.1): the member's `displayName`, else the manifest's copy; `nil` for a location |
+| `asset.storyboardLabel` | The phrase a storyboard tool sends with the image as a reference (§5.4) |
+| `bundle.dossierType`, `bundle.isLocation` | Character or location (§16.1); see section 11 |
 | `CanonicalName.canonicalize(_:)` / `isCanonical(_:)` | §2 names |
 
 `Asset`, `Manifest` and the other model types are read-only views over the manifest JSON.
@@ -127,6 +130,10 @@ for entry in report.completeness where !entry.report.isComplete {
 }
 // report.exitStatus: 0 clean, 1 warnings only, 2 errors
 ```
+
+`DossierBundle.validate(cast:)` also reports the project's locations, found from `PROJECT.md`
+beside `CAST.md` (section 11). `DossierBundle.validate(project:)` takes the project directory and
+works without a `CAST.md`.
 
 `Finding.Code` holds §14's stable codes (`E-FILE-HASH`, `W-STALE`, ...); match on the code,
 not the message. `template: nil` skips the template comparison. `E-FILE-HASH` and
@@ -466,4 +473,78 @@ Copies of a `DossierBundle` share no state: reopen to see another writer's chang
   writes its `.gitignore`.
 - **Write `CAST.md` through SwiftReparto.** SwiftDossier sets only a member's `role` and
   `manifest`, and only through Reparto.
-- **The format is 2.0.0.** This version pins dossier-format `v2.0.0`.
+- **The format is 2.1.0.** This version pins dossier-format `v2.1.0`.
+- **Don't write `.locations-page/` yourself, and don't commit it.** As with `.preview/`, the
+  library owns the store and writes its `.gitignore`.
+- **`PROJECT.md` belongs to SwiftProyecto.** SwiftDossier reads its `locations` and `title`
+  keys and writes neither.
+
+## 11. Locations
+
+A **location bundle** (§16) is a `.dossier` bundle whose manifest has `dossierType: "location"`.
+Its name is in the manifest's `character`, its description is `LOCATION.md`, and it holds
+**plates**: empty sets, one per camera setup, that a storyboard tool paints a scene's people
+onto. It has no member, no tier, no completeness and no page of its own.
+
+### Finding a project's locations
+
+Locations are found from `PROJECT.md`'s front-matter key `locations`, the path of the locations
+index (`LOCATIONS.md` by convention), and from nothing else.
+
+```swift
+import DossierCore
+
+let project = DossierProject(directory: projectURL)   // the directory holding CAST.md
+switch project.discoverLocations() {
+case .none: break                                       // no PROJECT.md, or no locations key
+case .projectUnreadable(let error), .indexUnreadable(_, let error): print(error)  // E-CAST
+case .indexMissing(let path): print("no index at", path)                          // W-POINTER
+case .index(let index):
+  for entry in index.entries {                          // index order
+    guard let bundle = try index.openBundle(for: entry), bundle.isLocation else { continue }
+    for plate in bundle.selectedPlates {                // location.views order, then byte order
+      print(entry.location, plate.variant ?? "", bundle.fileURL(forPath: plate.path) as Any)
+    }
+  }
+}
+```
+
+| API | Returns |
+|-----|---------|
+| `DossierProject.title` | `PROJECT.md`'s `title`, when it is a non-empty string |
+| `DossierProject.discoverLocations()` | `LocationsDiscovery`, §16.2's five outcomes; `.index` holds a `LocationsIndex` |
+| `LocationsIndex.entries` | Each `Entry`: `location` (the name), `pointer`, and the entry's other keys in `fields` |
+| `index.manifestURL(of:)`, `index.openBundle(for:)` | As `Cast`'s, relative to the index's directory |
+| `bundle.manifest.location` | The `LocationRecord`: `name`, `description`, `theme`, `views` (in manifest order) |
+| `bundle.plates(variant:)` | Every plate, takes included |
+| `bundle.selectedPlate(variant:)` | The selected plate for a view |
+| `bundle.selectedPlates` | One selected plate per variant, in the LOCATIONS page's order |
+
+A `CAST.md` member that points at a location bundle, or an entry that points at a character
+bundle, is `E-TYPE-MISMATCH`. Validation of a location bundle alone, with
+`DossierBundle.validate(at:)`, applies §16's rules from its `dossierType`.
+
+### The LOCATIONS page
+
+A project's locations share one synthesized page (§16.6), built on demand from the index and the
+bundles and cached in `.locations-page/<key>.html` beside the index. It works like the preview:
+
+```swift
+import Dossier
+
+if let result = try DossierProject(directory: projectURL).showLocationsPage() {
+  // Show result.pageURL, or result.html when it couldn't be stored (result.storeError).
+  // To show one location, scroll to LocationsIndex.sectionID(forLocation: entry.location).
+}
+```
+
+`showLocationsPage(title:)` on a `LocationsIndex` does the same with a title you pass;
+`storedLocationsPage(title:)` returns a hit without building; `rebuildLocationsPage(title:)`
+builds and stores even on a hit; `buildLocationsPage(title:)` builds without writing. While
+`index.isUpdatingABundle()` is true, show `LocationsPageStore(index:).anyStoredPage()` and build
+nothing (§16.6 step 1). Nothing is ever written in a bundle. `renderPage()` and the preview
+calls throw `DossierWriteError.kindNotWritable` for a location bundle, which has no page of its
+own.
+
+A host shows the page when the index or the `locations/` directory beside it is selected, and
+at the location's section when a location bundle is (§16.7). `DossierUI` doesn't do this yet.

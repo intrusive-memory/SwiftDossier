@@ -1,5 +1,59 @@
 import Foundation
 
+/// Which kind of bundle a manifest describes (§5.1, §16.1, DF-79).
+public enum DossierType: String, Sendable, Equatable, CaseIterable {
+  /// A character bundle: `dossierType` absent, `character`, or any value but `location`, which
+  /// is reserved and read as `character`.
+  case character
+  /// A location bundle (§16): a place, with its description and plates.
+  case location
+}
+
+/// A location bundle's `location` record (§16.3, DF-83), a view over its JSON. Every key is
+/// optional, and unknown keys stay in ``json``.
+public struct LocationRecord: Sendable, Equatable {
+  /// One camera setup's recipe, keyed in ``LocationRecord/views`` by the plate variant it names.
+  /// How a tool uses these is its own (§5.5).
+  public struct View: Sendable, Equatable {
+    /// The entry's JSON.
+    public let json: JSONObject
+
+    /// A view over existing JSON.
+    public init(json: JSONObject) { self.json = json }
+
+    /// The prompt the plate is made from.
+    public var prompt: String? { json["prompt"]?.stringValue }
+    /// What the view asks of a scene painted onto its plate.
+    public var rule: String? { json["rule"]?.stringValue }
+    /// The images the plate is painted from, in the tool's own notation.
+    public var refs: [String] { json["refs"]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+    /// `true` for an outdoor view.
+    public var exterior: Bool? { json["exterior"]?.boolValue }
+    /// Overrides ``LocationRecord/theme`` for this view.
+    public var theme: String? { json["theme"]?.stringValue }
+  }
+
+  /// The record's JSON.
+  public let json: JSONObject
+
+  /// A record over existing JSON.
+  public init(json: JSONObject) { self.json = json }
+
+  /// The location's name for people.
+  public var name: String? { json["name"]?.stringValue }
+  /// One line about the place.
+  public var description: String? { json["description"]?.stringValue }
+  /// The producing tool's name for the look the location shares with others.
+  public var theme: String? { json["theme"]?.stringValue }
+  /// The camera setups, in the order `manifest.json` has them (§16.6 step 3 relies on it), each
+  /// with the plate variant it names. Entries that aren't objects are left out.
+  public var views: [(variant: String, view: View)] {
+    json["views"]?.objectValue?.entries.compactMap { entry in
+      entry.value.objectValue.map { (entry.key, View(json: $0)) }
+    } ?? []
+  }
+}
+
 /// `manifest.json` (§5), version 1 or 2, as a view over its JSON.
 ///
 /// The JSON is the only storage, so unknown keys and values of an unexpected type
@@ -92,6 +146,24 @@ public struct Manifest: Sendable, Equatable {
     get { json["character"]?.stringValue ?? "" }
     set { json["character"] = .string(newValue) }
   }
+  /// Which kind of bundle this is (§16.1, DF-79): ``DossierType/location`` only when
+  /// `dossierType` is the string `location`. Nothing else, such as the directory, decides it.
+  public package(set) var dossierType: DossierType {
+    get { json["dossierType"]?.stringValue == "location" ? .location : .character }
+    set { json["dossierType"] = newValue == .location ? .string("location") : nil }
+  }
+  /// `dossierType` exactly as written, or `nil` when it's absent or not a string. A value other
+  /// than `character` or `location` is reserved, and ``dossierType`` reads it as a character.
+  public var dossierTypeText: String? { json["dossierType"]?.stringValue }
+  /// How people name the character in prose, captions and prompts (§5.1, DF-88). A copy of the
+  /// `CAST.md` member's `displayName`, which wins (``DossierBundle/displayName``). Display text,
+  /// never a key. Not defined for a location (§16.3).
+  public package(set) var displayName: String? {
+    get { json["displayName"]?.stringValue }
+    set { json["displayName"] = newValue.map(JSONValue.string) }
+  }
+  /// A location bundle's record (§16.3), or `nil` when there is none or it isn't an object.
+  public var location: LocationRecord? { json["location"]?.objectValue.map(LocationRecord.init(json:)) }
   /// A copy of the `CAST.md` role. `CAST.md` wins (§8.3).
   public package(set) var role: String? {
     get { json["role"]?.stringValue }

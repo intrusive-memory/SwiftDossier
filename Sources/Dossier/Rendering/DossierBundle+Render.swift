@@ -37,7 +37,9 @@ extension DossierBundle {
   /// ``renderPage()``, with what a test sets.
   @discardableResult
   mutating func renderPage(now: Date, writer: ManifestWriter) throws -> RenderedPage {
-    try withUpdate(label: "render the page") { bundle in
+    // §16.6: a location bundle has no page; its project's LOCATIONS page shows it.
+    guard !isLocation else { throw DossierWriteError.kindNotWritable("dossier, in a location bundle (§16.6)") }
+    return try withUpdate(label: "render the page") { bundle in
       try bundle.writePage(now: now, writer: writer)
     }
   }

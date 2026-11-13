@@ -1,0 +1,9 @@
+{
+  "$comment": "DOSSIER-FORMAT §16.6 (DF-97): the LOCATIONS page's image copies, in one place, as template/page-copies.json is for the dossier page (DF-43). A plate is scaled to cover 1280×720 and cropped at the centre. A view is scaled, up or down, to the largest size that fits inside 1280×720, keeping its shape.",
+  "format": "jpeg",
+  "quality": 80,
+  "sizes": {
+    "plate": { "width": 1280, "height": 720, "fit": "cover" },
+    "view": { "width": 1280, "height": 720, "fit": "inside" }
+  }
+}
