@@ -27,7 +27,7 @@ struct PinnedResourcesTests {
   }
 
   @Test func pinListIsNotEmpty() throws {
-    #expect(try Self.pins().count == 26)
+    #expect(try Self.pins().count == 32)
   }
 
   @Test func bundledCopiesMatchPinList() throws {

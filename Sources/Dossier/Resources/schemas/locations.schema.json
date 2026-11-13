@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://intrusive-memory.github.io/dossier-format/schemas/locations.schema.json",
+  "title": "LOCATIONS.md front matter",
+  "description": "docs/DOSSIER-FORMAT.md §16.2 (DF-80): the index of a project's location bundles. Other keys are allowed and are copies for people.",
+  "type": "object",
+  "required": [
+    "type",
+    "schemaVersion",
+    "locations"
+  ],
+  "properties": {
+    "type": {
+      "const": "locations"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "location"
+        ],
+        "properties": {
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[^/:.][^/:]*$"
+          },
+          "manifest": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

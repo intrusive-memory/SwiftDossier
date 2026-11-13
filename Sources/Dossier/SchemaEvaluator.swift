@@ -40,7 +40,8 @@ public enum SchemaError: Error, Equatable, Sendable, LocalizedError {
 /// A small JSON Schema evaluator for exactly the keywords the pinned schemas use (SD-13):
 /// `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`,
 /// `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`/`else`, `contains`,
-/// `$defs`, and `$ref`, either to another loaded schema or a `#/` pointer into its own.
+/// `not`, `propertyNames`, `dependentRequired`, `$defs`, and `$ref`, either to another loaded
+/// schema or a `#/` pointer into its own.
 /// `$id`, `$schema`, `title` and `description` are ignored.
 ///
 /// Loading fails on any other keyword, so a schema change that adds one can't pass silently.
@@ -49,7 +50,7 @@ public struct SchemaEvaluator: Sendable {
   private static let supported: Set<String> = [
     "type", "required", "properties", "additionalProperties", "items", "enum", "const",
     "pattern", "minimum", "minLength", "minItems", "allOf", "oneOf", "if", "then", "else", "contains",
-    "$ref", "$defs",
+    "not", "propertyNames", "dependentRequired", "$ref", "$defs",
   ]
   private static let typeNames: Set<String> = [
     "null", "boolean", "object", "array", "number", "integer", "string",
@@ -155,8 +156,12 @@ public struct SchemaEvaluator: Sendable {
             property.value, schema: schema,
             location: location + "/properties/" + property.key, known: known, patterns: &patterns)
         }
-      case "additionalProperties", "items", "if", "then", "else", "contains":
+      case "additionalProperties", "items", "if", "then", "else", "contains", "not", "propertyNames":
         try sub(value, keyword)
+      case "dependentRequired":
+        guard let dependencies = value.objectValue,
+          dependencies.entries.allSatisfy({ $0.value.arrayValue?.allSatisfy { $0.stringValue != nil } ?? false })
+        else { throw SchemaError.malformedSchema("\(schema.name) \(location): bad dependentRequired") }
       case "$defs":
         guard let definitions = value.objectValue else {
           throw SchemaError.malformedSchema("\(schema.name) \(location): bad $defs")
@@ -290,6 +295,9 @@ public struct SchemaEvaluator: Sendable {
       let count = subschemas.filter(passes).count
       if count != 1 { fail("oneOf", "matches \(count) alternatives, expected exactly 1") }
     }
+    if let excluded = object["not"], passes(excluded) {
+      fail("not", "matches a schema it must not")
+    }
     // `then` and `else` without an `if` have no effect.
     if let condition = object["if"] {
       if let branch = passes(condition) ? object["then"] : object["else"] {
@@ -334,6 +342,18 @@ public struct SchemaEvaluator: Sendable {
       if let required = object["required"]?.arrayValue {
         for case .string(let key) in required where members[key] == nil {
           fail("required", "missing \"\(key)\"")
+        }
+      }
+      if let dependencies = object["dependentRequired"]?.objectValue {
+        for dependency in dependencies.entries where members[dependency.key] != nil {
+          for case .string(let key) in dependency.value.arrayValue ?? [] where members[key] == nil {
+            fail("dependentRequired", "\"\(dependency.key)\" needs \"\(key)\"")
+          }
+        }
+      }
+      if let names = object["propertyNames"] {
+        for member in members.entries {
+          evaluate(.string(member.key), names, base: base, path: path + "/" + Self.escape(member.key), into: &violations)
         }
       }
       let properties = object["properties"]?.objectValue
@@ -451,6 +471,14 @@ private struct CompiledPattern: @unchecked Sendable {
         index += 1
         if next == "d" {
           out += inClass ? "0-9" : "[0-9]"
+        } else if next == "u" {
+          // `\uXXXX`: one code unit, which ICU reads the same way. A surrogate would be half a
+          // code point on ICU's code-point engine, so it's refused.
+          guard index + 4 <= characters.count,
+            let value = UInt32(String(characters[index..<(index + 4)]), radix: 16), !(0xD800...0xDFFF).contains(value)
+          else { throw refuse() }
+          out += "\\u" + String(characters[index..<(index + 4)])
+          index += 4
         } else if ".\\/-^$|()[]{}*+?".contains(next) {
           out += next == "/" ? "/" : "\\" + String(next)
         } else {
