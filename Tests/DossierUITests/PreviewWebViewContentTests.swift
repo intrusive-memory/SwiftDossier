@@ -49,4 +49,12 @@ struct PreviewWebViewContentTests {
   @Test func noSectionHasNoScript() {
     #expect(PreviewWebView.scrollScript(for: nil) == nil)
   }
+
+  @Test func aChangeToNoSectionScrollsToTheTop() {
+    #expect(PreviewWebView.sectionChangeScript(for: nil) == "window.scrollTo(0, 0)")
+    #expect(
+      PreviewWebView.sectionChangeScript(for: "location-0123abcd")
+        == PreviewWebView.scrollScript(for: "location-0123abcd"))
+    #expect(PreviewWebView.sectionChangeScript(for: "location-', alert(1), '") == nil)
+  }
 }

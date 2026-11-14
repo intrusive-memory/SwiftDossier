@@ -116,4 +116,25 @@ struct DossierCommands: Commands {
 
 **Security scope.** The view needs nothing the app doesn't already hold. The app's existing security scope on the project folder covers the reads and the writes to `.preview/` and `manifest.json`.
 
+## Locations
+
+`LocationsView` is a project's locations pane, for SwiftUI on macOS 26 and iOS 26: a header, the validator's findings for what is selected, and the project's LOCATIONS page in a web view. Pass the project folder (the one holding `PROJECT.md`) and the selected location bundle, or `nil` for the whole project.
+
+```swift
+import DossierUI
+
+LocationsView(projectDirectory: project, selectedBundleURL: nil)                 // the whole page, from the top
+LocationsView(projectDirectory: project, selectedBundleURL: harborLight)         // scrolled to that location
+LocationsView(projectDirectory: project, selectedBundleURL: bundle, refreshToken: n,
+              project: DossierProjectContext(title: "The Lighthouse Keepers"))   // change n to show the page again
+```
+
+The view reads the project when it appears. It shows the stored page when it is current, and otherwise builds the page off the main actor and stores it in `<index directory>/.locations-page/`. Selecting another location on the page only scrolls the page; nothing is built again. Changing `refreshToken` shows the page again, for example after `LOCATIONS.md` or an entry's `manifest.json` is saved.
+
+**The header.** The project's title, the selected bundle's path relative to the project as visible text, an update state while another writer holds a location bundle, and **Rebuild**, which builds and stores the page even when it is current. The header has no accessory: **Edit in Personaje** is for characters only.
+
+**In the page's place.** A bundle no entry of the index points at isn't one of the project's locations: the view shows its findings and says so, and builds no page. When `PROJECT.md` or the index can't be read, the view shows its `E-CAST` finding in the page's place. A progress view shows while the page is built for the first time. A page that couldn't be saved is shown from memory, with a note.
+
+**UI tests.** The identifiers are `locations.view`, `locations.header`, `locations.header.title`, `locations.header.path`, `locations.updating`, `locations.rebuild`, `locations.note.store`, `locations.findings`, `locations.page`, `locations.building`, `locations.orphan`, `locations.unreadable` and `locations.failed`. `locations.section` is a leaf element whose value is the section the page is scrolled to: the section's `id`, or `top` for the whole project.
+
 Part of the [intrusive-memory](https://github.com/intrusive-memory) ecosystem.

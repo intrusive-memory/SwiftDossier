@@ -64,6 +64,10 @@ public final class LocationsPaneModel {
   /// if there was one, stays.
   public private(set) var isBuilding = false
 
+  /// Whether the page showing is the store's last page because a bundle an entry points at is
+  /// being updated (§16.6 step 1). Nothing is built while it's `true`.
+  public private(set) var isUpdating = false
+
   /// Why the page showing couldn't be saved, in plain words, or `nil`. The page is shown from
   /// memory.
   public private(set) var storeNote: String?
@@ -168,6 +172,7 @@ public final class LocationsPaneModel {
 
     if index.isUpdatingABundle() {
       isBuilding = false
+      isUpdating = true
       result = nil
       pageHTML = nil
       storeNote = nil
@@ -268,6 +273,7 @@ public final class LocationsPaneModel {
   /// No page, no failure, and nothing selected on a page.
   private func clearPage() {
     isBuilding = false
+    isUpdating = false
     result = nil
     pageFile = nil
     pageHTML = nil
@@ -290,6 +296,10 @@ public final class LocationsPaneModel {
 
   /// A directory's standardized path, with no trailing `/`, to compare bundle URLs by.
   private static func key(of url: URL) -> String { url.standardizedFileURL.path }
+
+  /// The selected bundle's path relative to the project directory, e.g.
+  /// `locations/HARBOR-LIGHT.dossier`, or `nil` in project mode (LV-8).
+  var selectedBundlePath: String? { selectedBundleURL.map(relativePath(of:)) }
 
   /// A path relative to the project directory, as the validator writes it, or the full path when
   /// it's outside.
@@ -320,6 +330,7 @@ public final class LocationsPaneModel {
 
   private func take(_ result: LocationsPageResult) {
     isBuilding = false
+    isUpdating = false
     self.result = result
     failure = nil
     if result.storeError != nil, let html = result.html {

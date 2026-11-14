@@ -42,6 +42,7 @@ struct LocationsPaneModelTests {
     #expect(model.storeNote == nil)
     #expect(model.failure == nil)
     #expect(!model.isBuilding)
+    #expect(!model.isUpdating)
     #expect(try storeContents(root) == before)
   }
 
@@ -89,6 +90,7 @@ struct LocationsPaneModelTests {
     #expect(model.pageHTML == nil)
     #expect(model.result == nil)
     #expect(!model.isBuilding)
+    #expect(model.isUpdating)
     #expect(try storeContents(root) == before)
   }
 
