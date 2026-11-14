@@ -66,4 +66,10 @@ struct PreviewNavigationTests {
       PreviewNavigation.policy(for: URL(string: "https://example.com")!, page: blank)
         == .openExternally)
   }
+
+  @Test func aSectionFragmentOnTheLocationsPageIsAllowed() throws {
+    let locationsPage = URL(fileURLWithPath: "/tmp/project/.locations-page/abc.html")
+    let url = try #require(URL(string: locationsPage.absoluteString + "#location-0123abcd"))
+    #expect(PreviewNavigation.policy(for: url, page: locationsPage) == .allow)
+  }
 }

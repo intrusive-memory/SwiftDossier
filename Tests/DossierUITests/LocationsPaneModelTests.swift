@@ -255,4 +255,35 @@ struct LocationsPaneModelTests {
     #expect(model.section == nil)
     #expect(!model.isOrphan)
   }
+
+  @Test("A page file is shown as a stored page with read access to the store directory only")
+  func previewContentForAPageFile() async throws {
+    let root = try copy(of: "valid/locations-page-current")
+    defer { remove(root) }
+    let model = LocationsPaneModel(projectDirectory: root)
+    await model.show()
+    let page = try #require(model.pageFile)
+    let content = try #require(model.previewContent)
+    guard case .storedPage(let shown, let readAccess) = content else {
+      Issue.record("Expected .storedPage, got \(content)")
+      return
+    }
+    #expect(shown == page)
+    #expect(readAccess.standardizedFileURL.path == store(root).standardizedFileURL.path)
+  }
+
+  @Test("A page shown from memory is HTML content")
+  func previewContentForPageHTML() async throws {
+    let root = try copy(of: "valid/locations-page-out-of-date")
+    let storeDirectory = store(root)
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: storeDirectory.path)
+    defer {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: storeDirectory.path)
+      remove(root)
+    }
+    let model = LocationsPaneModel(projectDirectory: root)
+    await model.show()
+    let html = try #require(model.pageHTML)
+    #expect(model.previewContent == .html(html))
+  }
 }

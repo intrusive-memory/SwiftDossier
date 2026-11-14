@@ -5,12 +5,16 @@ import WebKit
 public enum PreviewContent: Equatable, Sendable {
   /// A stored page: `<bundle>/.preview/<key>.html`. Read access is `<bundle>/.preview/` only.
   case stored(page: URL, bundleURL: URL)
+  /// A stored page outside a bundle, such as the LOCATIONS page `<index directory>/.locations-page/<key>.html`
+  /// (§16.6). Read access is `readAccess` only: for the LOCATIONS page, `<index directory>/.locations-page/`.
+  case storedPage(page: URL, readAccess: URL)
   /// Built HTML held in memory (PV-23), loaded with no base URL (its own URL is `about:blank`).
   case html(String)
 
   var pageURL: URL {
     switch self {
     case .stored(let page, _): return page
+    case .storedPage(let page, _): return page
     case .html: return URL(string: "about:blank")!
     }
   }
@@ -23,11 +27,37 @@ let previewMessageHandlerName = "dossier"
 /// A thin `WKWebView` wrapper. Every navigation decision goes through ``PreviewNavigation``.
 public struct PreviewWebView {
   let content: PreviewContent
+  let section: String?
   let onMessage: ((String, Any) -> Void)?
 
-  public init(content: PreviewContent, onMessage: ((String, Any) -> Void)? = nil) {
+  /// - Parameters:
+  ///   - content: What to show.
+  ///   - section: The `id` of a LOCATIONS page section (§16.7) to scroll to once the page has
+  ///     loaded, or `nil` to leave the page where it is (at the top after a load). Changing only
+  ///     this scrolls; it never reloads. An id that isn't `location-` and eight lowercase hex
+  ///     digits is ignored.
+  ///   - onMessage: Called with each DF-51 message the page posts.
+  public init(
+    content: PreviewContent, section: String? = nil, onMessage: ((String, Any) -> Void)? = nil
+  ) {
     self.content = content
+    self.section = section
     self.onMessage = onMessage
+  }
+
+  /// The script that scrolls to `section`, or `nil` when there is none or it isn't a §16.7 section
+  /// id (`^location-[0-9a-f]{8}$`). Only a validated id is put into the script.
+  static func scrollScript(for section: String?) -> String? {
+    guard let section, isSectionID(section) else { return nil }
+    return "document.getElementById('\(section)')?.scrollIntoView()"
+  }
+
+  /// Whether `id` matches `^location-[0-9a-f]{8}$`.
+  static func isSectionID(_ id: String) -> Bool {
+    let prefix = "location-"
+    guard id.hasPrefix(prefix) else { return false }
+    let hex = id.utf8.dropFirst(prefix.utf8.count)
+    return hex.count == 8 && hex.allSatisfy { (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }
   }
 
   @MainActor
@@ -35,6 +65,10 @@ public struct PreviewWebView {
     var onMessage: ((String, Any) -> Void)?
     var pageURL: URL
     var loaded: PreviewContent?
+    /// The section to scroll to after the current load finishes, or now when no load is running.
+    var section: String?
+    /// Whether a load started by ``PreviewWebView/load(into:context:)`` hasn't finished yet.
+    var isLoading = false
 
     init(pageURL: URL, onMessage: ((String, Any) -> Void)?) {
       self.pageURL = pageURL
@@ -52,6 +86,30 @@ public struct PreviewWebView {
         Self.openExternally(url)
         return .cancel
       }
+    }
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+      isLoading = false
+      scroll(webView)
+    }
+
+    public func webView(
+      _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: any Error
+    ) {
+      isLoading = false
+    }
+
+    public func webView(
+      _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
+      withError error: any Error
+    ) {
+      isLoading = false
+    }
+
+    /// Scrolls to ``section`` when it is a valid section id; otherwise does nothing.
+    func scroll(_ webView: WKWebView) {
+      guard let script = PreviewWebView.scrollScript(for: section) else { return }
+      webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
     public func userContentController(
@@ -89,13 +147,22 @@ public struct PreviewWebView {
   func load(into webView: WKWebView, context: Context) {
     let coordinator = context.coordinator
     coordinator.onMessage = onMessage
-    guard coordinator.loaded != content else { return }
+    let sectionChanged = coordinator.section != section
+    coordinator.section = section
+    guard coordinator.loaded != content else {
+      // Same page: a new section scrolls now, or when the running load finishes. No reload.
+      if sectionChanged, !coordinator.isLoading { coordinator.scroll(webView) }
+      return
+    }
     coordinator.loaded = content
     coordinator.pageURL = content.pageURL
+    coordinator.isLoading = true
     switch content {
     case .stored(let page, let bundleURL):
       let previewDirectory = bundleURL.appendingPathComponent(".preview", isDirectory: true)
       webView.loadFileURL(page, allowingReadAccessTo: previewDirectory)
+    case .storedPage(let page, let readAccess):
+      webView.loadFileURL(page, allowingReadAccessTo: readAccess)
     case .html(let html):
       webView.loadHTMLString(html, baseURL: nil)
     }

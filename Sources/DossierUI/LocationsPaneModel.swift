@@ -46,6 +46,20 @@ public final class LocationsPaneModel {
   /// ``storeNote``. `nil` whenever ``pageFile`` is set.
   public private(set) var pageHTML: String?
 
+  /// What a ``PreviewWebView`` shows: ``pageFile`` as a stored page with read access to the store
+  /// directory `<index directory>/.locations-page/` only, or ``pageHTML`` from memory. `nil` when
+  /// there is nothing to show.
+  public var previewContent: PreviewContent? {
+    if let pageFile {
+      let readAccess = storeDirectory ?? pageFile.deletingLastPathComponent()
+      return .storedPage(page: pageFile, readAccess: readAccess)
+    }
+    return pageHTML.map(PreviewContent.html)
+  }
+
+  /// The store directory of the index the page showing came from, `<index directory>/.locations-page/`.
+  private var storeDirectory: URL?
+
   /// Whether a build or rebuild is running off the main actor. The page showing when it started,
   /// if there was one, stays.
   public private(set) var isBuilding = false
@@ -142,6 +156,7 @@ public final class LocationsPaneModel {
       return await updateFindings(.cast([relativePath(of: url)]))
     }
 
+    storeDirectory = LocationsPageStore(index: index).directory
     let sections = Self.sections(of: index)
     if let selected, sections[selected] == nil {
       return await showOrphan(selected)
@@ -197,6 +212,7 @@ public final class LocationsPaneModel {
     generation += 1
     let generation = self.generation
     guard let (index, title) = openIndex() else { return }
+    storeDirectory = LocationsPageStore(index: index).directory
     isBuilding = true
     buildCount += 1
     let outcome = await Self.run { try index.rebuildLocationsPage(title: title) }
