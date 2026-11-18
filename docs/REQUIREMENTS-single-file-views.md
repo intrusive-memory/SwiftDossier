@@ -8,7 +8,7 @@ updated: 2026-11-18
 
 A host app shows one Markdown file whose front matter says `type: character`, `type: location` or `type: locations`. It asks DossierUI for a preview of that file and, for the first two, an editor. It hands the views the document's text and keeps the file to itself: DossierUI never reads or writes the file it is showing. The host decides which one appears (Escribir: Plain Text, the editor, or Preview), and saves.
 
-This is the supplier half of Escribir's typed documents, Escribir `docs/REQUIREMENTS-typed-documents.md` (TD-0 to TD-23). It ships as SwiftDossier 0.8.0.
+This is the supplier half of Escribir's typed documents, Escribir `docs/REQUIREMENTS-typed-documents.md` (TD-0 to TD-23). The editors' first host is Personaje, which designs them (Personaje `docs/REQUIREMENTS-APP-UI.md` UD25, UD26), and Escribir is the second. It ships as SwiftDossier 0.8.0.
 
 This document is the requirements input for the mission supervisor's breakdown.
 
@@ -56,6 +56,11 @@ This document is the requirements input for the mission supervisor's breakdown.
 - **SFV-11.** `LocationsIndexPreview(text:context:)`. With a project folder, it shows the LOCATIONS page as `LocationsView` does, built from the **saved** index and the bundles beside it. The host passes a new refresh token after each save. Without a folder, it shows the index read from the text (SFV-7): each entry's `location`, `name`, and whether it points to a manifest. It also shows an accessory slot the host fills (Escribir: Open Project).
 - **SFV-12.** No editor for LOCATIONS.md in 0.8.0.
 
+### Hosts
+
+- **SFV-12a.** The editors work the same over a bundle's member file and over a loose file. Personaje binds `CharacterEditor` and `LocationEditor` to the text of a bundle's `CHARACTER.md` / `LOCATION.md` and saves through the bundle (`CharacterDescription.write(to:)` and the location equivalent). Escribir binds them to a loose file's text. Nothing in a view depends on which.
+- **SFV-12b.** Personaje's needs set the editors' layout and fields. Escribir takes them as they are. A change Escribir needs is made here, never in either app.
+
 ### Dependencies
 
 - **SFV-13.** No new package dependencies. DossierUI doesn't import any host package (ProjectBrowser, SwiftEscribo, Escribir).
@@ -73,6 +78,7 @@ This document is the requirements input for the mission supervisor's breakdown.
 - An editor for LOCATIONS.md.
 - Changing `DossierView`, `LocationsView` or the bundle format.
 
-## Open questions
+## Decisions
 
-- **OQ-1.** Does Personaje move to `CharacterEditor`, so that one editor serves both apps?
+- **D-1.** The editors are written here, with Personaje as their first host, not in Personaje's app target first and moved out later (Personaje UD25). *Decided 2026-11-18.*
+- **D-2.** Personaje edits locations as well as characters (Personaje UD26), so `LocationEditor` has a first host too. *Decided 2026-11-18.*
