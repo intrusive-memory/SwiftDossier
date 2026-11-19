@@ -107,6 +107,8 @@ let package = Package(
         "Dossier",
         .product(name: "SwiftReparto", package: "SwiftReparto"),
       ],
+      // Read from the source tree through `#filePath`.
+      exclude: ["Fixtures"],
       swiftSettings: [.enableUpcomingFeature("StrictConcurrency")]
     ),
     .testTarget(
