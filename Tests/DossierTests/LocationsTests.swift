@@ -399,4 +399,56 @@ struct LocationsTests {
         + "<p>after</p>")
     #expect(html.contains("<li>Stated. A note.</li>"))
   }
+
+  // MARK: The index read from text (SFV-7)
+
+  private static let fixtureIndex = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    .appendingPathComponent("Fixtures/locations-project/LOCATIONS.md")
+
+  @Test("SFV-7: the index's text and its file give equal entries")
+  func indexTextEqualsLoad() throws {
+    let text = try String(contentsOf: Self.fixtureIndex, encoding: .utf8)
+    let fromText = try LocationsIndex(text: text, url: Self.fixtureIndex)
+    let fromFile = try LocationsIndex.load(Self.fixtureIndex)
+    #expect(fromText.url == fromFile.url)
+    #expect(fromText.entries.map(\.location) == ["HARBOR-LIGHT", "THE OLD QUAY", "SALT-STORE"])
+    #expect(fromText.entries.map(\.location) == fromFile.entries.map(\.location))
+    #expect(fromText.entries.map(\.pointer?.raw) == fromFile.entries.map(\.pointer?.raw))
+    #expect(fromText.entries.map(\.fields) == fromFile.entries.map(\.fields))
+    #expect(fromText.entries[1].pointer == nil)
+    #expect(fromText.manifestURL(of: fromText.entries[0]) == fromFile.manifestURL(of: fromFile.entries[0]))
+  }
+
+  @Test(
+    "SFV-7: every malformed index refuses with one message, from text and from the file",
+    arguments: [
+      ("# Locations\n", "it has no front matter"),
+      ("---\nlocations: [unclosed\n---\n", "its front matter isn't YAML"),
+      ("---\n- just\n- a list\n---\n", "its front matter isn't a mapping"),
+      ("---\ntype: cast\nlocations: []\n---\n", "its type isn't locations"),
+      ("---\nlocations: []\n---\n", "its type isn't locations"),
+      ("---\ntype: locations\n---\n", "it has no locations list"),
+      ("---\ntype: locations\nlocations: nope\n---\n", "it has no locations list"),
+      ("---\ntype: locations\nlocations:\n- plain\n---\n", "entry 1 isn't a mapping"),
+      ("---\ntype: locations\nlocations:\n- location: A\n- name: x\n---\n", "entry 2 has no location"),
+      ("---\ntype: locations\nlocations:\n- location: A\n  manifest: [x]\n---\n", "A: manifest isn't a string"),
+    ])
+  func indexMalformed(text: String, detail: String) throws {
+    let expected = LocationsError.indexUnreadable(detail)
+    #expect(throws: expected) { try LocationsIndex(text: text, url: Self.fixtureIndex) }
+    let file = try RenderProject.temporaryRoot().appendingPathComponent("LOCATIONS.md")
+    try Data(text.utf8).write(to: file)
+    #expect(throws: expected) { try LocationsIndex.load(file) }
+  }
+
+  @Test("SFV-7: load keeps the read's two refusals")
+  func indexReadFaults() throws {
+    let root = try RenderProject.temporaryRoot()
+    #expect(throws: LocationsError.indexUnreadable("the file can't be read")) {
+      try LocationsIndex.load(root.appendingPathComponent("absent.md"))
+    }
+    let binary = root.appendingPathComponent("LOCATIONS.md")
+    try Data([0xFF, 0xFE, 0x00]).write(to: binary)
+    #expect(throws: LocationsError.indexUnreadable("it isn't UTF-8")) { try LocationsIndex.load(binary) }
+  }
 }

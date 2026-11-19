@@ -11,6 +11,8 @@ public enum DescriptionError: Error, Equatable, Sendable, LocalizedError {
   case frontMatterUnreadable(String)
   /// The front matter can't be edited by key without changing the text of other keys.
   case frontMatterNotEditable(String)
+  /// `LOCATION.md` was written to a bundle that isn't a location bundle (§16.1).
+  case notALocationBundle(String)
 
   /// A description of the failure, for people.
   public var errorDescription: String? {
@@ -19,6 +21,7 @@ public enum DescriptionError: Error, Equatable, Sendable, LocalizedError {
     case .notUTF8(let path): return "\(path) isn't UTF-8"
     case .frontMatterUnreadable(let detail): return "The front matter can't be read: \(detail)"
     case .frontMatterNotEditable(let detail): return "The front matter can't be edited by key: \(detail)"
+    case .notALocationBundle(let path): return "\(path) isn't a location bundle, so it can't hold LOCATION.md"
     }
   }
 }

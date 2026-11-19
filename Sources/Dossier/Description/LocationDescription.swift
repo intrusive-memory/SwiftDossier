@@ -98,4 +98,19 @@ public struct LocationDescription: Sendable {
   public mutating func setSection(named name: String, content: String) {
     body = SectionEditor.setting(name, to: content, in: body, order: nil)
   }
+
+  // MARK: Writing
+
+  /// Writes the text to `LOCATION.md` in a location bundle (SFV-4, D-5), as
+  /// ``CharacterDescription/write(to:)`` writes `CHARACTER.md`: atomically through a temporary
+  /// file, refusing zero bytes and a destination that isn't a regular file, and updating the
+  /// manifest's checksums and file list, which are held under the bundle's update marker.
+  ///
+  /// - Parameter bundle: A location bundle, which is updated to what was written.
+  /// - Throws: ``DescriptionError/notALocationBundle(_:)`` for a bundle of any other type, which
+  ///   is left untouched; ``DossierWriteError`` or ``DossierCore/DossierError`` otherwise.
+  public func write(to bundle: inout DossierBundle) throws {
+    guard bundle.isLocation else { throw DescriptionError.notALocationBundle(bundle.url.path) }
+    try DescriptionFile.write(text, as: Self.fileName, to: &bundle)
+  }
 }

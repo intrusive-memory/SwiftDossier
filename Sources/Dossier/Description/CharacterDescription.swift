@@ -239,62 +239,7 @@ public struct CharacterDescription: Sendable {
   /// - Parameter bundle: The bundle, which is updated to what was written.
   /// - Throws: ``DossierWriteError`` or ``DossierCore/DossierError``.
   public func write(to bundle: inout DossierBundle) throws {
-    let writer = ManifestWriter(bundle: bundle.url)
-    let current = try writer.currentManifest()
-
-    let manager = FileManager.default
-    let destination = bundle.url.appendingPathComponent(Self.fileName)
-    let bytes = Data(text.utf8)
-    guard !bytes.isEmpty else { throw DossierWriteError.zeroByteFiles([Self.fileName]) }
-
-    var prior: Data?
-    if let attributes = try? manager.attributesOfItem(atPath: destination.path) {
-      guard attributes[.type] as? FileAttributeType == .typeRegular else {
-        throw DossierWriteError.destinationNotInBundle(Self.fileName)
-      }
-      guard let data = try? Data(contentsOf: destination) else {
-        throw DossierWriteError.fileUnreadable(Self.fileName)
-      }
-      prior = data
-    }
-
-    // The same text, unlisted, still needs a rescan to list it.
-    let isSameText = prior == bytes
-    let isListed = current.files.contains { $0.path == Self.fileName }
-    if isSameText, isListed { return }
-
-    let target = bundle.url
-    try UpdateHolding.holding(bundle: target, label: "write \(Self.fileName)") {
-      if !isSameText { try Self.replace(destination, with: bytes) }
-      do {
-        let manifest = try writer.update(accepting: isSameText ? [] : [Self.fileName]) { _, _ in }
-        bundle = DossierBundle(url: bundle.url, manifest: manifest, member: bundle.member)
-      } catch {
-        if !isSameText {
-          if let prior {
-            try? Self.replace(destination, with: prior)
-          } else {
-            try? manager.removeItem(at: destination)
-          }
-        }
-        throw error
-      }
-    }
-  }
-
-  /// A temporary file in the same directory, renamed over the target. A leading `.` keeps it out
-  /// of §5.2's inventory if the process dies first.
-  private static func replace(_ destination: URL, with bytes: Data) throws {
-    let temporary = destination.deletingLastPathComponent().appendingPathComponent(".character-\(UUID().uuidString).tmp")
-    defer { try? FileManager.default.removeItem(at: temporary) }
-    do {
-      try bytes.write(to: temporary)
-    } catch {
-      throw DossierWriteError.replaceFailed(error.localizedDescription)
-    }
-    guard rename(temporary.path, destination.path) == 0 else {
-      throw DossierWriteError.replaceFailed(String(cString: strerror(errno)))
-    }
+    try DescriptionFile.write(text, as: Self.fileName, to: &bundle)
   }
 
   // MARK: Front matter text
