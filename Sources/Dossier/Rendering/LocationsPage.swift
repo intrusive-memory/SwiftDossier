@@ -416,7 +416,7 @@ private struct LocationsPageCopies {
 /// `template-locations/README.md` rules 2 and 3: `LOCATION.md`'s body as the dossier template's
 /// Markdown (rule 3 there), with `#` lines dropped, `##` read as `###`, tables, and code spans.
 /// Marks aren't links.
-private struct LocationMarkdown {
+struct LocationMarkdown {
   let footnotes: PageFootnotes
   let mark: (Int) throws -> String
   let markSeparator: () throws -> String
