@@ -80,7 +80,7 @@ public struct CharacterPreviewModel: Sendable, Equatable {
     name = matter?["character"]?.previewText
     role = matter?["role"]?.previewText
     aliases = matter?["aliases"]?.arrayValue?.compactMap(\.previewText) ?? []
-    fields = Self.frontMatterFields.compactMap { key, label in
+    fields = Self.frontMatterFields.compactMap { key, label, _ in
       matter?[key]?.previewText.map { PreviewField(key: key, label: label, value: $0) }
     }
     let order = CharacterDocument.allSections
@@ -124,18 +124,18 @@ public struct CharacterPreviewModel: Sendable, Equatable {
   }
 
   /// The top-level front-matter keys `fields.json` reads from front matter, with their labels, in
-  /// its order. Read from the bundled file (SD-2); dotted keys (`draft.*`) and a key that
+  /// its order, and whether the field's kind is `list`. Read from the bundled file (SD-2); dotted keys (`draft.*`) and a key that
   /// repeats are left out.
-  static let frontMatterFields: [(key: String, label: String)] = {
+  static let frontMatterFields: [(key: String, label: String, isList: Bool)] = {
     guard let tabs = try? DossierTabs.bundled() else { return [] }
     var seen = Set<String>()
-    var found: [(key: String, label: String)] = []
+    var found: [(key: String, label: String, isList: Bool)] = []
     for tab in tabs.tabs {
       for field in tab.fields {
         guard field.source["from"]?.stringValue == "frontMatter",
           let key = field.source["key"]?.stringValue, !key.contains("."), seen.insert(key).inserted
         else { continue }
-        found.append((key, field.label))
+        found.append((key, field.label, field.kind == "list"))
       }
     }
     return found
