@@ -25,7 +25,7 @@ type: supervisor-state
 
 ### SwiftDossier SFV
 - Work unit state: RUNNING
-- Current sortie: 5 of 7
+- Current sortie: 6 of 7
 - Sortie state: DISPATCHED
 - Model: sonnet
 - Attempt: 1 of 3
@@ -45,3 +45,5 @@ type: supervisor-state
 | 2026-11-18 | SwiftDossier SFV | 4 | Model: sonnet | Context type plus two previews, backed by models |
 | 2026-11-18 | SwiftDossier SFV | 4 | PARTIAL, continued once, then COMPLETED at a6ab3c8 | First pass drew Markdown inline-only, so tables and lists stayed raw. Continued: previews now draw through PageMarkdown and LocationMarkdown into PreviewWebView .html (CSP: no script or image). SingleFilePreviewModelTests 12, DossierUITests 102, DossierTests 397, build OK. Open questions are escaped plain text (accepted) |
 | 2026-11-18 | SwiftDossier SFV | 5 | Model: sonnet | Editors over the Sortie 2 APIs. A verifier runs after for the [judgment] criterion |
+| 2026-11-18 | SwiftDossier SFV | 5 | COMPLETED (verifier PASS) at b11592c | SingleFileEditorModelTests 19, DossierUITests 121, DossierTests 397, build OK. One model class serves both kinds. The editor views have not been looked at in an app; the first look comes when Personaje adopts them |
+| 2026-11-18 | SwiftDossier SFV | 6 | Model: sonnet | LocationsIndexPreview, with and without a project folder |
