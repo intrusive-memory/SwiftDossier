@@ -2,29 +2,6 @@ import DossierCore
 import Foundation
 import Yams
 
-/// Every way reading or editing `CHARACTER.md` can fail. A write's own failures are
-/// ``DossierWriteError``.
-public enum CharacterDescriptionError: Error, Equatable, Sendable, LocalizedError {
-  /// The file can't be read.
-  case unreadable(String)
-  /// The file isn't UTF-8 (§9).
-  case notUTF8(String)
-  /// The front matter doesn't parse, or isn't a mapping.
-  case frontMatterUnreadable(String)
-  /// The front matter can't be edited by key without changing the text of other keys.
-  case frontMatterNotEditable(String)
-
-  /// A description of the failure, for people.
-  public var errorDescription: String? {
-    switch self {
-    case .unreadable(let path): return "Can't read \(path)"
-    case .notUTF8(let path): return "\(path) isn't UTF-8"
-    case .frontMatterUnreadable(let detail): return "The front matter can't be read: \(detail)"
-    case .frontMatterNotEditable(let detail): return "The front matter can't be edited by key: \(detail)"
-    }
-  }
-}
-
 /// What ``CharacterDescription/footnoteCheck()`` found (§9.3). Labels are in byte order.
 public struct FootnoteReport: Sendable, Equatable {
   /// Labels referenced with no definition (`W-FOOTNOTE`).
@@ -83,16 +60,16 @@ public struct CharacterDescription: Sendable {
 
   /// Reads a `CHARACTER.md` file.
   ///
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public static func read(at url: URL) throws -> CharacterDescription {
-    guard let data = try? Data(contentsOf: url) else { throw CharacterDescriptionError.unreadable(url.path) }
-    guard let text = String(data: data, encoding: .utf8) else { throw CharacterDescriptionError.notUTF8(url.path) }
+    guard let data = try? Data(contentsOf: url) else { throw DescriptionError.unreadable(url.path) }
+    guard let text = String(data: data, encoding: .utf8) else { throw DescriptionError.notUTF8(url.path) }
     return CharacterDescription(text: text)
   }
 
   /// Reads a bundle's `CHARACTER.md` as it now stands on disk. `nil` when the bundle has none.
   ///
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public static func read(from bundle: DossierBundle) throws -> CharacterDescription? {
     let url = bundle.url.appendingPathComponent(fileName)
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -125,16 +102,27 @@ public struct CharacterDescription: Sendable {
   /// Values are written so that they read back as given: `"39"` is `'39'`, and a date string is
   /// quoted, as §9.1 asks.
   ///
-  /// - Throws: ``CharacterDescriptionError``. The value is then as it was.
+  /// - Throws: ``DescriptionError``. The value is then as it was.
   public mutating func setFrontMatter(_ key: String, _ value: JSONValue?) throws {
     try editor.set(key, value)
+  }
+
+  /// Whether ``setFrontMatter(_:_:)`` can change this key without losing text (SFV-6): `false` when
+  /// the key's lines (its key line and its value's lines) hold a YAML `#` comment, an anchor
+  /// (`&name`) or an alias (`*name`), since setting the key replaces those lines. A `#` inside a
+  /// quoted or block scalar isn't a comment. An editor shows such a key read-only.
+  ///
+  /// `true` for a key the front matter doesn't have, or a file with no front matter: setting it
+  /// adds lines and replaces none. `false` when the front matter can't be edited by key at all.
+  public func isEditable(key: String) -> Bool {
+    editor.isEditable(key)
   }
 
   /// Records that a person edited a section or a front-matter key: its entry leaves
   /// `draft.generated` (§9.1). Nothing changes when it isn't there.
   ///
   /// - Parameter name: The section name or front-matter key.
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public mutating func markEdited(_ name: String) throws {
     guard var draft = frontMatter?["draft"]?.objectValue, let generated = draft["generated"]?.arrayValue else { return }
     let remaining = generated.filter { $0 != .string(name) }
@@ -154,6 +142,27 @@ public struct CharacterDescription: Sendable {
   /// parenthetical (§9.2).
   public func section(named name: String) -> Section? {
     sections.first { CharacterDocument.heading($0.heading, matches: name) }
+  }
+
+  /// Gives the first section named `name` this content, or adds the section when the body has
+  /// none (SFV-5). Every other byte of the text stays as it was: the front matter, the text before
+  /// the first `##`, every other section, and the line breaks (LF or CRLF) the file uses.
+  ///
+  /// The name matches as ``section(named:)`` matches it, and when more than one heading matches,
+  /// only the first section changes. Its heading line stays as written.
+  ///
+  /// `content` is the text under the heading. Its line breaks are written as the file's, and its
+  /// leading and trailing blank lines are dropped: the blank lines that were just under the heading
+  /// and just above the next one stay, so the section's separation from its neighbours is kept.
+  /// Setting a section to its own ``Section/content`` therefore changes nothing. Empty content
+  /// leaves the heading with only its separating blank lines. A line in `content` that starts
+  /// `## ` outside a code fence becomes a heading of its own.
+  ///
+  /// A section the body doesn't have is added in §9.2's order: after the nearest earlier §9.2 section
+  /// the body has, else before the first later one, else at the end of the body. A name that isn't
+  /// one of §9.2's sections is added at the end.
+  public mutating func setSection(named name: String, content: String) {
+    body = SectionEditor.setting(name, to: content, in: body, order: CharacterDocument.allSections)
   }
 
   /// §9.3's check of the footnotes. Footnotes in code blocks and code spans aren't read.

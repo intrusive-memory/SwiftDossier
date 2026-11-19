@@ -41,7 +41,7 @@ struct FrontMatterEditor: Sendable {
     do {
       _ = try mapping()
       return nil
-    } catch let error as CharacterDescriptionError {
+    } catch let error as DescriptionError {
       if case .frontMatterUnreadable(let detail) = error { return detail }
       return error.localizedDescription
     } catch {
@@ -65,7 +65,7 @@ struct FrontMatterEditor: Sendable {
   /// goes at the end of the block, and a file with no block gets one. Setting a key to the value
   /// it has changes nothing.
   ///
-  /// - Throws: ``CharacterDescriptionError``. The value is then as it was.
+  /// - Throws: ``DescriptionError``. The value is then as it was.
   mutating func set(_ key: String, _ value: JSONValue?) throws {
     guard let yaml else {
       guard let value else { return }
@@ -95,9 +95,40 @@ struct FrontMatterEditor: Sendable {
     expected[key] = value.map(Self.asRead)
     let after = (try? Self.mapping(of: edited)).map(Self.object(of:))
     guard let after, after == expected else {
-      throw CharacterDescriptionError.frontMatterNotEditable("changing \(key) would change another key")
+      throw DescriptionError.frontMatterNotEditable("changing \(key) would change another key")
     }
     self.yaml = edited
+  }
+
+  /// Whether ``set(_:_:)`` can change this key without losing text a person wrote: `false` when
+  /// the key's lines (its key line and its value's lines) hold a YAML comment, an anchor (`&name`)
+  /// or an alias (`*name`), since a write replaces those lines with a rendered value. A `#` inside
+  /// a quoted scalar or a block scalar's text isn't a comment.
+  ///
+  /// `true` for a key that isn't there, or a file with no block: setting it adds lines and
+  /// replaces none. `false` when the block can't be edited by key at all (it doesn't parse, isn't a
+  /// mapping, or is a flow mapping).
+  func isEditable(_ key: String) -> Bool {
+    guard let yaml else { return true }
+    guard let mapping = try? mapping() else { return false }
+    let lines = Self.linesKeepingBreaks(yaml)
+    guard let spans = try? Self.keySpans(of: mapping, lines: lines) else { return false }
+    guard let span = spans.first(where: { $0.key.hasSameBytes(as: key) }) else { return true }
+    // The composer copies an alias's node, anchor and all, so an alias reads as an anchor here.
+    for (name, value) in mapping where name.string.map({ $0.hasSameBytes(as: key) }) == true {
+      if Self.hasAnchor(name) || Self.hasAnchor(value) { return false }
+    }
+    return !YAMLLineScan.hasCommentOrAnchor(lines[span.lines].map { $0.trimmingCharacters(in: .newlines) })
+  }
+
+  private static func hasAnchor(_ node: Node) -> Bool {
+    if node.anchor != nil { return true }
+    switch node {
+    case .scalar: return false
+    case .alias: return true
+    case .mapping(let mapping): return mapping.contains { hasAnchor($0.key) || hasAnchor($0.value) }
+    case .sequence(let sequence): return sequence.contains(where: hasAnchor)
+    }
   }
 
   // MARK: Front matter text
@@ -107,11 +138,11 @@ struct FrontMatterEditor: Sendable {
     do {
       root = try Yams.compose(yaml: yaml)
     } catch {
-      throw CharacterDescriptionError.frontMatterUnreadable(String(describing: error))
+      throw DescriptionError.frontMatterUnreadable(String(describing: error))
     }
     guard let root else { return Node.Mapping([]) }
     guard case .mapping(let mapping) = root else {
-      throw CharacterDescriptionError.frontMatterUnreadable("it isn't a mapping")
+      throw DescriptionError.frontMatterUnreadable("it isn't a mapping")
     }
     return mapping
   }
@@ -128,12 +159,12 @@ struct FrontMatterEditor: Sendable {
     of mapping: Node.Mapping, lines: [String]
   ) throws -> [(key: String, lines: Range<Int>)] {
     guard mapping.style != .flow else {
-      throw CharacterDescriptionError.frontMatterNotEditable("the block is a flow mapping")
+      throw DescriptionError.frontMatterNotEditable("the block is a flow mapping")
     }
     var starts: [(key: String, line: Int)] = []
     for (key, _) in mapping {
       guard let mark = key.mark, mark.column == 1, let name = key.string else {
-        throw CharacterDescriptionError.frontMatterNotEditable("a top-level key isn't at the start of its line")
+        throw DescriptionError.frontMatterNotEditable("a top-level key isn't at the start of its line")
       }
       starts.append((name, mark.line - 1))
     }
@@ -155,7 +186,7 @@ struct FrontMatterEditor: Sendable {
       yaml = try Yams.serialize(
         node: .mapping(Node.Mapping([(node(for: .string(key)), node(for: value))])), width: -1, allowUnicode: true)
     } catch {
-      throw CharacterDescriptionError.frontMatterNotEditable(String(describing: error))
+      throw DescriptionError.frontMatterNotEditable(String(describing: error))
     }
     return lineBreak == "\n" ? yaml : yaml.replacingOccurrences(of: "\n", with: lineBreak)
   }
@@ -198,5 +229,109 @@ struct FrontMatterEditor: Sendable {
     }
     if !current.isEmpty { lines.append(current) }
     return lines
+  }
+}
+
+/// Finds YAML comments, anchors and aliases in a key's lines, for
+/// ``FrontMatterEditor/isEditable(_:)``.
+///
+/// Yams drops comments and resolves aliases, so the lines are read here. The scan follows quoted
+/// scalars (across lines), block scalars and flow collections, and errs toward finding something:
+/// a line of a multi-line plain scalar that starts with `*` or `&` reads as an alias or anchor, so
+/// the key reads as not editable. It never misses a `#` comment, which YAML defines as a `#` at the
+/// start of a line or after whitespace, outside a quoted or block scalar.
+private enum YAMLLineScan {
+  /// The lines, without their line breaks.
+  static func hasCommentOrAnchor(_ lines: [String]) -> Bool {
+    var quote: Character?
+    var flowDepth = 0
+    // While set, lines indented more than this, and blank lines, are a block scalar's text.
+    var blockScalarOwnerIndent: Int?
+    for line in lines {
+      let characters = Array(line)
+      let indent = characters.prefix { $0 == " " }.count
+      if let owner = blockScalarOwnerIndent {
+        if characters.allSatisfy(\.isWhitespace) || indent > owner { continue }
+        blockScalarOwnerIndent = nil
+      }
+      var atNodeStart = quote == nil
+      var afterSpace = true
+      var index = 0
+      while index < characters.count {
+        let character = characters[index]
+        let next: Character? = index + 1 < characters.count ? characters[index + 1] : nil
+        let nextIsSpace = next == nil || next == " " || next == "\t"
+        index += 1
+        if let open = quote {
+          if open == "\"", character == "\\" {
+            index += 1
+          } else if character == open {
+            if open == "'", next == "'" {
+              index += 1
+            } else {
+              quote = nil
+            }
+          }
+          afterSpace = false
+          continue
+        }
+        if character == " " || character == "\t" {
+          afterSpace = true
+          continue
+        }
+        defer { afterSpace = false }
+        if character == "#", afterSpace { return true }
+        if atNodeStart {
+          switch character {
+          case "&", "*":
+            if !nextIsSpace { return true }
+          case "'", "\"":
+            quote = character
+            atNodeStart = false
+            continue
+          case "-", "?", ":":
+            if nextIsSpace { continue }
+          case "[", "{":
+            flowDepth += 1
+            continue
+          case "|", ">":
+            if flowDepth == 0 {
+              blockScalarOwnerIndent = indent
+              atNodeStart = false
+              continue
+            }
+          case "!":
+            // A tag: the node starts after it.
+            while index < characters.count, characters[index] != " ", characters[index] != "\t" { index += 1 }
+            continue
+          default:
+            break
+          }
+        }
+        if flowDepth > 0 {
+          switch character {
+          case ",":
+            atNodeStart = true
+            continue
+          case "[", "{":
+            flowDepth += 1
+            atNodeStart = true
+            continue
+          case "]", "}":
+            flowDepth -= 1
+            atNodeStart = false
+            continue
+          default:
+            break
+          }
+        }
+        if character == ":", nextIsSpace || (flowDepth > 0 && next.map { ",]}".contains($0) } == true) {
+          atNodeStart = true
+          continue
+        }
+        atNodeStart = false
+      }
+    }
+    return false
   }
 }

@@ -428,7 +428,7 @@ preview API instead of these pieces.
 |------------|--------|-----------|
 | `DossierError` | `DossierCore` | Opening and reading: missing or invalid manifest, unknown version, not a `.dossier` directory, unreadable `CAST.md`, bad pointer, unreadable bundled resource. |
 | `DossierWriteError` | `Dossier` | Every write: schema violations, missing asset files, duplicates, name and cast problems, face cropping, render refusals, update markers. |
-| `CharacterDescriptionError` | `Dossier` | Reading or editing `CHARACTER.md`; also preview and rebuild when `CHARACTER.md` is missing or not UTF-8. |
+| `DescriptionError` (alias `CharacterDescriptionError`) | `Dossier` | Reading or editing `CHARACTER.md` or `LOCATION.md`; also preview and rebuild when `CHARACTER.md` is missing or not UTF-8. |
 | `PreviewStoreError` | `Dossier` | `PreviewStore.store(_:)` with an invalid key. |
 
 All of them conform to `LocalizedError` except `PreviewStoreError`. Validation findings,

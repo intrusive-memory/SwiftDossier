@@ -80,7 +80,7 @@ public final class DossierViewModel {
 
     init(_ error: any Error) {
       switch error {
-      case let error as CharacterDescriptionError:
+      case let error as DescriptionError:
         switch error {
         case .unreadable: self = .noCharacterDescription
         case .notUTF8: self = .characterDescriptionNotUTF8

@@ -51,10 +51,20 @@ public struct LocationDescription: Sendable {
   /// Sets a front-matter key, or removes it with `nil`, by the same rule as
   /// ``CharacterDescription/setFrontMatter(_:_:)``: only that key's lines change.
   ///
-  /// - Throws: ``CharacterDescriptionError``, whose cases are the shared writer's. The value is
-  ///   then as it was.
+  /// - Throws: ``DescriptionError``. The value is then as it was.
   public mutating func setFrontMatter(_ key: String, _ value: JSONValue?) throws {
     try editor.set(key, value)
+  }
+
+  /// Whether ``setFrontMatter(_:_:)`` can change this key without losing text (SFV-6): `false` when
+  /// the key's lines (its key line and its value's lines) hold a YAML `#` comment, an anchor
+  /// (`&name`) or an alias (`*name`), since setting the key replaces those lines. A `#` inside a
+  /// quoted or block scalar isn't a comment. An editor shows such a key read-only.
+  ///
+  /// `true` for a key the front matter doesn't have, or a file with no front matter: setting it
+  /// adds lines and replaces none. `false` when the front matter can't be edited by key at all.
+  public func isEditable(key: String) -> Bool {
+    editor.isEditable(key)
   }
 
   // MARK: Body
@@ -68,5 +78,24 @@ public struct LocationDescription: Sendable {
   /// parenthetical.
   public func section(named name: String) -> Section? {
     sections.first { CharacterDocument.heading($0.heading, matches: name) }
+  }
+
+  /// Gives the first section named `name` this content, or adds the section when the body has
+  /// none (SFV-5). Every other byte of the text stays as it was: the front matter, the text before
+  /// the first `##`, every other section, and the line breaks (LF or CRLF) the file uses.
+  ///
+  /// The name matches as ``section(named:)`` matches it, and when more than one heading matches,
+  /// only the first section changes. Its heading line stays as written.
+  ///
+  /// `content` is the text under the heading. Its line breaks are written as the file's, and its
+  /// leading and trailing blank lines are dropped: the blank lines that were just under the heading
+  /// and just above the next one stay, so the section's separation from its neighbours is kept.
+  /// Setting a section to its own ``Section/content`` therefore changes nothing. Empty content
+  /// leaves the heading with only its separating blank lines. A line in `content` that starts
+  /// `## ` outside a code fence becomes a heading of its own.
+  ///
+  /// A section the body doesn't have is added at the end of the body, since §16.3 gives no order.
+  public mutating func setSection(named name: String, content: String) {
+    body = SectionEditor.setting(name, to: content, in: body, order: nil)
   }
 }
