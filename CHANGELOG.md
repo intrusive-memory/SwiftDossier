@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- Views over a single document's text (DossierUI): `CharacterPreview`, `LocationPreview` and `LocationsIndexPreview` take a `String`, and `CharacterEditor` and `LocationEditor` take a `Binding<String>`. Each also takes a `SingleFileContext` (the file's URL, for display only, and an optional project folder). A view never reads or writes the file; the host saves. `SingleFileViewIdentity` gives each view's label and SF Symbol.
+- `CharacterEditor` edits the front-matter keys `fields.json` takes (age, pronouns, occupation, languages, sampleLine, artStyle) and `role`. `LocationEditor` edits `location` and `theme` (§16.3). Each has an editor for every `##` section. Every other key is shown read-only, as is any key whose lines hold a YAML comment or anchor.
+- `LocationsIndexPreview`: with a project folder, the LOCATIONS page built from the saved index; without one, the entries read from the text. Both show an accessory slot the host fills.
+- `LocationDescription` (Dossier): LOCATION.md read from text, with `setFrontMatter(_:_:)`, `sections` and `write(to: inout DossierBundle)`, matching `CharacterDescription`.
+- `setSection(named:content:)` and `isEditable(key:)` on `CharacterDescription` and `LocationDescription`. `setSection` replaces one section and keeps every other byte, line endings included. A missing CHARACTER.md section is inserted in §9.2's order; a missing LOCATION.md section is appended.
+- `LocationsIndex(text:url:)` (DossierCore): the index read from text. `load(_:)` uses it.
+- `make acceptance PROJECT=<path>` runs a round trip on a real project's CHARACTER.md, locally only.
+
+### Changed
+
+- `CharacterDescription` and `LocationDescription` share one lossless front-matter writer.
+- `CharacterDescriptionError` is now a typealias for `DescriptionError`.
+- SwiftReparto floor raised to 0.4.0.
+
 ## 0.7.0
 
 ### Added
