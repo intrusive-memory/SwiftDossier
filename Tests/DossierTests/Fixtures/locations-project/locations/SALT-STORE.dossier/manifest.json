@@ -1,0 +1,58 @@
+{
+  "assets": [
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "description",
+      "path": "LOCATION.md",
+      "provenance": {
+        "provider": "manual"
+      },
+      "status": "selected"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "plate",
+      "path": "images/plate-floor-b25e535e.png",
+      "provenance": {
+        "engine": "fixture",
+        "mode": "textToImage",
+        "prompt": "The store's floor from the door, sacks stacked to the right.",
+        "provider": "vinetas"
+      },
+      "status": "selected",
+      "storyboardLabel": "this location's empty set; paint the people into it",
+      "variant": "floor"
+    }
+  ],
+  "character": "SALT-STORE",
+  "dossierType": "location",
+  "files": [
+    {
+      "path": "LOCATION.md",
+      "sha256": "5f895c3a44adacbfdb543ed2165619f1c4850eb3f0939e6d17031847b1d1fa04",
+      "sizeBytes": 235
+    },
+    {
+      "path": "images/plate-floor-b25e535e.png",
+      "sha256": "b25e535e517eb09a8e9937611a8ead2590564e391d347201d6e42d5309879d5a",
+      "sizeBytes": 734
+    }
+  ],
+  "generator": {
+    "name": "dossier-format fixtures",
+    "version": "1"
+  },
+  "location": {
+    "name": "The salt store on the quay",
+    "theme": "COAST",
+    "views": {
+      "floor": {
+        "exterior": false,
+        "prompt": "The store's floor from the door, sacks stacked to the right."
+      }
+    }
+  },
+  "manifestChecksum": "01692e3f7831093103a01680c2656f1af35453a0600fc25636b23499e8e893ec",
+  "manifestVersion": 2,
+  "updatedAt": "2026-10-31T12:00:00Z"
+}

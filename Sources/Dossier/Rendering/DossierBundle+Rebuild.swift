@@ -34,7 +34,7 @@ extension DossierBundle {
   /// - Parameters:
   ///   - cast: The project's `CAST.md`, for the refresh's orphan adoption and for the member.
   ///   - template: The template the page is built with.
-  /// - Throws: ``DossierCore/CharacterDescriptionError`` when `CHARACTER.md` is missing or isn't
+  /// - Throws: ``DescriptionError`` when `CHARACTER.md` is missing or isn't
   ///   UTF-8, since then there is nothing to show; what reading `manifest.json` for the key
   ///   throws; template and resource errors. A refresh refusal or a store failure doesn't throw.
   public nonisolated mutating func rebuild(cast: URL?, template: PageTemplate) async throws -> RebuildResult {

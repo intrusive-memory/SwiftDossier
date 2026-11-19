@@ -11,7 +11,7 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.7.0 implements dossier-format `v2.1.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). From 2.1.0 it reads location bundles and their plates, finds a project's locations from `PROJECT.md`'s `locations` key, and builds the project's LOCATIONS page; see [docs/INTEGRATION.md](docs/INTEGRATION.md#11-locations). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.8.0 implements dossier-format `v2.1.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). From 2.1.0 it reads location bundles and their plates, finds a project's locations from `PROJECT.md`'s `locations` key, and builds the project's LOCATIONS page; see [docs/INTEGRATION.md](docs/INTEGRATION.md#11-locations). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 
@@ -115,6 +115,10 @@ struct DossierCommands: Commands {
 ```
 
 **Security scope.** The view needs nothing the app doesn't already hold. The app's existing security scope on the project folder covers the reads and the writes to `.preview/` and `manifest.json`.
+
+## Single-file views
+
+For a host that holds the text of one loose `CHARACTER.md`, `LOCATION.md` or `LOCATIONS.md`: `CharacterPreview`, `LocationPreview`, `CharacterEditor`, `LocationEditor` and `LocationsIndexPreview`, each over the host's text and a `SingleFileContext` (the file's URL for display, and a project folder). A view never reads or writes the file; an editor changes the `Binding<String>` you give it. An editor writes only the front-matter keys `fields.json` takes plus `role` for a character, and `location` and `theme` for a location; every other key is read-only. In `Dossier`, `CharacterDescription` and `LocationDescription` have `setSection(named:content:)` and `isEditable(key:)`, and `DossierCore` has `LocationsIndex(text:url:)`. See [docs/INTEGRATION.md](docs/INTEGRATION.md#12-single-file-views).
 
 ## Locations
 

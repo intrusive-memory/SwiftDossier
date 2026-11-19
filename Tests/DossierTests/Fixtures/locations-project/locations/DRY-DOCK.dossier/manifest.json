@@ -1,0 +1,134 @@
+{
+  "assets": [
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "description",
+      "path": "LOCATION.md",
+      "provenance": {
+        "provider": "manual"
+      },
+      "status": "selected"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "plate",
+      "path": "images/plate-dock-4f97eca6.png",
+      "provenance": {
+        "engine": "fixture",
+        "mode": "textToImage",
+        "prompt": "The end of the breakwater at dusk, the lighthouse door on the left.",
+        "provider": "vinetas"
+      },
+      "status": "candidate",
+      "storyboardLabel": "this location's empty set; paint the people into it",
+      "variant": "dock"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "plate",
+      "path": "images/plate-dock-68ee2225.png",
+      "provenance": {
+        "engine": "fixture",
+        "mode": "textToImage",
+        "prompt": "The end of the breakwater at dusk, the lighthouse door on the left.",
+        "provider": "vinetas"
+      },
+      "status": "selected",
+      "storyboardLabel": "this location's empty set; paint the people into it",
+      "variant": "dock"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "plate",
+      "path": "images/plate-lamp-room-7328b6b9.png",
+      "provenance": {
+        "engine": "fixture",
+        "mode": "imageToImage",
+        "prompt": "The lamp room seen from the top of the stair.",
+        "provider": "vinetas",
+        "references": [
+          {
+            "path": "images/plate-dock-68ee2225.png",
+            "role": "plate:dock",
+            "sha256": "68ee2225813df35e676d5f309b28da45b0cc2d65763ad32b95b625829c3918d0"
+          }
+        ]
+      },
+      "status": "selected",
+      "storyboardLabel": "this location's empty set; paint the people into it",
+      "variant": "lamp-room"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "view",
+      "path": "images/view-storyboard-design-595408eb.jpg",
+      "provenance": {
+        "copiedFrom": "storyboards/fixture/harbor-light-design.jpg",
+        "copiedFromSha256": "595408ebbbc31dec4866449af20081f05aafd2b247c67277d8cc2251daf30a8b",
+        "provider": "import",
+        "source": "storyboards/fixture/harbor-light-design.jpg"
+      },
+      "status": "selected",
+      "storyboardLabel": "the lighthouse's design: squat, stone, one window",
+      "variant": "storyboard-design"
+    }
+  ],
+  "character": "DRY-DOCK",
+  "dossierType": "location",
+  "files": [
+    {
+      "path": "LOCATION.md",
+      "sha256": "13b2e2d25623ce6d1348655d46c3d4f288d563e2396e1f973feacb0118385c75",
+      "sizeBytes": 514
+    },
+    {
+      "path": "images/plate-dock-4f97eca6.png",
+      "sha256": "4f97eca675ff0ca72cfd1a98370b047cd410b7a438781e61a0a7524a440a7208",
+      "sizeBytes": 640
+    },
+    {
+      "path": "images/plate-dock-68ee2225.png",
+      "sha256": "68ee2225813df35e676d5f309b28da45b0cc2d65763ad32b95b625829c3918d0",
+      "sizeBytes": 661
+    },
+    {
+      "path": "images/plate-lamp-room-7328b6b9.png",
+      "sha256": "7328b6b96b3934f27ada29d4ed0210879f4d935d7dfc36cf6e2d7da3b95175ae",
+      "sizeBytes": 638
+    },
+    {
+      "path": "images/view-storyboard-design-595408eb.jpg",
+      "sha256": "595408ebbbc31dec4866449af20081f05aafd2b247c67277d8cc2251daf30a8b",
+      "sizeBytes": 1302
+    }
+  ],
+  "generator": {
+    "name": "dossier-format fixtures",
+    "version": "1"
+  },
+  "location": {
+    "description": "A squat stone lighthouse at the end of a long breakwater, with a lamp room up an iron stair.",
+    "name": "The harbor light at the end of the mole",
+    "theme": "COAST",
+    "views": {
+      "dock": {
+        "exterior": true,
+        "prompt": "The end of the breakwater at dusk, the lighthouse door on the left.",
+        "refs": [],
+        "rule": "Keep the door on the left, unmirrored."
+      },
+      "lamp-room": {
+        "exterior": false,
+        "prompt": "The lamp room seen from the top of the stair.",
+        "refs": [
+          "room:dock"
+        ],
+        "rule": "Keep the lamp in the centre.",
+        "theme": "COAST-NIGHT"
+      }
+    }
+  },
+  "manifestChecksum": "07cd582b065a5f1c98c1c9409bcd4b271332d7ce24894443ae021123cdcea384",
+  "manifestVersion": 2,
+  "updatedAt": "2026-10-31T12:00:00Z"
+}

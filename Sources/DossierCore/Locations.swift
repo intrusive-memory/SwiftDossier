@@ -185,9 +185,21 @@ public struct LocationsIndex: Sendable {
   /// - Throws: ``LocationsError/indexUnreadable(_:)`` for every fault §16.2 case 4 names, and
   ///   when the file can't be read at all.
   public static func load(_ url: URL) throws -> LocationsIndex {
+    guard let data = try? Data(contentsOf: url) else { throw LocationsError.indexUnreadable("the file can't be read") }
+    guard let text = String(data: data, encoding: .utf8) else { throw LocationsError.indexUnreadable("it isn't UTF-8") }
+    return try LocationsIndex(text: text, url: url)
+  }
+
+  /// Reads a locations index from its text (§16.2 case 4), for a host that holds the file's text
+  /// and not the file (SFV-7). Everything ``load(_:)`` checks after the read is checked here, with
+  /// the same messages; nothing is read from disk.
+  ///
+  /// - Parameters:
+  ///   - text: The index file's text.
+  ///   - url: Where the file is, for ``directory`` and ``manifestURL(of:)``. It isn't read.
+  /// - Throws: ``LocationsError/indexUnreadable(_:)`` for every fault §16.2 case 4 names.
+  public init(text: String, url: URL) throws {
     func refuse(_ detail: String) -> LocationsError { .indexUnreadable(detail) }
-    guard let data = try? Data(contentsOf: url) else { throw refuse("the file can't be read") }
-    guard let text = String(data: data, encoding: .utf8) else { throw refuse("it isn't UTF-8") }
     guard let yaml = FrontMatter.split(text)?.yaml else { throw refuse("it has no front matter") }
     let root: Node?
     do {
@@ -214,7 +226,8 @@ public struct LocationsIndex: Sendable {
       let fields = MemberHash.generalValue(node).objectValue ?? JSONObject()
       entries.append(Entry(location: location, pointer: pointer, fields: fields))
     }
-    return LocationsIndex(url: url, entries: entries)
+    self.url = url
+    self.entries = entries
   }
 
   /// The file an entry's pointer leads to, or `nil` when it has no `manifest:`. The disk isn't read.

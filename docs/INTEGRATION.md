@@ -230,6 +230,10 @@ try description.markEdited("artStyle")                               // leaves d
 try description.write(to: &bundle)
 ```
 
+`setSection(named:content:)` replaces one `##` section's content and leaves every other byte alone,
+and `isEditable(key:)` says whether `setFrontMatter` can change a key without losing text. See
+§12.
+
 ### Showing that a bundle is being updated
 
 Each single write holds an update marker (§5.7) on its own. To make a sequence show as one
@@ -428,7 +432,7 @@ preview API instead of these pieces.
 |------------|--------|-----------|
 | `DossierError` | `DossierCore` | Opening and reading: missing or invalid manifest, unknown version, not a `.dossier` directory, unreadable `CAST.md`, bad pointer, unreadable bundled resource. |
 | `DossierWriteError` | `Dossier` | Every write: schema violations, missing asset files, duplicates, name and cast problems, face cropping, render refusals, update markers. |
-| `CharacterDescriptionError` | `Dossier` | Reading or editing `CHARACTER.md`; also preview and rebuild when `CHARACTER.md` is missing or not UTF-8. |
+| `DescriptionError` (alias `CharacterDescriptionError`) | `Dossier` | Reading or editing `CHARACTER.md` or `LOCATION.md`; also preview and rebuild when `CHARACTER.md` is missing or not UTF-8. |
 | `PreviewStoreError` | `Dossier` | `PreviewStore.store(_:)` with an invalid key. |
 
 All of them conform to `LocalizedError` except `PreviewStoreError`. Validation findings,
@@ -548,3 +552,66 @@ own.
 
 A host shows the page when the index or the `locations/` directory beside it is selected, and
 at the location's section when a location bundle is (§16.7). `DossierUI` doesn't do this yet.
+
+## 12. Single-file views
+
+A host that holds the text of one loose `CHARACTER.md`, `LOCATION.md` or `LOCATIONS.md` (no bundle,
+no manifest) shows it with the single-file views. A view takes the file's text from the host and
+never reads or writes the file. Every edit goes into the text you bound; saving is yours.
+
+### The views (`DossierUI`)
+
+| View | Takes |
+|---|---|
+| `CharacterPreview(text:context:)` | A character file's text; its header fields and sections as a page |
+| `LocationPreview(text:context:)` | A location file's text |
+| `CharacterEditor(text:context:)` | A `Binding<String>` of a character file |
+| `LocationEditor(text:context:)` | A `Binding<String>` of a location file |
+| `LocationsIndexPreview(text:context:refreshToken:accessory:)` | A `LOCATIONS.md` text. With `context.projectFolder` it shows the project's LOCATIONS page; without, the entries read from the text |
+
+`SingleFileContext(fileURL:projectFolder:)` is display data only: the file's URL for a title, and
+the project folder, which only `LocationsIndexPreview` uses. It is not `DossierProjectContext`,
+which describes a bundle inside a project. Each view has a static `identity`
+(`SingleFileViewIdentity`: a label and an SF Symbol) for a host's tab or sidebar. A file whose front
+matter can't be read is shown with its problem and its body as it is, and an editor refuses to edit
+it.
+
+### The key rule (D-4, D-6)
+
+An editor writes only these front-matter keys. Every other key is listed read-only, with the reason.
+
+- CHARACTER.md: the keys `fields.json` takes from front matter, plus `role`.
+- LOCATION.md: `location` and `theme`.
+
+A key whose lines hold a YAML comment, an anchor or an alias is read-only too, since setting it would
+replace those lines. Ask `isEditable(key:)` on `CharacterDescription` or `LocationDescription`.
+Sections are edited as a whole: `setSection(named:content:)` changes that section's content, its
+heading and every other section stay as written, and a section the file lacks is added at the end.
+
+### Without a view (`Dossier`)
+
+```swift
+import Dossier
+
+var location = LocationDescription(text: text)         // frontMatter, frontMatterProblem, sections
+try location.setFrontMatter("theme", .string("COAST"))
+location.setSection(named: "Blocking", content: "The door is on the left.\n")
+let edited = location.text                              // only those lines differ
+try location.write(to: fileURL)
+
+let page = SingleFilePage(text: text)                   // the HTML the previews draw
+```
+
+`CharacterDescription` has the same `setSection` and `isEditable`. Both throw `DescriptionError`
+(`CharacterDescriptionError` is an alias of it). From `DossierCore`,
+`LocationsIndex(text:url:)` reads a locations index from its text with the checks `load(_:)` makes
+and reads nothing from disk; `url` says where the file is.
+
+### Checking against a real project
+
+`make acceptance PROJECT=<path>` ends by running `DossierTests/RealProjectRoundTripTests` on the
+project's `characters/HUNTER.dossier/CHARACTER.md`. The suite copies the file, changes one key and
+one section, and checks that only those lines differ and the `aliases:` lines are byte-identical.
+It runs only when `DOSSIER_ACCEPTANCE_PROJECT` is set, which the script does through
+`TEST_RUNNER_DOSSIER_ACCEPTANCE_PROJECT`, the prefix xcodebuild needs to forward a variable to the
+test process. The project is never written.

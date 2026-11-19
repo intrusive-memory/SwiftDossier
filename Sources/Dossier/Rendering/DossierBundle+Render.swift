@@ -26,7 +26,7 @@ extension DossierBundle {
   /// as they were.
   ///
   /// - Returns: What was written.
-  /// - Throws: ``DossierWriteError``, ``DossierCore/DossierError`` or ``CharacterDescriptionError``.
+  /// - Throws: ``DossierWriteError``, ``DossierCore/DossierError`` or ``DescriptionError``.
   ///   A bundle with no ``DossierCore/DossierBundle/member`` is refused, as §7's `castMember` input
   ///   has nothing to hash, and so is one with no selected `description`.
   @discardableResult
@@ -180,8 +180,8 @@ extension DossierBundle {
     let name = CharacterDescription.fileName
     guard let file = BundleInventory(bundle: url, excluding: excluding).file(at: name),
       let data = try? Data(contentsOf: file.url)
-    else { throw CharacterDescriptionError.unreadable(name) }
-    guard let text = String(data: data, encoding: .utf8) else { throw CharacterDescriptionError.notUTF8(name) }
+    else { throw DescriptionError.unreadable(name) }
+    guard let text = String(data: data, encoding: .utf8) else { throw DescriptionError.notUTF8(name) }
     return CharacterDocument(text: text)
   }
 
@@ -196,11 +196,11 @@ extension DossierBundle {
     do {
       root = try Yams.compose(yaml: yaml)
     } catch {
-      throw CharacterDescriptionError.frontMatterUnreadable(String(describing: error))
+      throw DescriptionError.frontMatterUnreadable(String(describing: error))
     }
     guard let root else { return JSONObject() }
     guard case .mapping = root, let object = MemberHash.generalValue(root).objectValue else {
-      throw CharacterDescriptionError.frontMatterUnreadable("it isn't a mapping")
+      throw DescriptionError.frontMatterUnreadable("it isn't a mapping")
     }
     return object
   }

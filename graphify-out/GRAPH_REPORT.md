@@ -1,15 +1,15 @@
-# Graph Report - .  (2026-11-12)
+# Graph Report - .  (2026-11-19)
 
 ## Corpus Check
 - cluster-only mode — file stats not available
 
 ## Summary
-- 3433 nodes · 7750 edges · 143 communities (128 shown, 15 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 417 edges (avg confidence: 0.81)
+- 3817 nodes · 8239 edges · 173 communities (154 shown, 19 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 299 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f48c5645`
+- Built from commit: `3ac33c00`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -155,103 +155,133 @@
 - [[_COMMUNITY_Community 138|Community 138]]
 - [[_COMMUNITY_Community 139|Community 139]]
 - [[_COMMUNITY_Community 140|Community 140]]
+- [[_COMMUNITY_Community 141|Community 141]]
+- [[_COMMUNITY_Community 142|Community 142]]
+- [[_COMMUNITY_Community 143|Community 143]]
+- [[_COMMUNITY_Community 144|Community 144]]
+- [[_COMMUNITY_Community 145|Community 145]]
+- [[_COMMUNITY_Community 146|Community 146]]
+- [[_COMMUNITY_Community 147|Community 147]]
+- [[_COMMUNITY_Community 148|Community 148]]
+- [[_COMMUNITY_Community 149|Community 149]]
+- [[_COMMUNITY_Community 150|Community 150]]
+- [[_COMMUNITY_Community 151|Community 151]]
+- [[_COMMUNITY_Community 152|Community 152]]
+- [[_COMMUNITY_Community 153|Community 153]]
+- [[_COMMUNITY_Community 154|Community 154]]
+- [[_COMMUNITY_Community 155|Community 155]]
+- [[_COMMUNITY_Community 156|Community 156]]
+- [[_COMMUNITY_Community 157|Community 157]]
+- [[_COMMUNITY_Community 158|Community 158]]
+- [[_COMMUNITY_Community 159|Community 159]]
+- [[_COMMUNITY_Community 160|Community 160]]
+- [[_COMMUNITY_Community 161|Community 161]]
+- [[_COMMUNITY_Community 162|Community 162]]
+- [[_COMMUNITY_Community 163|Community 163]]
+- [[_COMMUNITY_Community 164|Community 164]]
+- [[_COMMUNITY_Community 165|Community 165]]
+- [[_COMMUNITY_Community 166|Community 166]]
+- [[_COMMUNITY_Community 167|Community 167]]
+- [[_COMMUNITY_Community 168|Community 168]]
+- [[_COMMUNITY_Community 171|Community 171]]
+- [[_COMMUNITY_Community 172|Community 172]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Sendable` - 117 edges
-2. `DossierWriteError` - 54 edges
-3. `WriterTests` - 54 edges
-4. `AddOptions` - 52 edges
-5. `Data` - 51 edges
-6. `PageFiller` - 47 edges
-7. `Code` - 42 edges
-8. `FileAcceptanceTests` - 40 edges
-9. `TemporaryBundle` - 40 edges
-10. `Keyword` - 39 edges
+1. `DossierWriteError` - 54 edges
+2. `WriterTests` - 54 edges
+3. `Data` - 51 edges
+4. `PageFiller` - 46 edges
+5. `Code` - 41 edges
+6. `FileAcceptanceTests` - 40 edges
+7. `TemporaryBundle` - 40 edges
+8. `Keyword` - 39 edges
+9. `DossierViewModel` - 33 edges
+10. `Harness` - 33 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `BundleScan (allowingEmpty)` --conceptually_related_to--> `ManifestWriter.update(accepting:removing:)`  [AMBIGUOUS]
-  docs/complete/hidden-sketchbook-01/RECON_REPORT.md → REQUIREMENTS.md
-- `showPreview() / storedPreview()` --semantically_similar_to--> `renderPage()`  [INFERRED] [semantically similar]
-  docs/INTEGRATION.md → REQUIREMENTS.md
-- `DossierView` --calls--> `PreviewWebView`  [INFERRED]
-  README.md → docs/INTEGRATION.md
-- `dossier preview command` --semantically_similar_to--> `PreviewCommand (ReadCommands.swift)`  [INFERRED] [semantically similar]
-  README.md → docs/complete/hidden-sketchbook-01/EXECUTION_PLAN.md
-- `elements()` --calls--> `Range`  [INFERRED]
-  Tests/DossierTests/RenderTests.swift → Sources/Dossier/Description/CharacterDescription.swift
+- `EXECUTION_PLAN (Manila Folder: SwiftDossier core phases 1-2)` --references--> `CharacterDescription`  [EXTRACTED]
+  docs/complete/manila-folder-01/EXECUTION_PLAN.md → Sources/Dossier/Description/CharacterDescription.swift
+- `EXECUTION_PLAN (Manila Folder: SwiftDossier core phases 1-2)` --references--> `ManifestWriter`  [EXTRACTED]
+  docs/complete/manila-folder-01/EXECUTION_PLAN.md → Sources/Dossier/Writing/ManifestWriter.swift
+- `RECON_REPORT (Hidden Sketchbook: Dossier preview and viewer)` --references--> `UpdateStatus`  [EXTRACTED]
+  docs/complete/hidden-sketchbook-01/RECON_REPORT.md → Sources/DossierCore/UpdateStatus.swift
+- `LocationsIndexPreview` --semantically_similar_to--> `LocationsView`  [EXTRACTED] [semantically similar]
+  CHANGELOG.md → README.md
+- `THE KEEPER face fixture (blue oval placeholder on light blue)` --conceptually_related_to--> `Face crop (deriveFace, Vision)`  [INFERRED]
+  Tests/DossierTests/Fixtures/locations-project/characters/THE KEEPER.dossier/images/face-8299b785.png → REQUIREMENTS.md
 
 ## Import Cycles
 - None detected.
 
-## Communities (143 total, 15 thin omitted)
+## Communities (173 total, 19 thin omitted)
 
 ### Community 0 - "Writer Tests"
-Cohesion: 0.06
-Nodes (56): CastRole, CharacterDescription, Area, file, footnotes, frontMatter, openQuestions, sections (+48 more)
+Cohesion: 0.12
+Nodes (14): expectClean(), Synthetic, WriterTests, SourceLocation, Bool, Conformance, Data, DossierBundle (+6 more)
 
 ### Community 1 - "Canonical Name Tests"
-Cohesion: 0.12
-Nodes (16): Conformance, expectClean(), Synthetic, WriterTests, SourceLocation, Bool, Conformance, Data (+8 more)
+Cohesion: 0.05
+Nodes (46): ActiveMarker, DossierBundle, UpdateMarker, UpdateStatus, DossierPreviewBuilder, DossierViewModel, FailureReason, characterDescriptionNotUTF8 (+38 more)
 
 ### Community 2 - "Face Crop Tests"
-Cohesion: 0.06
-Nodes (46): AssetKind, AssetStatus, BundleScan, Date, FoldedProvenance, ManifestWriter, Provenance, ProvenanceReference (+38 more)
+Cohesion: 0.07
+Nodes (36): Entry, LocationsPageCopies, Copy, LocationMarkdown, LocationsIndex, LocationsPage, LocationsPageBuilder, LocationsPageCopies (+28 more)
 
 ### Community 3 - "Update Marker Tests"
-Cohesion: 0.06
-Nodes (32): AddOptions, CheckedContinuation, DossierViewModelTests, ManifestWatcherTests, Call, build, rebuild, DossierViewModel.State (+24 more)
+Cohesion: 0.05
+Nodes (31): BufferSink, dossier(), FixturePaths, LockedBox, Ran, sha256(), SpecTree, syntheticPNG() (+23 more)
 
 ### Community 4 - "Schema Evaluator Tests"
-Cohesion: 0.05
-Nodes (26): CustomStringConvertible, CharacterDescriptionTests, Dictionary, Fixture, AssetKind, Bool, Int64, URL (+18 more)
+Cohesion: 0.06
+Nodes (47): PreviewCommandTests, Sample, Asset, AssetKind, Bool, BundleInventory, BundleScan, CastDocument (+39 more)
 
 ### Community 5 - "CLI Test Support"
-Cohesion: 0.05
-Nodes (40): DossierError, castUnreadable, manifestMissing, manifestNotJSON, manifestNotObject, memberUnreadable, notABundle, pointerNotManifest (+32 more)
+Cohesion: 0.07
+Nodes (33): Character, CharacterDocument, CodeFence, FrontMatter, EditableKeys, EditorFieldRow, EditorSectionRow, Entry (+25 more)
 
 ### Community 6 - "Bundle Mutation API"
-Cohesion: 0.06
-Nodes (34): Accessory, Any, DossierHeader, Item, roleBadge, updateLabel, DossierRebuildAction, DossierView (+26 more)
-
-### Community 7 - "Schema Evaluator Core"
-Cohesion: 0.07
-Nodes (16): evaluator(), Fixture, json(), Keyword, Pattern, Pinned, SchemaEvaluatorTests, valid() (+8 more)
-
-### Community 8 - "Cast Write API"
-Cohesion: 0.06
-Nodes (42): DossierPreviewBuilder, DossierViewModel, FailureReason, characterDescriptionNotUTF8, noCharacterDescription, notABundle, other, Next (+34 more)
-
-### Community 9 - "Write Error Types"
-Cohesion: 0.08
-Nodes (31): Entry, LocationsPageCopies, PageMarkdown, PreviewStore, Copy, LocationMarkdown, LocationsIndex, LocationsPage (+23 more)
-
-### Community 10 - "Provenance and Refresh Types"
 Cohesion: 0.08
 Nodes (29): FaceBox, FaceCropTests, pngChunkTypes(), portraitPNG(), StubDetector, Asset, Bool, CGImage (+21 more)
 
-### Community 11 - "Character Description Tests"
+### Community 7 - "Schema Evaluator Core"
+Cohesion: 0.07
+Nodes (15): evaluator(), Fixture, json(), Keyword, Pattern, Pinned, SchemaEvaluatorTests, valid() (+7 more)
+
+### Community 8 - "Cast Write API"
 Cohesion: 0.10
 Nodes (21): Boom, Harness, MutationHoldsMarkerTests, SpanningUpdateTests, State, TemporaryBundle, timestamp(), UpdateMarkerSignalTests (+13 more)
 
-### Community 12 - "Bundle Update Lifecycle"
+### Community 9 - "Write Error Types"
+Cohesion: 0.12
+Nodes (19): CastTests, PageFiller, Asset, Bool, BundleInventory, CharacterDocument, DossierBundle, DossierError (+11 more)
+
+### Community 10 - "Provenance and Refresh Types"
 Cohesion: 0.07
-Nodes (28): ArraySlice, BundlePath, DossierBundle, DossierBundle, InputComparison, compare, skip, PageTemplate (+20 more)
+Nodes (29): Context, CharacterPreview / CharacterPreviewModel, PageMarkdown / LocationMarkdown renderers, Coordinator, PreviewContent, html, stored, storedPage (+21 more)
+
+### Community 11 - "Character Description Tests"
+Cohesion: 0.08
+Nodes (22): DossierProject, Entry, LocationsDiscovery, index, indexMissing, indexUnreadable, none, projectUnreadable (+14 more)
+
+### Community 12 - "Bundle Update Lifecycle"
+Cohesion: 0.08
+Nodes (31): BundlePath, DossierBundle, DossierBundle, InputComparison, compare, skip, PageTemplate, PageTemplateMeta (+23 more)
 
 ### Community 13 - "JSON Value Parser"
 Cohesion: 0.12
-Nodes (24): BundleInventory, CompletenessReport, Finding, Bool, BundleInventory, Cast, CompletenessReport, DossierType (+16 more)
+Nodes (21): Bool, BundleInventory, Cast, CompletenessReport, DossierType, Finding, Int, Manifest (+13 more)
 
 ### Community 14 - "Character Description Editing"
-Cohesion: 0.06
-Nodes (28): Character, CharacterDocument, CodeFence, FrontMatter, ArraySlice, Bool, Int, String (+20 more)
+Cohesion: 0.09
+Nodes (31): Actor, DossierBundle, RebuildResult, Error, PageTemplate, PreviewResult, URL, Void (+23 more)
 
 ### Community 15 - "Staleness and Page Templates"
-Cohesion: 0.09
-Nodes (22): ManifestTests, FileEntry, Bool, BundleInventory, Data, Date, FileEntry, Int64 (+14 more)
+Cohesion: 0.08
+Nodes (13): CharacterDescriptionTests, Dictionary, Fixture, AssetKind, String, URL, Data, DossierBundle (+5 more)
 
 ### Community 16 - "Page Reference Scanning"
 Cohesion: 0.15
-Nodes (19): DossierTabs, PageCopySettings, PageFootnotes, PageFiller, Asset, Bool, BundleInventory, CharacterDocument (+11 more)
+Nodes (12): FileAcceptanceTests, Mutator, add, faceCrop, prompt, reject, removeOther, select (+4 more)
 
 ### Community 17 - "Bundle Validator"
 Cohesion: 0.10
@@ -263,461 +293,563 @@ Nodes (50): String, DossierWriteError, assetExists, assetFilesMissing, assetNotF
 
 ### Community 19 - "Description Check Rules"
 Cohesion: 0.09
-Nodes (37): CastDocument, CastFile, CastWriteReport, Sample, Asset, AssetKind, Bool, BundleInventory (+29 more)
-
-### Community 20 - "Character Document Parsing"
-Cohesion: 0.09
 Nodes (19): DossierTemplateTests, RuleOne, Line, Block, heading, item, paragraph, quote (+11 more)
 
+### Community 20 - "Character Document Parsing"
+Cohesion: 0.10
+Nodes (28): FindingsRequest, bundle, cast, none, paths, project, LocationsPaneModel, LocationsScope (+20 more)
+
 ### Community 21 - "Cast Write Tests"
-Cohesion: 0.12
-Nodes (28): AsyncDossierSubcommand, CastMember, CommandIO, DescriptionCheckReport, CandidatesCommand, CheckCommand, Line, ListCommand (+20 more)
+Cohesion: 0.11
+Nodes (25): AssetStatus, FoldedProvenance, ProvenanceReference, Asset, AssetKind, Bool, BundleScan, Cast (+17 more)
 
 ### Community 22 - "Asset Provenance Schema Fields"
 Cohesion: 0.12
-Nodes (24): Actor, Bool, Date, JSONObject, Result, String, TimeInterval, URL (+16 more)
-
-### Community 23 - "Image Shape Checks"
-Cohesion: 0.12
 Nodes (21): Entry, JSONObject, JSONObject.Entry, JSONParser, JSONValue, array, bool, null (+13 more)
 
+### Community 23 - "Image Shape Checks"
+Cohesion: 0.11
+Nodes (22): DescriptionFile, Data, DossierBundle, String, URL, Bool, BundleInventory, Data (+14 more)
+
 ### Community 24 - "CLI Read Commands"
-Cohesion: 0.06
-Nodes (40): CompletenessReport, Int32, BundleCompleteness, Code, assetDuplicate, assetNoFile, cast, checksum (+32 more)
+Cohesion: 0.10
+Nodes (22): JPEGSegments, JSONObject, PageReader, RenderImages, RenderProject, RenderTree, synthetic(), KeyValuePairs (+14 more)
 
 ### Community 25 - "CLI Command Support"
-Cohesion: 0.09
-Nodes (18): Cast, ManifestPointer, Member, CastTests, PageCopy, PageCopySettings, Size, Data (+10 more)
+Cohesion: 0.14
+Nodes (20): DescriptionCheckReport, CandidatesCommand, CheckCommand, Line, ListCommand, MigrateCommand, PreviewCommand, RenderCommand (+12 more)
 
 ### Community 26 - "Update Command Tests"
-Cohesion: 0.09
-Nodes (22): JPEGSegments, JSONObject, RenderImages, RenderProject, RenderTree, synthetic(), KeyValuePairs, Range (+14 more)
+Cohesion: 0.12
+Nodes (19): LocationsHeader, LocationsModelHolder, LocationsView, State, building, empty, failed, orphan (+11 more)
 
 ### Community 27 - "Asset Model"
-Cohesion: 0.13
-Nodes (25): PreviewCommand (ReadCommands.swift), PreviewCommandTests suite, PreviewStoreTests suite, Preview key (§11.1), PreviewResult, PreviewStore / anyStoredPage(), rebuild(cast:) / RebuildResult, showPreview() / storedPreview() (+17 more)
-
-### Community 28 - "Update Status Tests"
-Cohesion: 0.12
-Nodes (20): Context, Coordinator, PreviewContent, html, stored, PreviewWebView, NSObject, NSViewRepresentable (+12 more)
-
-### Community 29 - "Sample Schema Properties"
-Cohesion: 0.13
-Nodes (18): CharacterDescription, CharacterDescriptionError, frontMatterNotEditable, frontMatterUnreadable, notUTF8, unreadable, FootnoteReport, OpenQuestionGroup (+10 more)
-
-### Community 30 - "Cast Loading and Members"
 Cohesion: 0.16
 Nodes (19): DossierTabs, DossierTabs.Field, DossierTabs.Item, DossierTabs.Tab, Field, Item, Reader, Tab (+11 more)
 
+### Community 28 - "Update Status Tests"
+Cohesion: 0.05
+Nodes (42): CompletenessReport, Int32, BundleCompleteness, Code, assetDuplicate, assetNoFile, cast, checksum (+34 more)
+
+### Community 29 - "Sample Schema Properties"
+Cohesion: 0.12
+Nodes (25): Area, file, footnotes, frontMatter, openQuestions, sections, CheckCode, keyMissing (+17 more)
+
+### Community 30 - "Cast Loading and Members"
+Cohesion: 0.18
+Nodes (4): RenderTests, Data, RenderedPage, RenderProject
+
 ### Community 31 - "Samples Schema"
-Cohesion: 0.15
-Nodes (19): ComparisonResult, CompiledPattern, CompiledPattern, Schema, SchemaError, malformedSchema, unknownSchema, unresolvedReference (+11 more)
+Cohesion: 0.17
+Nodes (13): Bool, Int, Set, String, Substring, UInt32, UInt8, StaticString (+5 more)
 
 ### Community 32 - "Bundle Completeness"
-Cohesion: 0.20
-Nodes (5): PageReader, RenderTests, Data, RenderedPage, RenderProject
+Cohesion: 0.16
+Nodes (17): ComparisonResult, CompiledPattern, CompiledPattern, Schema, SchemaError, malformedSchema, unknownSchema, unresolvedReference (+9 more)
 
 ### Community 33 - "Update Status Markers"
-Cohesion: 0.17
-Nodes (13): Bool, Int, Set, String, UInt32, UInt8, StaticString, Substring (+5 more)
+Cohesion: 0.12
+Nodes (17): Cast, ManifestPointer, Member, PageCopy, PageCopySettings, Size, Data, Double (+9 more)
 
 ### Community 34 - "Update Marker Schema"
-Cohesion: 0.17
-Nodes (23): Asset, AssetStatus, candidate, rejected, selected, unknown, Box, DerivedInput (+15 more)
-
-### Community 35 - "CLI Runner and Output"
 Cohesion: 0.19
 Nodes (7): HostedVoiceTests, SyntheticProject, Bool, DossierBundle, StaleFinding, String, URL
+
+### Community 35 - "CLI Runner and Output"
+Cohesion: 0.14
+Nodes (18): ManifestWriter, DossierBundle, PageSwap, RenderedPage, Asset, BundleScan, Cast, CharacterDocument (+10 more)
 
 ### Community 36 - "CLI Update Commands"
 Cohesion: 0.06
 Nodes (31): artStyle, box, composedPrompt, copiedFrom, copiedFromSha256, creditsUsed, durationSeconds, engine (+23 more)
 
 ### Community 37 - "Asset Kinds"
-Cohesion: 0.14
-Nodes (19): AnyObject, DispatchSourceFileSystemObject, BundleSnapshot, DirectoryWatchStarter, Guarded, ManifestChange, ManifestWatcher, ManifestWatching (+11 more)
+Cohesion: 0.15
+Nodes (19): DossierRebuildAction, DossierView, EnvironmentValues, FocusedValues, ModelHolder, Header, MainActor, Accessory (+11 more)
 
 ### Community 38 - "Refresh Tests"
-Cohesion: 0.08
-Nodes (30): audio Fragment, audioEmpty Fragment, audioRow Fragment, canonItem Fragment, caption Fragment, field Fragment, group Fragment, image Fragment (+22 more)
-
-### Community 39 - "Asset Schema Properties"
 Cohesion: 0.07
 Nodes (30): pattern, type, properties, type, type, type, minLength, pattern (+22 more)
 
+### Community 39 - "Asset Schema Properties"
+Cohesion: 0.18
+Nodes (19): Asset, AssetStatus, candidate, rejected, selected, unknown, Box, DerivedInput (+11 more)
+
 ### Community 40 - "Record Schema"
-Cohesion: 0.11
-Nodes (11): CGContext, syntheticPNG(), writePNG(), CommandTests, FaceCommandTests, HelpTests, Int, UInt8 (+3 more)
+Cohesion: 0.15
+Nodes (4): BindingBox, SingleFileEditorModelTests, Int, String
 
 ### Community 41 - "Provenance Folding"
 Cohesion: 0.12
-Nodes (19): DossierCommand, OutputOptions, timestamp(), UpdateBeginCommand, UpdateCommand, UpdateEndCommand, updateJSON(), UpdateLifetimeOptions (+11 more)
+Nodes (18): CustomStringConvertible, AssetKind, Bool, Int64, URL, Bool, Cast, CastDocument (+10 more)
 
 ### Community 42 - "Dossier Bundle Core"
+Cohesion: 0.07
+Nodes (25): DescriptionError, frontMatterNotEditable, frontMatterUnreadable, notALocationBundle, notUTF8, unreadable, DossierError, castUnreadable (+17 more)
+
+### Community 44 - "Manifest Tests"
 Cohesion: 0.15
 Nodes (8): DossierHeaderModelTests, HeaderProject, SpecTree, CastRole, DossierHeaderModel, DossierProjectContext, String, URL
 
-### Community 43 - "Member Hash Canonicalization"
+### Community 45 - "Findings and Completeness Reports"
+Cohesion: 0.10
+Nodes (26): Cast.Member (canonicalJSON, hash), dossier-format DOSSIER-FORMAT.md spec, No timed tests in CI rule, PV-0 pin bump to v2.0.0-rc.8 (B-01), dossier-format §11.1 preview rules (rc.8), SwiftReparto, DossierBundle.openForPreview(at:), previewMember(of:) CAST.md lookup (+18 more)
+
+### Community 46 - "CLI Write Commands"
+Cohesion: 0.15
+Nodes (14): CustomTestStringConvertible, Conformance, ConformanceTests, Document, Entry, LocationsPageAssertion, SpecTree, UpdateAssertion (+6 more)
+
+### Community 47 - "Check Command Tests"
 Cohesion: 0.14
 Nodes (18): assetJSON(), assetLine(), castMember(), castReportJSON(), castReportLines(), fileURL(), openBundle(), parseObject() (+10 more)
 
-### Community 44 - "Manifest Tests"
+### Community 48 - "Record Schema Fields With Generator"
 Cohesion: 0.21
 Nodes (9): hiddenNames(), makeBundle(), status(), UpdateRunCommandTests, UpdateSpanCommandTests, Int32, String, TempProject (+1 more)
 
-### Community 45 - "Findings and Completeness Reports"
+### Community 49 - "Record Schema Fields"
 Cohesion: 0.21
 Nodes (6): Directory, UpdateStatusTests, Bool, Date, String, URL
 
-### Community 46 - "CLI Write Commands"
-Cohesion: 0.12
-Nodes (25): Work on development; main takes releases, AGENTS.md — SwiftDossier Agent Instructions, The format is dossier-format's, graphify Queryable Codemap, Builds via Makefile and xcodebuild, never swift build/test, Makefile / xcodebuild build rules (no swift build/test), Queryable Codemap, SwiftDossier Agent Instructions (AGENTS.md) (+17 more)
+### Community 50 - "Manifest Model"
+Cohesion: 0.07
+Nodes (26): assets, character, exterior, prompt, refs, rule, dossierType, files (+18 more)
 
-### Community 47 - "Check Command Tests"
-Cohesion: 0.15
+### Community 51 - "Member Hash Tests"
+Cohesion: 0.07
+Nodes (26): assets, character, exterior, prompt, refs, rule, dossierType, files (+18 more)
+
+### Community 52 - "Mission Planning and Recon"
+Cohesion: 0.14
 Nodes (11): DossierTabsTests, Bool, Int64, String, UInt8, URL, Any, DossierTabs (+3 more)
 
-### Community 48 - "Record Schema Fields With Generator"
+### Community 53 - "Pinned Resources and CI"
 Cohesion: 0.08
 Nodes (24): description, $id, properties, required, type, minLength, pattern, type (+16 more)
 
-### Community 49 - "Record Schema Fields"
+### Community 54 - "Dossier Bundle Tests"
 Cohesion: 0.08
 Nodes (24): description, $id, type, items, properties, required, type, type (+16 more)
 
-### Community 50 - "Manifest Model"
+### Community 55 - "Staleness Tests"
+Cohesion: 0.17
+Nodes (24): Release 0.8.0 (single-file views), MARGO VELL CHARACTER.md (HUNTER-shape fixture), CharacterDescription, CharacterDocument.parseSections, CharacterEditor, CharacterPreview, DescriptionError (CharacterDescriptionError typealias), Escribir (host app) (+16 more)
+
+### Community 56 - "CLI Targets and Dependencies"
+Cohesion: 0.15
+Nodes (12): CharacterDescription, FootnoteReport, OpenQuestionGroup, Section, Bool, DossierBundle, FrontMatterEditor, JSONObject (+4 more)
+
+### Community 57 - "Bundle File Inventory"
+Cohesion: 0.18
+Nodes (14): timestamp(), UpdateBeginCommand, UpdateEndCommand, updateJSON(), UpdateLifetimeOptions, UpdateRenewCommand, UpdateRunCommand, Any (+6 more)
+
+### Community 58 - "Writer Requirements and Decisions"
 Cohesion: 0.19
 Nodes (3): elements(), RenderedTextTests, String
 
-### Community 51 - "Member Hash Tests"
-Cohesion: 0.13
-Nodes (24): OPERATION MANILA FOLDER Execution Plan, Sortie 10: make acceptance, Sortie 8: Face Crop, Sortie 9: check, Acceptance Item 2 Failure (derivedInputNotInBundle), Rollback Verdict: KEEP, OPERATION MANILA FOLDER Mission Brief, P-08 Sidecars Exist for Acceptance 2 (+16 more)
+### Community 59 - "LoRA Schema Properties"
+Cohesion: 0.26
+Nodes (4): LocationsPaneModelTests, Bool, String, URL
 
-### Community 52 - "Mission Planning and Recon"
-Cohesion: 0.15
+### Community 60 - "Manifest Assets Schema V2"
+Cohesion: 0.13
+Nodes (19): scripts/acceptance.sh (make acceptance), FrontMatter.split / CharacterDocument.parseSections, D-4/D-6 writable editor keys (fields.json + role, location, theme), Lossless single-key / single-section editing, SD-4 synthetic fixtures only (public repo), YAMLLineScan, CharacterEditor / editor model, LocationEditor (+11 more)
+
+### Community 61 - "Agent Docs and Cast Requirements"
+Cohesion: 0.17
 Nodes (16): CaseIterable, DossierType, character, location, Generator, LocationRecord, Manifest, Prompts (+8 more)
 
-### Community 53 - "Pinned Resources and CI"
+### Community 62 - "Child Process Handling"
+Cohesion: 0.16
+Nodes (14): AsyncDossierSubcommand, CommandIO, DossierCLI, JSONOut, OutputOptions, Error, ParsableArguments, Any (+6 more)
+
+### Community 63 - "Checksum Utilities"
+Cohesion: 0.17
+Nodes (16): AssetKind, CastRole, CompletenessReport, DossierBundle, Level, none, recommended, required (+8 more)
+
+### Community 64 - "Pinned Resources Tests"
 Cohesion: 0.21
-Nodes (11): CommandIO, DossierCLI, JSONOut, OutputSink, Any, Bool, Int32, JSONObject (+3 more)
+Nodes (9): otherKey(), PreviewStoreTests, StoreSnapshot, Date, PreviewStore, RenderProject, Set, String (+1 more)
 
-### Community 54 - "Dossier Bundle Tests"
-Cohesion: 0.15
-Nodes (14): BufferSink, dossier(), FixturePaths, Ran, sha256(), SpecTree, TempProject, Any (+6 more)
-
-### Community 55 - "Staleness Tests"
-Cohesion: 0.21
-Nodes (13): Error, PreviewPage, PreviewParts, DossierBundle, PreviewResult, PreviewStore, PreviewStoreError, invalidKey (+5 more)
-
-### Community 56 - "CLI Targets and Dependencies"
+### Community 65 - "Pinned Resources Tests Duplicate"
 Cohesion: 0.09
 Nodes (22): additionalProperties, $defs, timestamp, description, $ref, $id, minLength, type (+14 more)
 
-### Community 57 - "Bundle File Inventory"
-Cohesion: 0.26
-Nodes (12): CustomTestStringConvertible, Decodable, Document, Entry, LocationsPageAssertion, SpecTree, UpdateAssertion, LocationsPageAssertion (+4 more)
+### Community 66 - "Acceptance and Recon Evidence"
+Cohesion: 0.19
+Nodes (22): Acceptance: dossier preview on mr-mr-charles, Iteration 01 Brief — OPERATION HIDDEN SKETCHBOOK, Lesson: no timed tests in CI, Hard discovery: DossierTemplate.current throws, overload pairs, Hard discovery: watch the bundle directory, not the file, Completed Work — OPERATION HIDDEN SKETCHBOOK, dossier CLI, DossierTemplate / page template (+14 more)
 
-### Community 58 - "Writer Requirements and Decisions"
-Cohesion: 0.21
-Nodes (11): ActiveMarker, DossierBundle, UpdateMarker, UpdateStatus, Bool, Data, Date, JSONObject (+3 more)
+### Community 67 - "Manifest Assets Schema V1"
+Cohesion: 0.22
+Nodes (12): PreviewPage, PreviewParts, DossierBundle, PreviewResult, PreviewStore, PreviewStoreError, invalidKey, Bool (+4 more)
 
-### Community 59 - "LoRA Schema Properties"
-Cohesion: 0.23
-Nodes (8): otherKey(), PreviewStoreTests, StoreSnapshot, Date, RenderProject, Set, String, URL
-
-### Community 60 - "Manifest Assets Schema V2"
-Cohesion: 0.09
-Nodes (29): dossier-format specification (DOSSIER-FORMAT.md v2.1.0), scripts/pin-resources.sh, Fixture-count-pinned tests break on spec pin, Hard discovery: throwing DossierTemplate.current → overload pairs, PreviewKeyTests suite, previewVersion constant (replaces previewRules), LOCATIONS page HTML fragments, checkDescription() / DescriptionCheckReport (+21 more)
-
-### Community 61 - "Agent Docs and Cast Requirements"
+### Community 68 - "Manifest Subject Schema"
 Cohesion: 0.10
-Nodes (19): AssetKind, crowdRef, description, expression, expressions, face, faceSheet, lora (+11 more)
+Nodes (20): AssetKind, crowdRef, description, dossier, expression, expressions, face, faceSheet (+12 more)
 
-### Community 62 - "Child Process Handling"
+### Community 69 - "Validate Command Tests"
+Cohesion: 0.25
+Nodes (5): DossierViewModelTests, ManualWatching, StateLog, UIProject, ManifestWatchStarting
+
+### Community 70 - "Face Crop and Check Sorties"
+Cohesion: 0.17
+Nodes (20): SwiftDossier — Agent Instructions (AGENTS.md), CLAUDE.md (symlink to AGENTS.md), CAST.md / Cast.load, Dossier (writer target), dossier-format specification (DOSSIER-FORMAT.md v2.1.0), DossierCore (read-only target), DossierUI (SwiftUI target), graphify Queryable Codemap (graphify-out/) (+12 more)
+
+### Community 71 - "Generator Schema Properties"
+Cohesion: 0.17
+Nodes (12): CheckedContinuation, Call, Gates, Log, RecordingBuilder, Hashable, DossierBundle, Mutex (+4 more)
+
+### Community 72 - "Bundle Candidate Discovery"
+Cohesion: 0.26
+Nodes (8): FrontMatterEditor, Bool, Int, JSONObject, JSONValue, Node, Range, String
+
+### Community 73 - "CLI Output Sinks"
 Cohesion: 0.10
 Nodes (20): type, oneOf, properties, enum, type, type, createdAt, derivedFrom (+12 more)
 
-### Community 63 - "Checksum Utilities"
+### Community 74 - "Character Document Tests"
 Cohesion: 0.10
 Nodes (20): description, minLength, pattern, type, description, minLength, type, pattern (+12 more)
 
-### Community 64 - "Pinned Resources Tests"
+### Community 75 - "Manifest V1 Schema"
 Cohesion: 0.10
 Nodes (19): type, type, type, description, const, type, $id, $ref (+11 more)
 
-### Community 65 - "Pinned Resources Tests Duplicate"
+### Community 76 - "Manifest V2 Schema"
 Cohesion: 0.22
 Nodes (13): Bool, CastDocument, CastFile, CastRole, CastWriteReport, DossierBundle, Manifest, String (+5 more)
 
-### Community 66 - "Acceptance and Recon Evidence"
-Cohesion: 0.22
-Nodes (4): RenderCommandTests, String, TempProject, error
+### Community 77 - "Review Schema Fields"
+Cohesion: 0.19
+Nodes (12): AnyObject, DispatchSourceFileSystemObject, DirectoryWatchStarter, Guarded, ManifestWatcher, ManifestWatching, ManifestWatchStarting, State (+4 more)
 
-### Community 67 - "Manifest Assets Schema V1"
+### Community 78 - "Canonical Name Normalization"
+Cohesion: 0.20
+Nodes (9): DossierHeader, Item, roleBadge, updateLabel, Accessory, Bool, DossierHeaderModel, String (+1 more)
+
+### Community 80 - "Core and Validator Sorties"
 Cohesion: 0.11
 Nodes (19): properties, type, type, description, properties, type, description, exterior (+11 more)
 
-### Community 68 - "Manifest Subject Schema"
+### Community 81 - "Migration and Rendering Plans"
 Cohesion: 0.11
 Nodes (19): properties, required, type, properties, required, type, type, baseModel (+11 more)
 
-### Community 69 - "Validate Command Tests"
-Cohesion: 0.21
-Nodes (6): ConformanceFile, Entry, ValidateTests, dossier, Ran, String
+### Community 82 - "Training Image Schema Fields"
+Cohesion: 0.17
+Nodes (11): ArraySlice, Asset, Bool, BundleScan, Data, JSONObject, Manifest, String (+3 more)
 
-### Community 70 - "Face Crop and Check Sorties"
+### Community 83 - "PNG Metadata Stripping"
 Cohesion: 0.25
 Nodes (6): PreviewKeyTests, Bool, Data, DossierBundle, PageTemplate, String
 
-### Community 71 - "Generator Schema Properties"
-Cohesion: 0.14
-Nodes (18): AddOptions, CharacterDescription, completeness() / CompletenessReport, DerivedInput, DossierWriteError, FaceDetector / VisionFaceDetector, refresh(cast:beforeCastWrite:), RefreshReport (+10 more)
+### Community 84 - "CLI Command Definitions"
+Cohesion: 0.11
+Nodes (17): assets, character, dossierType, files, exterior, prompt, generator, name (+9 more)
 
-### Community 72 - "Bundle Candidate Discovery"
+### Community 85 - "Samples File Model"
 Cohesion: 0.17
 Nodes (9): DossierAudio, DossierField, DossierImageSet, DossierTabs, hostHandler(), KeyedElement, openLightbox(), postKey() (+1 more)
 
-### Community 73 - "CLI Output Sinks"
+### Community 86 - "Acceptance Script"
+Cohesion: 0.18
+Nodes (5): ConformanceFile, Entry, ValidateTests, Ran, String
+
+### Community 87 - "Review Schema Subset"
 Cohesion: 0.32
 Nodes (6): MemberHash, Bool, JSONObject, JSONValue, Node, String
 
-### Community 74 - "Character Document Tests"
-Cohesion: 0.19
-Nodes (15): Acceptance: dossier preview on mr-mr-charles, DOSSIER_FORMAT_REF pin, EXECUTION_PLAN — Dossier preview and viewer, Work Unit A — Preview core (S1–S5), Work Unit B — CLI (S6, S7), Work Unit C — DossierUI (S8–S11), Work Unit D — Release gate (S12, S13), PreviewWebView (+7 more)
+### Community 88 - "Provenance Schema Fields"
+Cohesion: 0.21
+Nodes (4): ManifestTests, Manifest, String, URL
 
-### Community 75 - "Manifest V1 Schema"
-Cohesion: 0.18
-Nodes (16): Makefile targets (build, test, test-ios, fixtures, release, smoke, acceptance), Hard discovery: await picks sync overload → DossierCLI.runAsync, Sortie 1: Scaffold, Pinned Resources, Fixtures, Sortie 2: DossierCore Read Model, Sortie 3: SD-13 Schema Evaluator, Sortie 4: Validator and Conformance, U-2 JSONEncoder Canonical JSON Unverified, U-3 Resource Comparison Mechanism (+8 more)
+### Community 89 - "Derived From Schema"
+Cohesion: 0.25
+Nodes (13): Binding, CharacterEditor, FieldRow, LocationEditor, SectionRow, SingleFileEditorForm, EditorFieldRow, EditorSectionRow (+5 more)
 
-### Community 76 - "Manifest V2 Schema"
-Cohesion: 0.32
+### Community 90 - "Path Schema Field"
+Cohesion: 0.14
+Nodes (6): Decodable, CanonicalNameTests, Row, Table, CompletenessTests, String
+
+### Community 91 - "Dossier Resources Bundle"
+Cohesion: 0.35
 Nodes (12): DossierSubcommand, AddCommand, CreateCommand, FaceCommand, PromptCommand, RefreshCommand, RejectCommand, RemoveCommand (+4 more)
 
-### Community 77 - "Review Schema Fields"
+### Community 92 - "CLI Smoke Tests"
 Cohesion: 0.26
 Nodes (5): CheckCommandTests, Data, String, TempProject, URL
 
-### Community 78 - "Canonical Name Normalization"
-Cohesion: 0.18
-Nodes (14): Sortie 5: Writers, Sortie 6: create, CAST.md, Prompts, refresh, candidates, Sortie 7: CLI for Phase 1, DossierUI product, Cast.load, Dossier Target, dossier CLI Executable, DossierCore Target (+6 more)
+### Community 93 - "Core Resources Bundle"
+Cohesion: 0.19
+Nodes (6): BundleSnapshot, ManifestWatcherTests, Int64, String, String, URL
 
-### Community 79 - "Checksum Tests"
+### Community 95 - "Size Bytes Schema"
 Cohesion: 0.25
 Nodes (9): DossierBundle, PreviewPage, PreviewParts, Cast, Data, Finding, PageTemplate, String (+1 more)
 
-### Community 80 - "Core and Validator Sorties"
-Cohesion: 0.32
-Nodes (4): FileAcceptanceCommandTests, String, TempProject, URL
+### Community 96 - "Provenance Requirement Schema"
+Cohesion: 0.23
+Nodes (8): LocationDescription, Section, Bool, DossierBundle, FrontMatterEditor, JSONObject, JSONValue, String
 
-### Community 81 - "Migration and Rendering Plans"
-Cohesion: 0.14
-Nodes (5): CanonicalNameTests, Row, Table, CompletenessTests, String
-
-### Community 82 - "Training Image Schema Fields"
+### Community 97 - "Test Filter Script"
 Cohesion: 0.26
 Nodes (9): bytes(), Conformance, Entry, Fixtures, SpecTree, Bool, Cast, String (+1 more)
 
-### Community 83 - "PNG Metadata Stripping"
-Cohesion: 0.26
-Nodes (5): StalenessTests, StaleFinding, PageTemplate, StaleFinding, String
-
-### Community 85 - "Samples File Model"
+### Community 99 - "Swift Package Manifest"
 Cohesion: 0.22
 Nodes (8): markerNames(), modificationDate(), RebuildTests, Asset, Date, RenderProject, String, URL
 
-### Community 86 - "Acceptance Script"
+### Community 100 - "Community 100"
+Cohesion: 0.32
+Nodes (3): LocationsViewTests, String, URL
+
+### Community 102 - "Community 102"
 Cohesion: 0.13
 Nodes (15): minLength, type, type, pattern, type, const, properties, character (+7 more)
 
-### Community 87 - "Review Schema Subset"
+### Community 103 - "Community 103"
 Cohesion: 0.15
 Nodes (15): items, type, items, type, additionalProperties, allOf, required, then (+7 more)
 
-### Community 88 - "Provenance Schema Fields"
-Cohesion: 0.35
-Nodes (3): PreviewCommandTests, String, TempProject
+### Community 104 - "Community 104"
+Cohesion: 0.26
+Nodes (3): RenderCommandTests, String, TempProject
 
-### Community 89 - "Derived From Schema"
+### Community 105 - "Community 105"
 Cohesion: 0.19
 Nodes (3): MemberHashTests, Cast, String
 
-### Community 90 - "Path Schema Field"
+### Community 106 - "Community 106"
+Cohesion: 0.29
+Nodes (4): StalenessTests, PageTemplate, StaleFinding, String
+
+### Community 107 - "Community 107"
 Cohesion: 0.26
 Nodes (9): DossierRebuildAction, DossierHeaderModel, CastMember, CastRole, DossierBundle, DossierProjectContext, String, UpdateStatus (+1 more)
 
-### Community 91 - "Dossier Resources Bundle"
+### Community 108 - "Community 108"
 Cohesion: 0.27
 Nodes (5): ConformancePageTests, Bool, Conformance, DossierBundle, URL
 
-### Community 93 - "Core Resources Bundle"
-Cohesion: 0.13
-Nodes (23): DossierBundle.openForPreview(at:cast:), previewPage() / PreviewPage, Dossier (writer product), dossier CLI, dossier render command, DossierCore (read-only product), dossier render command, BundleScan (allowingEmpty) (+15 more)
+### Community 109 - "Community 109"
+Cohesion: 0.15
+Nodes (14): DRY-DOCK dock plate (green circle on magenta placeholder), DRY-DOCK dock plate variant (placeholder), DRY-DOCK lamp-room plate (placeholder), DRY-DOCK storyboard-design view (green rectangle placeholder JPG), HARBOR-LIGHT dock plate (placeholder), HARBOR-LIGHT dock plate variant (placeholder), HARBOR-LIGHT lamp-room plate (placeholder), HARBOR-LIGHT storyboard-design view (placeholder JPG) (+6 more)
 
-### Community 95 - "Size Bytes Schema"
+### Community 110 - "Community 110"
 Cohesion: 0.23
 Nodes (3): DossierHeaderTests, DossierHeaderModel, String
 
-### Community 96 - "Provenance Requirement Schema"
-Cohesion: 0.14
-Nodes (17): BundleSnapshot.change(from:to:) directory watch, Iteration 01 Brief — OPERATION HIDDEN SKETCHBOOK, Rollback verdict: KEEP, No timed tests in CI rule, Completed Work — OPERATION HIDDEN SKETCHBOOK, DossierViewModelTests suite, RebuildTests suite, DossierViewModel (+9 more)
-
-### Community 98 - "CLI Entry Point"
+### Community 112 - "Community 112"
 Cohesion: 0.17
 Nodes (12): const, description, minLength, type, if, properties, required, if (+4 more)
 
-### Community 99 - "Swift Package Manifest"
+### Community 113 - "Community 113"
 Cohesion: 0.30
 Nodes (11): classify(), differences(), excerpt(), file_offset(), jpeg_size(), main(), A list of lines. Empty when the pages agree., The page with each image payload gone, the sizes in order, and a way back to fil (+3 more)
 
-### Community 100 - "Community 100"
+### Community 114 - "Community 114"
+Cohesion: 0.20
+Nodes (7): AddOptions, CGContext, Asset, Bool, Data, Int, String
+
+### Community 115 - "Community 115"
+Cohesion: 0.25
+Nodes (11): Acceptance item 2 failure (derivedInputNotInBundle), SD-1 SPEC-GAP comments, ConformanceTests (96 fixtures), swift-argument-parser, Yams, deriveFace(box:) face crop, Operation Manila Folder 01 Brief, EXECUTION_PLAN (Manila Folder: SwiftDossier core phases 1-2) (+3 more)
+
+### Community 116 - "Community 116"
+Cohesion: 0.40
+Nodes (6): SectionEditor, Span, Int, Range, String, Substring
+
+### Community 117 - "Community 117"
+Cohesion: 0.24
+Nodes (6): RenderBox, ManifestChange, OptionSet, Int, Value, Void
+
+### Community 118 - "Community 118"
+Cohesion: 0.25
+Nodes (9): LocationsIndexPreviewEntry, LocationsIndexPreviewModel, Mode, list, page, problem, Bool, SingleFileContext (+1 more)
+
+### Community 119 - "Community 119"
 Cohesion: 0.27
 Nodes (7): Policy, allow, cancel, openExternally, PreviewNavigation, Bool, URL
 
-### Community 101 - "Community 101"
+### Community 120 - "Community 120"
+Cohesion: 0.40
+Nodes (8): CharacterPreviewModel, JSONValue, LocationPreviewModel, PreviewField, PreviewSection, Bool, OpenQuestionGroup, String
+
+### Community 121 - "Community 121"
+Cohesion: 0.24
+Nodes (3): DossierViewTests, FieldLog, String
+
+### Community 122 - "Community 122"
+Cohesion: 0.33
+Nodes (3): LocationsIndexPreviewModelTests, LocationsIndexPreviewEntry, LocationsIndexPreviewModel
+
+### Community 123 - "Community 123"
+Cohesion: 0.18
+Nodes (10): assets, character, files, generator, name, version, manifestChecksum, manifestVersion (+2 more)
+
+### Community 124 - "Community 124"
+Cohesion: 0.27
+Nodes (10): header-cast CAST.md (DossierUI header tests), Changelog, Release 0.7.0 (LocationsView), DossierHeader / DossierHeaderModel, DossierProjectContext, DossierRebuildAction (focusedSceneValue), DossierView, LocationsPaneModel (+2 more)
+
+### Community 125 - "Community 125"
+Cohesion: 0.36
+Nodes (7): CharacterPreviewModel, CharacterPreview, LocationPreview, LocationPreviewModel, SingleFileContext, SingleFileViewIdentity, String
+
+### Community 126 - "Community 126"
 Cohesion: 0.27
 Nodes (8): DossierTemplate, Published, Data, DossierError, PageTemplate, Result, String, URL
 
-### Community 102 - "Community 102"
+### Community 127 - "Community 127"
+Cohesion: 0.31
+Nodes (3): LocationDescriptionWriteTests, DossierBundle, String
+
+### Community 128 - "Community 128"
+Cohesion: 0.31
+Nodes (5): build, rebuild, Handle, ManifestWatching, URL
+
+### Community 129 - "Community 129"
 Cohesion: 0.20
 Nodes (9): description, else, description, properties, $id, required, $schema, title (+1 more)
 
-### Community 103 - "Community 103"
+### Community 130 - "Community 130"
+Cohesion: 0.28
+Nodes (9): scripts/pin-resources.sh (PINNED.sha256), SIL Open Font License 1.1, Character page template fragments, LOCATIONS page template fragments, IBM Plex Mono OFL license, IBM Plex Sans OFL license, Instrument Serif OFL license, Character page template skeleton (+1 more)
+
+### Community 131 - "Community 131"
 Cohesion: 0.31
 Nodes (6): ChildProcess, passOnPendingSignal(), Bool, Int32, String, Void
 
-### Community 104 - "Community 104"
+### Community 132 - "Community 132"
 Cohesion: 0.39
 Nodes (4): Checksum, SHA256, Data, String
 
-### Community 105 - "Community 105"
+### Community 133 - "Community 133"
 Cohesion: 0.42
 Nodes (3): PinnedResourcesTests, Data, String
 
-### Community 106 - "Community 106"
+### Community 136 - "Community 136"
 Cohesion: 0.42
 Nodes (3): PinnedResourcesTests, Data, String
 
-### Community 107 - "Community 107"
-Cohesion: 0.25
-Nodes (7): DossierBundle, RebuildResult, Error, PageTemplate, PreviewResult, URL, Void
-
-### Community 108 - "Community 108"
+### Community 137 - "Community 137"
 Cohesion: 0.25
 Nodes (9): items, type, items, type, additionalProperties, required, type, assets (+1 more)
 
-### Community 109 - "Community 109"
+### Community 138 - "Community 138"
 Cohesion: 0.22
 Nodes (9): type, type, properties, type, identity, portrait, prompts, subject (+1 more)
 
-### Community 110 - "Community 110"
-Cohesion: 0.42
-Nodes (6): AssetKind, String, URL, sidecar, Candidate, DossierBundle
+### Community 139 - "Community 139"
+Cohesion: 0.39
+Nodes (3): RealProjectRoundTripTests, String, URL
 
-### Community 111 - "Community 111"
-Cohesion: 0.25
-Nodes (8): UnclassifiedReason, noModelSize, noRule, noSamplesEntry, noSamplesFile, noSelectedVox, noVariant, samplesUnreadable
+### Community 140 - "Community 140"
+Cohesion: 0.39
+Nodes (7): LocationsIndexPreview, Accessory, AnyHashable, LocationsIndexPreviewModel, SingleFileContext, SingleFileViewIdentity, String
 
-### Community 112 - "Community 112"
+### Community 141 - "Community 141"
 Cohesion: 0.38
 Nodes (3): ConsoleOutputSink, OutputSink, String
 
-### Community 114 - "Community 114"
-Cohesion: 0.25
-Nodes (3): Conformance, ConformanceTests, PageTemplate
-
-### Community 115 - "Community 115"
+### Community 143 - "Community 143"
 Cohesion: 0.29
 Nodes (6): description, $id, required, $schema, title, type
 
-### Community 116 - "Community 116"
+### Community 144 - "Community 144"
 Cohesion: 0.29
 Nodes (7): failed, notes, passed, review, reviewedAt, properties, type
 
-### Community 117 - "Community 117"
+### Community 145 - "Community 145"
+Cohesion: 0.40
+Nodes (6): locations-project CAST.md, THE KEEPER CHARACTER.md, DossierBundle, Face crop (deriveFace, Vision), THE KEEPER face fixture (blue oval placeholder on light blue), THE KEEPER portrait fixture (blue oval head placeholder, tall frame)
+
+### Community 146 - "Community 146"
 Cohesion: 0.40
 Nodes (3): CanonicalName, Bool, String
 
-### Community 119 - "Community 119"
-Cohesion: 0.53
-Nodes (3): RenderBox, Value, Void
+### Community 149 - "Community 149"
+Cohesion: 0.40
+Nodes (3): DossierViewModel.State, DossierViewModel, PreviewResult
 
-### Community 120 - "Community 120"
+### Community 150 - "Community 150"
 Cohesion: 0.33
 Nodes (6): caption, isSynthetic, training, view, properties, type
 
-### Community 121 - "Community 121"
+### Community 151 - "Community 151"
 Cohesion: 0.33
 Nodes (4): Data, Set, String, PNGMetadata
 
-### Community 122 - "Community 122"
+### Community 152 - "Community 152"
+Cohesion: 0.40
+Nodes (3): DossierCommand, UpdateCommand, ParsableCommand
+
+### Community 153 - "Community 153"
 Cohesion: 0.40
 Nodes (3): SamplesFile, JSONValue, String
 
-### Community 123 - "Community 123"
-Cohesion: 0.40
-Nodes (5): Reason, artStyle, input, pageTemplate, voice
+### Community 154 - "Community 154"
+Cohesion: 0.50
+Nodes (3): SingleFileContext, String, URL
 
-### Community 124 - "Community 124"
+### Community 155 - "Community 155"
 Cohesion: 0.40
 Nodes (5): notes, passed, review, properties, type
 
-### Community 125 - "Community 125"
+### Community 156 - "Community 156"
 Cohesion: 0.40
 Nodes (5): provenance, references, tool, properties, type
 
-### Community 126 - "Community 126"
+### Community 157 - "Community 157"
 Cohesion: 0.40
 Nodes (5): copiedFromSha256, provenance, dependentRequired, required, type
 
-### Community 127 - "Community 127"
+### Community 158 - "Community 158"
 Cohesion: 0.40
 Nodes (5): items, minItems, type, oneOf, derivedFrom
 
-### Community 131 - "Community 131"
+### Community 159 - "Community 159"
+Cohesion: 0.50
+Nodes (4): Hard discovery: await doesn't pick async overload (runAsync, make smoke), Makefile targets (build, test, test-ios, fixtures, release, smoke, acceptance), Main source workflow (require development), Tests workflow (test-macos, test-ios)
+
+### Community 161 - "Community 161"
 Cohesion: 0.50
 Nodes (4): minLength, pattern, type, path
 
-### Community 132 - "Community 132"
+### Community 162 - "Community 162"
 Cohesion: 0.83
 Nodes (3): die(), usage(), acceptance.sh script
 
-### Community 136 - "Community 136"
-Cohesion: 0.67
-Nodes (3): Cast.load / openBundle(for:), DossierBundle, DossierError
-
-### Community 137 - "Community 137"
+### Community 166 - "Community 166"
 Cohesion: 0.67
 Nodes (3): sha256, pattern, type
 
 ## Ambiguous Edges - Review These
-- `fonts.css` → `IBM Plex Mono OFL 1.1 License`  [AMBIGUOUS]
-  Sources/Dossier/Resources/template/skeleton.html · relation: conceptually_related_to
-- `fonts.css` → `IBM Plex Sans OFL 1.1 License`  [AMBIGUOUS]
-  Sources/Dossier/Resources/template/skeleton.html · relation: conceptually_related_to
-- `fonts.css` → `Instrument Serif OFL 1.1 License`  [AMBIGUOUS]
-  Sources/Dossier/Resources/template/skeleton.html · relation: conceptually_related_to
-- `ManifestWriter.update(accepting:removing:)` → `BundleScan (allowingEmpty)`  [AMBIGUOUS]
-  docs/complete/hidden-sketchbook-01/RECON_REPORT.md · relation: conceptually_related_to
+- `locations-project LOCATIONS.md` → `DRY-DOCK LOCATION.md`  [AMBIGUOUS]
+  Tests/DossierTests/Fixtures/locations-project/locations/DRY-DOCK.dossier/LOCATION.md · relation: conceptually_related_to
+- `LocationDescription` → `Validator (§14 codes)`  [AMBIGUOUS]
+  docs/complete/loose-leaf-01/RECON_REPORT.md · relation: calls
+- `deriveFace(box:) face crop` → `Acceptance item 2 failure (derivedInputNotInBundle)`  [AMBIGUOUS]
+  docs/complete/manila-folder-01/OPERATION_MANILA_FOLDER_01_BRIEF.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **698 isolated node(s):** `Int`, `file`, `sections`, `footnotes`, `openQuestions` (+693 more)
+- **813 isolated node(s):** `URL`, `JSONObject`, `JSONValue`, `Node`, `file` (+808 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **15 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `fonts.css` and `IBM Plex Mono OFL 1.1 License`?**
+- **What is the exact relationship between `locations-project LOCATIONS.md` and `DRY-DOCK LOCATION.md`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `fonts.css` and `IBM Plex Sans OFL 1.1 License`?**
+- **What is the exact relationship between `LocationDescription` and `Validator (§14 codes)`?**
+  _Edge tagged AMBIGUOUS (relation: calls) - confidence is low._
+- **What is the exact relationship between `deriveFace(box:) face crop` and `Acceptance item 2 failure (derivedInputNotInBundle)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `fonts.css` and `Instrument Serif OFL 1.1 License`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `ManifestWriter.update(accepting:removing:)` and `BundleScan (allowingEmpty)`?**
-  _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `Sendable` connect `Asset Kinds` to `Writer Tests`, `Community 128`, `Face Crop Tests`, `Update Marker Tests`, `Schema Evaluator Tests`, `CLI Test Support`, `Bundle Mutation API`, `Canonical Name Tests`, `Cast Write API`, `Provenance and Refresh Types`, `Character Description Tests`, `Bundle Update Lifecycle`, `Character Description Editing`, `Staleness and Page Templates`, `Validation Finding Codes`, `Description Check Rules`, `Asset Provenance Schema Fields`, `Image Shape Checks`, `CLI Read Commands`, `CLI Command Support`, `Update Status Tests`, `Sample Schema Properties`, `Cast Loading and Members`, `Samples Schema`, `Update Marker Schema`, `Mission Planning and Recon`, `Dossier Bundle Tests`, `Staleness Tests`, `Bundle File Inventory`, `Writer Requirements and Decisions`, `Agent Docs and Cast Requirements`, `Pinned Resources Tests Duplicate`, `Checksum Tests`, `Training Image Schema Fields`, `Community 100`, `Community 101`, `Community 107`, `Community 110`, `Community 111`, `Community 112`, `Community 119`, `Community 123`?**
-  _High betweenness centrality (0.271) - this node is a cross-community bridge._
-- **Why does `AddOptions` connect `Canonical Name Tests` to `Writer Tests`, `Bundle Completeness`, `Face Crop Tests`, `Update Marker Schema`, `Schema Evaluator Tests`, `CLI Test Support`, `Asset Kinds`, `Provenance and Refresh Types`, `Member Hash Canonicalization`, `Character Description Tests`, `Bundle Validator`, `Update Command Tests`?**
-  _High betweenness centrality (0.121) - this node is a cross-community bridge._
-- **Why does `DossierWriteError` connect `Validation Finding Codes` to `Acceptance and Recon Evidence`, `Update Marker Schema`, `Asset Kinds`, `CLI Test Support`?**
-  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+- **Why does `DossierProject` connect `Character Description Tests` to `Face Crop Tests`, `Asset Schema Properties`, `JSON Value Parser`, `CLI Write Commands`, `Character Document Parsing`, `CLI Command Support`, `LoRA Schema Properties`, `Agent Docs and Cast Requirements`?**
+  _High betweenness centrality (0.077) - this node is a cross-community bridge._
+- **Why does `CGContext` connect `Community 114` to `Writer Tests`, `Update Status Markers`, `Update Marker Tests`, `CLI Read Commands`, `Cast Loading and Members`?**
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
+- **Why does `Dictionary` connect `Staleness and Page Templates` to `Schema Evaluator Tests`, `Provenance Folding`, `Bundle Validator`, `Mission Planning and Recon`, `Image Shape Checks`, `Cast Loading and Members`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **What connects `URL`, `JSONObject`, `JSONValue` to the rest of the system?**
+  _816 weakly-connected nodes found - possible documentation gaps or missing edges._

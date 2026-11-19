@@ -1,0 +1,74 @@
+{
+  "assets": [
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "description",
+      "path": "CHARACTER.md",
+      "provenance": {
+        "provider": "manual"
+      },
+      "status": "selected"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "derivedFrom": [
+        {
+          "path": "images/portrait-52f17003.png",
+          "role": "portrait",
+          "sha256": "52f17003c57342c2807b686d965394181e5dc34a143d65b5a7c50f9c9741bdba"
+        }
+      ],
+      "kind": "face",
+      "path": "images/face-8299b785.png",
+      "provenance": {
+        "artStyle": "flat placeholder shapes",
+        "box": {
+          "height": 100,
+          "width": 80,
+          "x": 50,
+          "y": 60
+        },
+        "engine": "fixture",
+        "provider": "personaje"
+      },
+      "status": "selected"
+    },
+    {
+      "createdAt": "2026-10-31T11:00:00Z",
+      "kind": "portrait",
+      "path": "images/portrait-52f17003.png",
+      "provenance": {
+        "artStyle": "flat placeholder shapes",
+        "engine": "fixture",
+        "provider": "vinetas"
+      },
+      "status": "selected"
+    }
+  ],
+  "character": "THE KEEPER",
+  "files": [
+    {
+      "path": "CHARACTER.md",
+      "sha256": "968a50f7d51c358c7e363635dfa7e5ce8e1d459883139fc2de674ff144238146",
+      "sizeBytes": 431
+    },
+    {
+      "path": "images/face-8299b785.png",
+      "sha256": "8299b785ab8b566df9ee4594f2aae66dfefa49c33b6affe51e13ef9b60add918",
+      "sizeBytes": 702
+    },
+    {
+      "path": "images/portrait-52f17003.png",
+      "sha256": "52f17003c57342c2807b686d965394181e5dc34a143d65b5a7c50f9c9741bdba",
+      "sizeBytes": 938
+    }
+  ],
+  "generator": {
+    "name": "dossier-format fixtures",
+    "version": "1"
+  },
+  "manifestChecksum": "3f5b298bcec2ce6c609a268bbecc430a01755199bfa4c6353aacb6a13c32297c",
+  "manifestVersion": 2,
+  "role": "background",
+  "updatedAt": "2026-10-31T12:00:00Z"
+}

@@ -32,7 +32,7 @@ extension DossierBundle {
   ///
   /// - Parameter template: The template the page is built with; its `sha256` is part of the
   ///   page's ``PreviewPage/key``, which is ``previewKey(template:)`` for the same template.
-  /// - Throws: ``DossierCore/CharacterDescriptionError`` when `CHARACTER.md` is missing or isn't
+  /// - Throws: ``DescriptionError`` when `CHARACTER.md` is missing or isn't
   ///   UTF-8, since then there is nothing to show; template and resource errors.
   public func previewPage(template: PageTemplate) throws -> PreviewPage {
     try previewPage(try previewParts(template: template))
