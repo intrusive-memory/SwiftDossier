@@ -25,9 +25,9 @@ type: supervisor-state
 
 ### SwiftDossier SFV
 - Work unit state: RUNNING
-- Current sortie: 2 of 7
+- Current sortie: 3 of 7
 - Sortie state: DISPATCHED
-- Model: opus
+- Model: sonnet
 - Attempt: 1 of 3
 
 ## Decisions Log
@@ -39,3 +39,5 @@ type: supervisor-state
 | 2026-11-18 | SwiftDossier SFV | 1 | Model: opus | Foundation: it extracts the shared writer, which the other 6 sorties depend on |
 | 2026-11-18 | SwiftDossier SFV | 1 | COMPLETED at bf04e3d | CharacterDescriptionTests 30/30 (same as baseline), LocationDescriptionTests 5/5, keySpans defined once, build OK. Extra public `hasFrontMatter` and settable `body` on LocationDescription accepted (they match CharacterDescription). Supervisor decision: the shared error becomes a neutral `DescriptionError`, with `CharacterDescriptionError` kept as a typealias, in Sortie 2 |
 | 2026-11-18 | SwiftDossier SFV | 2 | Model: opus | Range tracking plus setSection and isEditable on both types |
+| 2026-11-18 | SwiftDossier SFV | 2 | COMPLETED at b460abc | SectionEditTests 22/22, CharacterDescriptionTests 30/30, LocationDescriptionTests 5/5, build OK, fixtures clean. Note for the brief: a `## ` line inside setSection content becomes a new heading (documented, not rejected), and the editors must handle that |
+| 2026-11-18 | SwiftDossier SFV | 3 | Model: sonnet | Mirrors an existing write, and extracts the parse out of load(_:) |
