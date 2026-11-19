@@ -43,6 +43,9 @@ public struct LocationsIndexPreview<Accessory: View>: View {
         PreviewWebView(content: .html(model.html))
       }
     }
+    // `.contain` first: without it the identifier collapses the VStack into one element on
+    // macOS, and the accessory and the LOCATIONS page inside it vanish from accessibility.
+    .accessibilityElement(children: .contain)
     .accessibilityIdentifier("locations.indexPreview")
   }
 }
