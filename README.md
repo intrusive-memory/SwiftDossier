@@ -116,6 +116,10 @@ struct DossierCommands: Commands {
 
 **Security scope.** The view needs nothing the app doesn't already hold. The app's existing security scope on the project folder covers the reads and the writes to `.preview/` and `manifest.json`.
 
+## Single-file views
+
+For a host that holds the text of one loose `CHARACTER.md`, `LOCATION.md` or `LOCATIONS.md`: `CharacterPreview`, `LocationPreview`, `CharacterEditor`, `LocationEditor` and `LocationsIndexPreview`, each over the host's text and a `SingleFileContext` (the file's URL for display, and a project folder). A view never reads or writes the file; an editor changes the `Binding<String>` you give it. An editor writes only the front-matter keys `fields.json` takes plus `role` for a character, and `location` and `theme` for a location; every other key is read-only. In `Dossier`, `CharacterDescription` and `LocationDescription` have `setSection(named:content:)` and `isEditable(key:)`, and `DossierCore` has `LocationsIndex(text:url:)`. See [docs/INTEGRATION.md](docs/INTEGRATION.md#12-single-file-views).
+
 ## Locations
 
 `LocationsView` is a project's locations pane, for SwiftUI on macOS 26 and iOS 26: a header, the validator's findings for what is selected, and the project's LOCATIONS page in a web view. Pass the project folder (the one holding `PROJECT.md`) and the selected location bundle, or `nil` for the whole project.

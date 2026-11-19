@@ -145,7 +145,7 @@ extension DossierBundle {
   /// a ``PreviewResult/storeError`` (PV-23).
   ///
   /// - Throws: What ``previewKey(template:)`` and ``previewPage(template:)`` throw, such as
-  ///   ``DossierCore/CharacterDescriptionError`` with no `CHARACTER.md`. Nothing in the store is
+  ///   ``DescriptionError`` with no `CHARACTER.md`. Nothing in the store is
   ///   removed when it throws.
   public func showPreview(template: PageTemplate) throws -> PreviewResult {
     let parts = try previewParts(template: template)

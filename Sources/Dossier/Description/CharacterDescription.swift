@@ -2,29 +2,6 @@ import DossierCore
 import Foundation
 import Yams
 
-/// Every way reading or editing `CHARACTER.md` can fail. A write's own failures are
-/// ``DossierWriteError``.
-public enum CharacterDescriptionError: Error, Equatable, Sendable, LocalizedError {
-  /// The file can't be read.
-  case unreadable(String)
-  /// The file isn't UTF-8 (§9).
-  case notUTF8(String)
-  /// The front matter doesn't parse, or isn't a mapping.
-  case frontMatterUnreadable(String)
-  /// The front matter can't be edited by key without changing the text of other keys.
-  case frontMatterNotEditable(String)
-
-  /// A description of the failure, for people.
-  public var errorDescription: String? {
-    switch self {
-    case .unreadable(let path): return "Can't read \(path)"
-    case .notUTF8(let path): return "\(path) isn't UTF-8"
-    case .frontMatterUnreadable(let detail): return "The front matter can't be read: \(detail)"
-    case .frontMatterNotEditable(let detail): return "The front matter can't be edited by key: \(detail)"
-    }
-  }
-}
-
 /// What ``CharacterDescription/footnoteCheck()`` found (§9.3). Labels are in byte order.
 public struct FootnoteReport: Sendable, Equatable {
   /// Labels referenced with no definition (`W-FOOTNOTE`).
@@ -68,40 +45,31 @@ public struct CharacterDescription: Sendable {
   /// The file's name in a bundle (§4).
   static let fileName = "CHARACTER.md"
 
-  private var opening: String
-  private var frontMatterYAML: String?
-  private var closing: String
+  private var editor: FrontMatterEditor
   /// The text after the front matter.
-  public var body: String
+  public var body: String {
+    get { editor.body }
+    set { editor.body = newValue }
+  }
 
   /// A description from the file's text. Nothing is rejected here: ``frontMatterProblem`` says
   /// what's wrong with the front matter.
   public init(text: String) {
-    guard let split = FrontMatter.split(text) else {
-      (opening, frontMatterYAML, closing, body) = ("", nil, "", text)
-      return
-    }
-    let bytes = Array(text.utf8)
-    let openingCount = (bytes.firstIndex(of: 0x0A) ?? -1) + 1
-    let closingEnd = bytes.count - split.body.utf8.count
-    opening = String(decoding: bytes[..<openingCount], as: UTF8.self)
-    frontMatterYAML = split.yaml
-    closing = String(decoding: bytes[(openingCount + split.yaml.utf8.count)..<closingEnd], as: UTF8.self)
-    body = split.body
+    editor = FrontMatterEditor(text: text)
   }
 
   /// Reads a `CHARACTER.md` file.
   ///
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public static func read(at url: URL) throws -> CharacterDescription {
-    guard let data = try? Data(contentsOf: url) else { throw CharacterDescriptionError.unreadable(url.path) }
-    guard let text = String(data: data, encoding: .utf8) else { throw CharacterDescriptionError.notUTF8(url.path) }
+    guard let data = try? Data(contentsOf: url) else { throw DescriptionError.unreadable(url.path) }
+    guard let text = String(data: data, encoding: .utf8) else { throw DescriptionError.notUTF8(url.path) }
     return CharacterDescription(text: text)
   }
 
   /// Reads a bundle's `CHARACTER.md` as it now stands on disk. `nil` when the bundle has none.
   ///
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public static func read(from bundle: DossierBundle) throws -> CharacterDescription? {
     let url = bundle.url.appendingPathComponent(fileName)
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -109,36 +77,23 @@ public struct CharacterDescription: Sendable {
   }
 
   /// The whole file.
-  public var text: String { opening + (frontMatterYAML ?? "") + closing + body }
+  public var text: String { editor.text }
 
   // MARK: Front matter
 
   /// Why the front matter can't be used, or `nil` when it can. No block at all isn't a problem
   /// here: ``hasFrontMatter`` says that.
-  public var frontMatterProblem: String? {
-    do {
-      _ = try frontMatterMapping()
-      return nil
-    } catch let error as CharacterDescriptionError {
-      if case .frontMatterUnreadable(let detail) = error { return detail }
-      return error.localizedDescription
-    } catch {
-      return error.localizedDescription
-    }
-  }
+  public var frontMatterProblem: String? { editor.problem }
 
   /// Whether the file has a front-matter block.
-  public var hasFrontMatter: Bool { frontMatterYAML != nil }
+  public var hasFrontMatter: Bool { editor.hasFrontMatter }
 
   /// The front matter's keys and values, in file order. `nil` with no block, or one that can't
   /// be used.
   ///
   /// Quoted scalars are strings; a plain one is a string unless it's a YAML null, a boolean or
   /// an integer, by the same reading as §7's.
-  public var frontMatter: JSONObject? {
-    guard hasFrontMatter, let mapping = try? frontMatterMapping() else { return nil }
-    return Self.object(of: mapping)
-  }
+  public var frontMatter: JSONObject? { editor.object }
 
   /// Sets a front-matter key, or removes it with `nil`. Only that key's lines change. A new key
   /// goes at the end of the block, and a file with no block gets one. Setting a key to the value
@@ -147,46 +102,27 @@ public struct CharacterDescription: Sendable {
   /// Values are written so that they read back as given: `"39"` is `'39'`, and a date string is
   /// quoted, as §9.1 asks.
   ///
-  /// - Throws: ``CharacterDescriptionError``. The value is then as it was.
+  /// - Throws: ``DescriptionError``. The value is then as it was.
   public mutating func setFrontMatter(_ key: String, _ value: JSONValue?) throws {
-    guard let yaml = frontMatterYAML else {
-      guard let value else { return }
-      let lineBreak = body.contains("\r\n") ? "\r\n" : "\n"
-      opening = "---" + lineBreak
-      frontMatterYAML = try Self.rendered(key, value, lineBreak: lineBreak)
-      closing = "---" + lineBreak
-      return
-    }
-    let mapping = try frontMatterMapping()
-    let before = Self.object(of: mapping)
-    if before[key] == value.map(Self.asRead) { return }
+    try editor.set(key, value)
+  }
 
-    var lines = Self.linesKeepingBreaks(yaml)
-    let lineBreak = yaml.contains("\r\n") ? "\r\n" : "\n"
-    let spans = try Self.keySpans(of: mapping, lines: lines)
-    let replacement = try value.map { Self.linesKeepingBreaks(try Self.rendered(key, $0, lineBreak: lineBreak)) } ?? []
-    if let span = spans.first(where: { $0.key.hasSameBytes(as: key) }) {
-      lines.replaceSubrange(span.lines, with: replacement)
-    } else {
-      lines.append(contentsOf: replacement)
-    }
-    let edited = lines.joined()
-
-    // An anchor in the replaced text, say, would change another key.
-    var expected = before
-    expected[key] = value.map(Self.asRead)
-    let after = (try? Self.mapping(of: edited)).map(Self.object(of:))
-    guard let after, after == expected else {
-      throw CharacterDescriptionError.frontMatterNotEditable("changing \(key) would change another key")
-    }
-    frontMatterYAML = edited
+  /// Whether ``setFrontMatter(_:_:)`` can change this key without losing text (SFV-6): `false` when
+  /// the key's lines (its key line and its value's lines) hold a YAML `#` comment, an anchor
+  /// (`&name`) or an alias (`*name`), since setting the key replaces those lines. A `#` inside a
+  /// quoted or block scalar isn't a comment. An editor shows such a key read-only.
+  ///
+  /// `true` for a key the front matter doesn't have, or a file with no front matter: setting it
+  /// adds lines and replaces none. `false` when the front matter can't be edited by key at all.
+  public func isEditable(key: String) -> Bool {
+    editor.isEditable(key)
   }
 
   /// Records that a person edited a section or a front-matter key: its entry leaves
   /// `draft.generated` (§9.1). Nothing changes when it isn't there.
   ///
   /// - Parameter name: The section name or front-matter key.
-  /// - Throws: ``CharacterDescriptionError``.
+  /// - Throws: ``DescriptionError``.
   public mutating func markEdited(_ name: String) throws {
     guard var draft = frontMatter?["draft"]?.objectValue, let generated = draft["generated"]?.arrayValue else { return }
     let remaining = generated.filter { $0 != .string(name) }
@@ -206,6 +142,27 @@ public struct CharacterDescription: Sendable {
   /// parenthetical (§9.2).
   public func section(named name: String) -> Section? {
     sections.first { CharacterDocument.heading($0.heading, matches: name) }
+  }
+
+  /// Gives the first section named `name` this content, or adds the section when the body has
+  /// none (SFV-5). Every other byte of the text stays as it was: the front matter, the text before
+  /// the first `##`, every other section, and the line breaks (LF or CRLF) the file uses.
+  ///
+  /// The name matches as ``section(named:)`` matches it, and when more than one heading matches,
+  /// only the first section changes. Its heading line stays as written.
+  ///
+  /// `content` is the text under the heading. Its line breaks are written as the file's, and its
+  /// leading and trailing blank lines are dropped: the blank lines that were just under the heading
+  /// and just above the next one stay, so the section's separation from its neighbours is kept.
+  /// Setting a section to its own ``Section/content`` therefore changes nothing. Empty content
+  /// leaves the heading with only its separating blank lines. A line in `content` that starts
+  /// `## ` outside a code fence becomes a heading of its own.
+  ///
+  /// A section the body doesn't have is added in §9.2's order: after the nearest earlier §9.2 section
+  /// the body has, else before the first later one, else at the end of the body. A name that isn't
+  /// one of §9.2's sections is added at the end.
+  public mutating func setSection(named name: String, content: String) {
+    body = SectionEditor.setting(name, to: content, in: body, order: CharacterDocument.allSections)
   }
 
   /// §9.3's check of the footnotes. Footnotes in code blocks and code spans aren't read.
@@ -282,62 +239,7 @@ public struct CharacterDescription: Sendable {
   /// - Parameter bundle: The bundle, which is updated to what was written.
   /// - Throws: ``DossierWriteError`` or ``DossierCore/DossierError``.
   public func write(to bundle: inout DossierBundle) throws {
-    let writer = ManifestWriter(bundle: bundle.url)
-    let current = try writer.currentManifest()
-
-    let manager = FileManager.default
-    let destination = bundle.url.appendingPathComponent(Self.fileName)
-    let bytes = Data(text.utf8)
-    guard !bytes.isEmpty else { throw DossierWriteError.zeroByteFiles([Self.fileName]) }
-
-    var prior: Data?
-    if let attributes = try? manager.attributesOfItem(atPath: destination.path) {
-      guard attributes[.type] as? FileAttributeType == .typeRegular else {
-        throw DossierWriteError.destinationNotInBundle(Self.fileName)
-      }
-      guard let data = try? Data(contentsOf: destination) else {
-        throw DossierWriteError.fileUnreadable(Self.fileName)
-      }
-      prior = data
-    }
-
-    // The same text, unlisted, still needs a rescan to list it.
-    let isSameText = prior == bytes
-    let isListed = current.files.contains { $0.path == Self.fileName }
-    if isSameText, isListed { return }
-
-    let target = bundle.url
-    try UpdateHolding.holding(bundle: target, label: "write \(Self.fileName)") {
-      if !isSameText { try Self.replace(destination, with: bytes) }
-      do {
-        let manifest = try writer.update(accepting: isSameText ? [] : [Self.fileName]) { _, _ in }
-        bundle = DossierBundle(url: bundle.url, manifest: manifest, member: bundle.member)
-      } catch {
-        if !isSameText {
-          if let prior {
-            try? Self.replace(destination, with: prior)
-          } else {
-            try? manager.removeItem(at: destination)
-          }
-        }
-        throw error
-      }
-    }
-  }
-
-  /// A temporary file in the same directory, renamed over the target. A leading `.` keeps it out
-  /// of §5.2's inventory if the process dies first.
-  private static func replace(_ destination: URL, with bytes: Data) throws {
-    let temporary = destination.deletingLastPathComponent().appendingPathComponent(".character-\(UUID().uuidString).tmp")
-    defer { try? FileManager.default.removeItem(at: temporary) }
-    do {
-      try bytes.write(to: temporary)
-    } catch {
-      throw DossierWriteError.replaceFailed(error.localizedDescription)
-    }
-    guard rename(temporary.path, destination.path) == 0 else {
-      throw DossierWriteError.replaceFailed(String(cString: strerror(errno)))
-    }
+    try DescriptionFile.write(text, as: Self.fileName, to: &bundle)
   }
 
   // MARK: Front matter text
@@ -346,105 +248,7 @@ public struct CharacterDescription: Sendable {
   ///
   /// An empty block is an empty mapping.
   func frontMatterMapping() throws -> Node.Mapping {
-    try Self.mapping(of: frontMatterYAML ?? "")
-  }
-
-  private static func mapping(of yaml: String) throws -> Node.Mapping {
-    let root: Node?
-    do {
-      root = try Yams.compose(yaml: yaml)
-    } catch {
-      throw CharacterDescriptionError.frontMatterUnreadable(String(describing: error))
-    }
-    guard let root else { return Node.Mapping([]) }
-    guard case .mapping(let mapping) = root else {
-      throw CharacterDescriptionError.frontMatterUnreadable("it isn't a mapping")
-    }
-    return mapping
-  }
-
-  private static func object(of mapping: Node.Mapping) -> JSONObject {
-    MemberHash.generalValue(.mapping(mapping)).objectValue ?? JSONObject()
-  }
-
-  /// The lines each top-level key occupies, from its key to its value's last line. Comments and
-  /// blank lines after that belong to no key and stay.
-  ///
-  /// The parser finds the keys, so a line in a multi-line scalar can't be taken for one.
-  private static func keySpans(
-    of mapping: Node.Mapping, lines: [String]
-  ) throws -> [(key: String, lines: Range<Int>)] {
-    guard mapping.style != .flow else {
-      throw CharacterDescriptionError.frontMatterNotEditable("the block is a flow mapping")
-    }
-    var starts: [(key: String, line: Int)] = []
-    for (key, _) in mapping {
-      guard let mark = key.mark, mark.column == 1, let name = key.string else {
-        throw CharacterDescriptionError.frontMatterNotEditable("a top-level key isn't at the start of its line")
-      }
-      starts.append((name, mark.line - 1))
-    }
-    return starts.enumerated().map { index, start in
-      var end = index + 1 < starts.count ? starts[index + 1].line : lines.count
-      while end > start.line + 1 {
-        let line = lines[end - 1]
-        guard line.hasPrefix("#") || line.allSatisfy(\.isWhitespace) else { break }
-        end -= 1
-      }
-      return (start.key, start.line..<end)
-    }
-  }
-
-  /// `key: value`, ending in a line break.
-  private static func rendered(_ key: String, _ value: JSONValue, lineBreak: String) throws -> String {
-    let yaml: String
-    do {
-      yaml = try Yams.serialize(
-        node: .mapping(Node.Mapping([(node(for: .string(key)), node(for: value))])), width: -1, allowUnicode: true)
-    } catch {
-      throw CharacterDescriptionError.frontMatterNotEditable(String(describing: error))
-    }
-    return lineBreak == "\n" ? yaml : yaml.replacingOccurrences(of: "\n", with: lineBreak)
-  }
-
-  private static func node(for value: JSONValue) -> Node {
-    switch value {
-    case .null: return Node("null", Tag(.null))
-    case .bool(let flag): return Node(flag ? "true" : "false", Tag(.bool))
-    case .number(let literal): return Node(literal, Tag(Int64(literal) == nil ? .float : .int))
-    // Yams quotes a string that would otherwise read as something else.
-    case .string(let text): return .scalar(text.represented())
-    case .array(let items): return .sequence(Node.Sequence(items.map(node(for:))))
-    case .object(let object):
-      return .mapping(Node.Mapping(object.entries.map { (node(for: .string($0.key)), node(for: $0.value)) }))
-    }
-  }
-
-  /// A value as ``frontMatter`` would read it back: a plain number that isn't an integer is text.
-  private static func asRead(_ value: JSONValue) -> JSONValue {
-    switch value {
-    case .number(let literal): return Int64(literal) == nil ? .string(literal) : value
-    case .array(let items): return .array(items.map(asRead))
-    case .object(let object):
-      var result = JSONObject()
-      for entry in object.entries { result[entry.key] = asRead(entry.value) }
-      return .object(result)
-    default: return value
-    }
-  }
-
-  private static func linesKeepingBreaks(_ text: String) -> [String] {
-    var lines: [String] = []
-    var current = ""
-    for character in text {
-      current.append(character)
-      if character == "\n" || character == "\r\n" {
-        lines.append(current)
-        current = ""
-      }
-    }
-    if !current.isEmpty { lines.append(current) }
-    return lines
+    try editor.mapping()
   }
 
   /// A list item's text, without its marker. `nil` when the line isn't one.
