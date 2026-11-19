@@ -25,7 +25,7 @@ type: supervisor-state
 
 ### SwiftDossier SFV
 - Work unit state: RUNNING
-- Current sortie: 6 of 7
+- Current sortie: 7 of 7
 - Sortie state: DISPATCHED
 - Model: sonnet
 - Attempt: 1 of 3
@@ -47,3 +47,5 @@ type: supervisor-state
 | 2026-11-18 | SwiftDossier SFV | 5 | Model: sonnet | Editors over the Sortie 2 APIs. A verifier runs after for the [judgment] criterion |
 | 2026-11-18 | SwiftDossier SFV | 5 | COMPLETED (verifier PASS) at b11592c | SingleFileEditorModelTests 19, DossierUITests 121, DossierTests 397, build OK. One model class serves both kinds. The editor views have not been looked at in an app; the first look comes when Personaje adopts them |
 | 2026-11-18 | SwiftDossier SFV | 6 | Model: sonnet | LocationsIndexPreview, with and without a project folder |
+| 2026-11-18 | SwiftDossier SFV | 6 | COMPLETED at e35bdcf | LocationsIndexPreviewModelTests 6, LocationsViewTests 8, LocationsPaneModelTests 13, DossierUITests 127, build OK. The accessory shows in both modes |
+| 2026-11-18 | SwiftDossier SFV | 7 | Model: sonnet | Acceptance suite, docs and full gate |
