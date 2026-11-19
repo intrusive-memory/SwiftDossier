@@ -20,7 +20,7 @@ let package = Package(
     .executable(name: "dossier", targets: ["dossier"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.3.0")),
+    .package(url: "https://github.com/intrusive-memory/SwiftReparto.git", .upToNextMajor(from: "0.4.0")),
     .package(url: "https://github.com/jpsim/Yams.git", .upToNextMajor(from: "6.2.2")),
     .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.7.1")),
   ],
