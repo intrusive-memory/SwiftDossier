@@ -25,7 +25,7 @@ type: supervisor-state
 
 ### SwiftDossier SFV
 - Work unit state: RUNNING
-- Current sortie: 3 of 7
+- Current sortie: 4 of 7
 - Sortie state: DISPATCHED
 - Model: sonnet
 - Attempt: 1 of 3
@@ -41,3 +41,5 @@ type: supervisor-state
 | 2026-11-18 | SwiftDossier SFV | 2 | Model: opus | Range tracking plus setSection and isEditable on both types |
 | 2026-11-18 | SwiftDossier SFV | 2 | COMPLETED at b460abc | SectionEditTests 22/22, CharacterDescriptionTests 30/30, LocationDescriptionTests 5/5, build OK, fixtures clean. Note for the brief: a `## ` line inside setSection content becomes a new heading (documented, not rejected), and the editors must handle that |
 | 2026-11-18 | SwiftDossier SFV | 3 | Model: sonnet | Mirrors an existing write, and extracts the parse out of load(_:) |
+| 2026-11-18 | SwiftDossier SFV | 3 | COMPLETED at 441285c | LocationsTests 21, LocationDescriptionWriteTests 5, DossierCoreTests 97, LocationsPaneModelTests 13, SectionEdit 22, CharacterDescription 30, build OK. The temp-file prefix is now `.description-` |
+| 2026-11-18 | SwiftDossier SFV | 4 | Model: sonnet | Context type plus two previews, backed by models |
