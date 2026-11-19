@@ -23,4 +23,6 @@ public struct SingleFileViewIdentity: Sendable, Equatable {
   /// `LocationPreview`: "Location Preview", `mappin.and.ellipse`.
   public static let locationPreview = SingleFileViewIdentity(
     label: "Location Preview", systemImage: "mappin.and.ellipse")
+  /// `LocationsIndexPreview`: "Locations", `map`.
+  public static let locationsIndexPreview = SingleFileViewIdentity(label: "Locations", systemImage: "map")
 }
