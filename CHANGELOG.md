@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+
+### Fixed
+
+- `LocationsIndexPreview` contains its children for accessibility. Its container identifier, `locations.indexPreview`, now follows `.accessibilityElement(children: .contain)`, so a host's accessory and the embedded LOCATIONS page (`locations.view`) can be found on macOS.
+
 ## 0.8.0
 
 ### Added
