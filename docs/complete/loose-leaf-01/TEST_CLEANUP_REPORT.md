@@ -1,6 +1,7 @@
 ---
 type: test-cleanup-report
-state: current
+state: completed
+mission: loose-leaf-01
 ---
 
 # TEST_CLEANUP_REPORT.md: OPERATION LOOSE LEAF

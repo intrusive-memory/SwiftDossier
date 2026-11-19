@@ -4,6 +4,8 @@ feature_name: OPERATION LOOSE LEAF
 starting_point_commit: c3fa7629b94d5815aa018369854c76af8a6d1b7b
 mission_branch: mission/single-file-views
 iteration: 1
+state: completed
+mission: loose-leaf-01
 ---
 
 # EXECUTION_PLAN.md: SwiftDossier single-file views (0.8.0)

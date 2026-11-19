@@ -1,5 +1,7 @@
 ---
 type: supervisor-state
+state: completed
+mission: loose-leaf-01
 ---
 
 # SUPERVISOR_STATE.md: OPERATION LOOSE LEAF
@@ -24,9 +26,9 @@ type: supervisor-state
 - Dependency structure: sequential, sharing one worktree
 
 ### SwiftDossier SFV
-- Work unit state: RUNNING
+- Work unit state: COMPLETED
 - Current sortie: 7 of 7
-- Sortie state: DISPATCHED
+- Sortie state: COMPLETED
 - Model: sonnet
 - Attempt: 1 of 3
 
@@ -49,3 +51,4 @@ type: supervisor-state
 | 2026-11-18 | SwiftDossier SFV | 6 | Model: sonnet | LocationsIndexPreview, with and without a project folder |
 | 2026-11-18 | SwiftDossier SFV | 6 | COMPLETED at e35bdcf | LocationsIndexPreviewModelTests 6, LocationsViewTests 8, LocationsPaneModelTests 13, DossierUITests 127, build OK. The accessory shows in both modes |
 | 2026-11-18 | SwiftDossier SFV | 7 | Model: sonnet | Acceptance suite, docs and full gate |
+| 2026-11-18 | SwiftDossier SFV | 7 | COMPLETED | make test, make test-ios, make acceptance (granville unchanged) and the SKIP path are all green. Test cleanup: 0 pruned, 1 flagged. Brief: KEEP |
