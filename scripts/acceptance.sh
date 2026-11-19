@@ -90,6 +90,14 @@ for DERIVED in "$HOME"/Library/Developer/Xcode/DerivedData/SwiftDossier-*; do
   WORKSPACE="$(plutil -extract WorkspacePath raw "$DERIVED/info.plist" 2>/dev/null)" || continue
   if [ "$(cd "$WORKSPACE" 2>/dev/null && pwd -P)" = "$ROOT" ]; then BUILT="$DERIVED/Build/Products/Release"; fi
 done
+# A linked worktree's DerivedData directory is named after the worktree and can lack info.plist; take
+# the Release products whose dossier is byte-identical to the bin/dossier just built.
+if [ -z "$BUILT" ] || [ ! -d "$BUILT" ]; then
+  BUILT=""
+  for CANDIDATE in "$HOME"/Library/Developer/Xcode/DerivedData/SwiftDossier-*/Build/Products/Release; do
+    if cmp -s "$ROOT/bin/dossier" "$CANDIDATE/dossier" 2>/dev/null; then BUILT="$CANDIDATE"; break; fi
+  done
+fi
 [ -n "$BUILT" ] && [ -d "$BUILT" ] || die "couldn't find this checkout's build products"
 cmp -s "$ROOT/bin/dossier" "$BUILT/dossier" \
   || die "bin/dossier isn't this checkout's build; make release took another DerivedData's. Run make clean."
@@ -99,8 +107,29 @@ cmp -s "$ROOT/bin/dossier" "$BUILT/dossier" \
 ACCEPT_ROOT="$ROOT" ACCEPT_WORK="$WORK" ACCEPT_BUILT="$BUILT" ACCEPT_REF="$REF" \
   ACCEPT_COMMIT="$COMMIT" ACCEPT_REPARTO="${REPARTO:-}" ACCEPT_READ_ONLY_SOURCE="$PROJECT" \
   ACCEPT_PAGES_OUT="${PAGES_OUT:-}" \
-  python3 -I -c "$(sed -n '/^# PYTHON BEGIN$/,/^# PYTHON END$/p' "${BASH_SOURCE[0]}")"
-exit $?
+  python3 -I -c "$(sed -n '/^# PYTHON BEGIN$/,/^# PYTHON END$/p' "${BASH_SOURCE[0]}")" || STATUS=$?
+STATUS="${STATUS:-0}"
+
+# SFV-14 and SFV-15 on the project's own character file, by the swift-testing suite. It copies the
+# file and reads the copy, and is enabled only by this variable, which xcodebuild forwards to the
+# xctest process under the TEST_RUNNER_ prefix. A failure here fails the script.
+ABS_PROJECT="$(cd "$PROJECT" && pwd -P)"
+echo "acceptance: running the real-file round trip (SFV-14, SFV-15)"
+if TEST_RUNNER_DOSSIER_ACCEPTANCE_PROJECT="$ABS_PROJECT" \
+  make -C "$ROOT" test TEST_FILTER=DossierTests/RealProjectRoundTripTests >"$WORK/roundtrip.log" 2>&1; then
+  if grep -Eq "Test run with [1-9][0-9]* tests? in 1 suite passed" "$WORK/roundtrip.log"; then
+    echo "item real-file round trip: PASS"
+  else
+    tail -20 "$WORK/roundtrip.log" >&2
+    echo "item real-file round trip: FAIL (the suite did not run, or was skipped)"
+    STATUS=1
+  fi
+else
+  tail -20 "$WORK/roundtrip.log" >&2
+  echo "item real-file round trip: FAIL"
+  STATUS=1
+fi
+exit "$STATUS"
 
 # PYTHON BEGIN
 import collections, ctypes, datetime, difflib, hashlib, json, os, re, shutil, stat, subprocess, sys
