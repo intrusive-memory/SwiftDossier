@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 
 @testable import DossierUI
@@ -60,6 +61,13 @@ struct LocationsIndexPreviewModelTests {
     #expect(!model.html.contains("<script>"))
     #expect(model.html.contains("&lt;script&gt;"))
     #expect(model.html.contains("A &amp; B"))
+  }
+
+  @Test func theModeProbeNamesEachMode() {
+    let folder = URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+    #expect(LocationsIndexPreview<EmptyView>.modeValue(.page(projectFolder: folder)) == "page")
+    #expect(LocationsIndexPreview<EmptyView>.modeValue(.list(entries: [])) == "list")
+    #expect(LocationsIndexPreview<EmptyView>.modeValue(.problem("bad")) == "problem")
   }
 
   @Test func identityIsLocationsAndMap() {

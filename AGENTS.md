@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftDossier — Agent Instructions
-updated: 2026-11-12
+updated: 2026-11-19
 ---
 
 # AGENTS.md
@@ -35,7 +35,7 @@ Adopters integrating the libraries into an app or tool should read [docs/INTEGRA
 ## Queryable Codemap
 
 A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
-codebase lives in [`graphify-out/`](graphify-out/) (3817 nodes · 8239 edges). **Prefer
+codebase lives in [`graphify-out/`](graphify-out/) (3835 nodes · 8203 edges). **Prefer
 querying it before grepping** for architecture or "what connects to what" questions:
 
 ```bash
