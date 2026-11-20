@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+### Fixed
+
+- `locations.view` is reachable again inside a page-mode `LocationsIndexPreview`. The preview held only `LocationsView`, which is already an accessibility element, so its `.contain` container modified that element and `locations.indexPreview` replaced `locations.view`. A clear 1 pt probe, `locations.indexPreview.mode` (value `page`, `list` or `problem`), gives the container a second child.
+- Read-only rows in `CharacterEditor` and `LocationEditor` carry `field.<key>`, like writable rows. It is on the value's own text, so the value is readable; the `character` key, always read-only, can now be found.
+
 ## 0.8.1
 
 ### Fixed
