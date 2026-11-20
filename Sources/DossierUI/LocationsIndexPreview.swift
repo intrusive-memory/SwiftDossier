@@ -43,10 +43,38 @@ public struct LocationsIndexPreview<Accessory: View>: View {
         PreviewWebView(content: .html(model.html))
       }
     }
+    // The probe gives the VStack a second accessibility child. Without one, a page-mode preview
+    // holds only `LocationsView`, which is already an element, and `.accessibilityElement`
+    // modifies that element instead of making a new one: `locations.indexPreview` replaced
+    // `locations.view`.
+    .overlay(alignment: .topLeading) { modeProbe }
     // `.contain` first: without it the identifier collapses the VStack into one element on
     // macOS, and the accessory and the LOCATIONS page inside it vanish from accessibility.
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("locations.indexPreview")
+  }
+
+  /// The preview's mode as an accessibility value: `page`, `list` or `problem`.
+  static func modeValue(_ mode: LocationsIndexPreviewModel.Mode) -> String {
+    switch mode {
+    case .page: "page"
+    case .list: "list"
+    case .problem: "problem"
+    }
+  }
+
+  /// A leaf element whose value is the preview's mode. Drawn clear and 1 pt square, like
+  /// `LocationsView`'s section probe: `.opacity(0)` would take it out of the accessibility tree.
+  private var modeProbe: some View {
+    let value = Self.modeValue(model.mode)
+    return Text(value)
+      .font(.system(size: 1))
+      .foregroundStyle(.clear)
+      .frame(width: 1, height: 1)
+      .clipped()
+      .allowsHitTesting(false)
+      .accessibilityValue(value)
+      .accessibilityIdentifier("locations.indexPreview.mode")
   }
 }
 

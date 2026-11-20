@@ -101,7 +101,14 @@ private struct FieldRow: View {
           .onChange(of: focused) { _, now in if !now { _ = commit(draft) } }
           .accessibilityIdentifier("field.\(row.key)")
       } else {
-        LabeledContent(row.label, value: row.value)
+        // Read-only rows carry the same identifier as writable ones, so the key's value is
+        // reachable (the `character` key is always read-only). It goes on the value's own text:
+        // macOS reports an empty value for a SwiftUI element built over the whole row.
+        LabeledContent {
+          Text(row.value).accessibilityIdentifier("field.\(row.key)")
+        } label: {
+          Text(row.label)
+        }
         if let reason = row.readOnlyReason {
           Text(reason).font(.caption).foregroundStyle(.secondary)
         }
