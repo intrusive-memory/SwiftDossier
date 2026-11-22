@@ -573,6 +573,60 @@
               ]
             }
           },
+          "accepted": {
+            "type": "array",
+            "minItems": 1,
+            "description": "§7 (DF-100). Mismatches the author accepted. Each entry accepts one: an input role's current selection, by its hash, or the current front-matter artStyle. It never changes derivedFrom or provenance. Not on a dossier asset.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "role",
+                    "sha256",
+                    "acceptedAt"
+                  ],
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "portrait",
+                        "face",
+                        "vox",
+                        "description"
+                      ]
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "acceptedAt": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "artStyle",
+                    "acceptedAt"
+                  ],
+                  "properties": {
+                    "artStyle": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "acceptedAt": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+                    }
+                  }
+                }
+              ]
+            }
+          },
           "review": {
             "type": "object",
             "properties": {
@@ -796,7 +850,12 @@
             "then": {
               "required": [
                 "derivedFrom"
-              ]
+              ],
+              "not": {
+                "required": [
+                  "accepted"
+                ]
+              }
             }
           },
           {

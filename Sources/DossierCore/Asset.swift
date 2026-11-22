@@ -197,6 +197,58 @@ public struct DerivedInput: Sendable, Equatable {
   public var voiceId: String? { json["voiceId"]?.stringValue }
 }
 
+/// One `accepted` entry (§7, DF-100): a mismatch the author accepted, so it doesn't make the
+/// asset stale. A view over its JSON.
+public struct AcceptedEntry: Sendable, Equatable {
+  /// The input roles an entry can accept (§7). `castMember`, `bundle`, `template` and `voice`
+  /// can't be accepted.
+  public static let acceptableRoles: Set<String> = ["portrait", "face", "vox", "description"]
+
+  /// The entry's JSON.
+  public package(set) var json: JSONObject
+
+  /// An entry over existing JSON.
+  public init(json: JSONObject) { self.json = json }
+
+  /// An entry accepting the inputs of `role` against that role's selection, whose `files` hash
+  /// is `sha256`.
+  package init(role: String, sha256: String, acceptedAt: String) {
+    json = JSONObject([("acceptedAt", .string(acceptedAt)), ("role", .string(role)), ("sha256", .string(sha256))])
+  }
+
+  /// An entry accepting the front-matter `artStyle`.
+  package init(artStyle: String, acceptedAt: String) {
+    json = JSONObject([("acceptedAt", .string(acceptedAt)), ("artStyle", .string(artStyle))])
+  }
+
+  /// The input role it accepts, on a role entry.
+  public var role: String? { json["role"]?.stringValue }
+  /// The hash of that role's selection when it was accepted, on a role entry.
+  public var sha256: String? { json["sha256"]?.stringValue }
+  /// The front-matter `artStyle` when it was accepted, on an `artStyle` entry.
+  public var artStyle: String? { json["artStyle"]?.stringValue }
+  /// When the person accepted.
+  public var acceptedAt: String? { json["acceptedAt"]?.stringValue }
+
+  /// Whether this is a well-formed role entry, `{role, sha256, acceptedAt}` with a role an
+  /// entry can accept, and nothing else.
+  ///
+  /// SPEC-GAP: §7: an entry of another shape or role is `E-SCHEMA`; the text doesn't say whether
+  /// it still accepts anything. As with a malformed `voice` record (DF-94), it doesn't: only a
+  /// well-formed entry makes a mismatch current. The timestamp's form isn't checked here.
+  public var isRoleEntry: Bool {
+    guard let role, Self.acceptableRoles.contains(role), sha256 != nil, acceptedAt != nil else { return false }
+    return json.keys.count == 3
+  }
+
+  /// Whether this is a well-formed `artStyle` entry, `{artStyle, acceptedAt}` with a non-empty
+  /// style, and nothing else.
+  public var isArtStyleEntry: Bool {
+    guard let artStyle, !artStyle.isEmpty, acceptedAt != nil else { return false }
+    return json.keys.count == 2
+  }
+}
+
 /// One reference image sent to an engine (§6), a view over its JSON.
 public struct ProvenanceReference: Sendable, Equatable {
   /// The record's JSON.
@@ -428,6 +480,12 @@ public struct Asset: Sendable, Equatable {
   public package(set) var derivedFrom: [DerivedInput] {
     get { json["derivedFrom"]?.arrayValue?.compactMap { $0.objectValue.map(DerivedInput.init(json:)) } ?? [] }
     set { json["derivedFrom"] = .array(newValue.map { .object($0.json) }) }
+  }
+  /// The mismatches the author accepted (§7, DF-100). Empty when there's no `accepted`, or when
+  /// it isn't an array; a non-object element is left out here and stays in ``json``.
+  public package(set) var accepted: [AcceptedEntry] {
+    get { json["accepted"]?.arrayValue?.compactMap { $0.objectValue.map(AcceptedEntry.init(json:)) } ?? [] }
+    set { json["accepted"] = newValue.isEmpty ? nil : .array(newValue.map { .object($0.json) }) }
   }
   /// The `review` object (§5.4).
   public package(set) var review: JSONObject? {

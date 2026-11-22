@@ -1,7 +1,7 @@
 ---
 type: requirements
 state: accepted
-updated: 2026-11-12
+updated: 2026-11-21
 ---
 
 # SwiftDossier — Requirements
@@ -28,7 +28,9 @@ the two.
 
 dossier-format's specification, schemas, tier table, conformance fixtures, page
 template, field list, design tokens and LOCATIONS page template are written and tagged
-**`v2.1.0`** (2026-11-12), the revision this package pins. All of them are copied as
+**`v2.1.0`** (2026-11-12). On `development` this package pins dossier-format's
+`development` at `0f022fb`, which adds format 2.2.0's accepting a stale asset (DF-100), until
+`v2.2.0` is tagged; the Makefile's `DOSSIER_FORMAT_REF` names the revision. All of them are copied as
 resources: the field list in `DossierCore`, the templates and tokens in `Dossier`. The `dossier`
 CLI carries that template when it validates and renders (§4); `renderPage()` fills it.
 
@@ -74,6 +76,7 @@ readers and validators judge only what's on disk.
 | SD-8 | **`select`** demotes the previous `selected` of the same `kind` + `variant` to `candidate`; for a `voiceSample`, of the same `kind` + `variant` + `model` (DOSSIER-FORMAT §5.4). `--select` on `add` does both in one write. |
 | SD-9 | **Nothing is deleted implicitly.** `remove` deletes one asset and its file; `delete()` deletes the bundle. Both are explicit; the CLI asks for `--yes`. |
 | SD-10 | **`derivedFrom`** is written in the §7 array shape on `face`, `view`, `expression`, `voiceSample` and `dossier`. `stale()` compares each input's sha256 with the current selection, member, bundle and template. |
+| SD-15 | **Accepting a stale asset** (DOSSIER-FORMAT §7, DF-100). `acceptStale(path:at:)` and `dossier accept <bundle> <path>` add to a selected asset's `accepted` one `{role, sha256, acceptedAt}` entry for each `portrait`, `face`, `vox` or `description` role whose inputs make it stale, with the role's selection's `files` hash, and one `{artStyle, acceptedAt}` entry when `provenance.artStyle` differs from the front matter's, all at the time of the request. Only at a person's request: no other write adds an entry. Entries already there are kept; none is dropped. `derivedFrom` and `provenance` aren't changed, nothing is deleted or demoted, and only `manifest.json` is written, under the update marker (SD-14). A `castMember`, `bundle`, `template` or `voice` input, a role with no selection and an `artStyle` with none in the front matter can't be accepted, so they stay stale; with nothing to accept nothing is written. A `dossier` asset is refused (`acceptanceNotAllowed`). `stale()` treats a mismatch as current when a well-formed entry matches the current value, so `W-STALE` isn't reported; there is no code of its own. |
 | SD-11 | **`refresh`** brings the manifest up to the disk, and is the one way to accept a changed file: for each listed file whose bytes aren't its entry's, images included, it records the new hash and size, and reports the file by path (`RefreshReport.accepted`; `accepted` in `--json`, one `Accepted <path>` line in text). **The file keeps its name:** when an accepted file's name is of the DOSSIER-FORMAT §4 `<kind>[-<variant>]-<sha8>.png` form and its `<sha8>` isn't the new hash's first 8, that's reported (`RefreshReport.nameMismatches`; `nameMismatches` in `--json`, a line in text) and nothing is renamed. **A listed file with no asset that's missing has its entry dropped,** which clears `E-FILE-MISSING`, and is reported (`RefreshReport.dropped`; `dropped` in `--json`, one `Dropped <path>` line in text). **A missing file an asset points at refuses the call,** with nothing changed, even with nothing else to write: the paths are reported (`assetFilesMissing`; the message in text, `error.paths` in `--json`), the exit status is 1, and for the moment `dossier remove` is the way out. It writes when there's anything to accept, drop or adopt, and otherwise doesn't touch the manifest. It also adopts files a writer didn't put there by the DOSSIER-FORMAT §5.6 rules, which include when a sample can't be adopted; a listed file that's both changed and adoptable is in both lists, and a new file adopted is only in `adopted`. Anything else stays unclassified and the command reports why. Orphan adoption follows §3 exactly. |
 | SD-12 | **`CAST.md` is written only through SwiftReparto.** `create` adds the member if absent and sets `role` and `manifest`, which are real `CastMember` fields; this package requires SwiftReparto 0.2.1 or later, whose `canonicalName` matches dossier-format's `examples/names.json`. SwiftDossier owns those two fields and no others (SwiftReparto `REQUIREMENTS-personaje.md` "Who writes CAST.md"). **On a CAST.md SwiftReparto has already written, a write that changes lines of members the call didn't touch is a bug** (Reparto RP-P16). The first write to a hand-edited or 0.1.0-written file normalizes key order and quoting for every member (Reparto RQ-23 withdrawn); that is Reparto's behavior, not a SwiftDossier bug. It doesn't change a member's DOSSIER-FORMAT §7 hash, with these exceptions, which lose data or change a path: a `voices` provider value of the wrong type is dropped, a provider-case collision keeps one value, and absolute paths under the project become relative. `migrate` and `create` report any of these before writing, and say so when the file was not yet normalized (`generate(parse(x)) != x`). They suggest `reparto canonicalize --apply` first, which also renames non-canonical members. A synthetic CAST.md with Granville's layout quirks is the regression fixture, checked both ways; Granville's own is checked by `make acceptance`. *Restated 2026-10-22:* it said any reorder of untouched members was a bug, which Reparto's whole-file writer can't meet on a first write. |
 | SD-13 | **A small JSON Schema evaluator lives in `Dossier`,** for exactly the keywords the pinned schemas use: `type`, `required`, `properties`, `additionalProperties`, `items`, `enum`, `const`, `pattern`, `minimum`, `minLength`, `minItems`, `allOf`, `oneOf`, `if`/`then`/`else`, `contains`, `$defs`, and `$ref`, to another of the pinned schemas or a `#/` pointer into its own (`$id`, `$schema`, `title` and `description` are ignored). `type` may be an array and `$ref` may be relative. An unsupported keyword in a schema is a failure, not a pass, and a test checks that for every pinned schema. It is tested against `conformance.json`. No third-party schema package. |
@@ -126,6 +129,7 @@ source of truth and the manifest its index (§3), so a command judges what's on 
 dossier create   "THE PRACTITIONER" --role supporting --in characters/ [--cast CAST.md]
 dossier add      <bundle> <file> --kind view --variant front [--select] [--sidecar x.json] [--provenance '{...}']
 dossier select | reject | remove  <bundle> <path>
+dossier accept   <bundle> <path>                          # accept a stale asset as it is (DOSSIER-FORMAT §7, SD-15)
 dossier list     <bundle> [--kind view] [--variant front] [--status selected]
 dossier prompt   <bundle> identity|portrait|subject [--set "<text>" | --file f] # DOSSIER-FORMAT §5.5
 dossier face     <bundle> [--box x,y,w,h]

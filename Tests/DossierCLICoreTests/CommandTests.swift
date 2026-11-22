@@ -273,12 +273,33 @@ struct FaceCommandTests {
     #expect(ran.status == 1)
     #expect(ran.stdout.contains("\"error\""))
   }
+
+  @Test("accept clears a stale view's W-STALE; a second run and a page say why nothing changes")
+  func accept() throws {
+    let project = try TempProject(copyOf: "warnings/W-STALE-accepted-older-portrait")
+    let bundle = project.path("characters/PELL ARDEN.dossier")
+    let view = "images/view-front-b31b46b8.png"
+    #expect(dossier(["validate", "--cast", project.cast.path]).status == 1)
+
+    let accepted = dossier(["accept", bundle, view, "--json"])
+    #expect(accepted.status == 0)
+    let asset = try #require(try accepted.object()["asset"] as? [String: Any])
+    let entries = try #require(asset["accepted"] as? [[String: Any]])
+    #expect(entries.count == 2)
+    #expect(entries.last?["sha256"] as? String == "cfe63dbcb1a796828def1a5a1bad79d2546ca4b4833ecb979de568f23bf17a97")
+    #expect(dossier(["validate", "--cast", project.cast.path]).status == 0)
+
+    let again = dossier(["accept", bundle, view])
+    #expect(again.status == 0)
+    #expect(again.stdout.hasPrefix("Nothing to accept"))
+    #expect(dossier(["accept", bundle, "images/none.png"]).status == 1)
+  }
 }
 
 @Suite("Help names the command asked about")
 struct HelpTests {
   private static let commands = [
-    "create", "add", "select", "reject", "remove", "list", "prompt", "validate", "refresh",
+    "create", "add", "select", "reject", "accept", "remove", "list", "prompt", "validate", "refresh",
     "candidates", "face", "check", "update", "render", "migrate",
   ]
 
