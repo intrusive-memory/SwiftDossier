@@ -46,6 +46,12 @@ extension DossierBundle {
   /// is never reported: neither its inputs nor its `artStyle` are compared (DF-77). Neither is a
   /// `plate`, which isn't derived (§16.4).
   ///
+  /// A mismatch the asset has accepted (``Asset/accepted``, §7, DF-100) isn't reported: an input
+  /// of a `portrait`, `face`, `vox` or `description` role whose hash differs from that role's
+  /// selection is current when an entry for the role has the selection's hash, and a differing
+  /// `provenance.artStyle` is current when an entry has the front matter's `artStyle`. An entry
+  /// never makes an asset stale.
+  ///
   /// - Parameter template: The current template; `Dossier` bundles one as `DossierTemplate.current`.
   ///   `nil` makes no template comparison (§11).
   public func stale(template: PageTemplate? = nil) -> [StaleFinding] {
@@ -55,13 +61,16 @@ extension DossierBundle {
     // §16.4: a plate isn't derived and is never stale, and a location's views are always imported.
     for asset in manifest.assets where asset.status == .selected && !asset.isImported && asset.kind != .plate {
       if isLocation, asset.kind == .view { continue }
+      let accepted = acceptedEntries(of: asset)
       for input in asset.derivedFrom {
         if input.role == "voice" {
           if let reason = staleVoice(input) { findings.append(StaleFinding(path: asset.path, reason: reason)) }
           continue
         }
         guard case .compare(let current) = comparison(for: input, template: template) else { continue }
-        if !(current?.hasSameBytes(as: input.sha256) ?? false) {
+        if !(current?.hasSameBytes(as: input.sha256) ?? false),
+          !Self.accepts(accepted, role: input.role, current: current)
+        {
           findings.append(
             StaleFinding(
               path: asset.path,
@@ -71,7 +80,8 @@ extension DossierBundle {
       // SPEC-GAP: §7: a recorded artStyle with no front-matter artStyle "differs" read
       // literally, so it's reported. It's a warning; a removed style is a change.
       if asset.kind.isImage, let recorded = asset.provenance.artStyle,
-        !(currentArtStyle?.hasSameBytes(as: recorded) ?? false)
+        !(currentArtStyle?.hasSameBytes(as: recorded) ?? false),
+        !Self.accepts(accepted, artStyle: currentArtStyle)
       {
         findings.append(
           StaleFinding(path: asset.path, reason: .artStyle(recorded: recorded, current: currentArtStyle)))
@@ -85,6 +95,34 @@ extension DossierBundle {
       }
     }
     return findings
+  }
+
+  /// The entries that count for a selected asset (§7, DF-100): its well-formed `accepted`
+  /// entries.
+  ///
+  /// SPEC-GAP: §7: a `dossier` asset MUST NOT have `accepted` (`E-SCHEMA`), and the text doesn't
+  /// say whether its entries are read. A page's inputs are a reason to render, not a judgement to
+  /// record (§7), so they aren't: a page's entries accept nothing.
+  private func acceptedEntries(of asset: Asset) -> [AcceptedEntry] {
+    asset.kind == .dossier ? [] : asset.accepted
+  }
+
+  /// §7 rule 1: a mismatched input of `role` is current when an entry for that role has the
+  /// current selection's hash. A role with no selection (`current == nil`) matches nothing.
+  private static func accepts(_ entries: [AcceptedEntry], role: String, current: String?) -> Bool {
+    guard let current, AcceptedEntry.acceptableRoles.contains(role) else { return false }
+    return entries.contains { entry in
+      entry.isRoleEntry && entry.role == role && (entry.sha256?.hasSameBytes(as: current) ?? false)
+    }
+  }
+
+  /// §7 rule 2: a mismatched `provenance.artStyle` is current when an entry has the current
+  /// front-matter `artStyle`, compared exactly. With no front-matter `artStyle`, nothing matches.
+  private static func accepts(_ entries: [AcceptedEntry], artStyle current: String?) -> Bool {
+    guard let current else { return false }
+    return entries.contains { entry in
+      entry.isArtStyleEntry && (entry.artStyle?.hasSameBytes(as: current) ?? false)
+    }
   }
 
   /// How an input is measured. `compare(nil)` means its role has nothing current, which

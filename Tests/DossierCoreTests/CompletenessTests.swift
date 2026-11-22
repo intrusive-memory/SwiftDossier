@@ -16,8 +16,8 @@ struct CompletenessTests {
       #expect(report.missingRequired == missing.sorted(), "\(entry.path)")
       asserted += 1
     }
-    // The count is the pinned tag's. Another tree (SPEC_DIR) may have more fixtures.
-    if SpecTree.isOverridden { #expect(asserted >= 74) } else { #expect(asserted == 74) }
+    // The count is the pinned revision's. Another tree (SPEC_DIR) may have more fixtures.
+    if SpecTree.isOverridden { #expect(asserted >= 78) } else { #expect(asserted == 78) }
   }
 
   @Test("§8.3: no role means completeness isn't defined, whatever the manifest says")

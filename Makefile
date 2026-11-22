@@ -4,8 +4,10 @@
 # targets, so the strings below are defined once. All builds and tests go
 # through xcodebuild; SwiftPM's own drivers are not used in this project.
 
-# The pinned dossier-format revision. Defined ONLY here.
-DOSSIER_FORMAT_REF = v2.1.0
+# The pinned dossier-format revision: a tag, or a full commit hash. Defined ONLY here.
+# Format 2.2.0 (DF-100) is merged on dossier-format's development but not yet tagged, so this is
+# that merge (PR #22, 0f022fb). Replace it with the v2.2.0 tag when dossier-format releases.
+DOSSIER_FORMAT_REF = 0f022fb3f2b394f48c1f00db856040c103d18b8b
 DOSSIER_FORMAT_URL = https://github.com/intrusive-memory/dossier-format
 FIXTURES_DIR = .dossier-format
 
@@ -34,7 +36,7 @@ TEST_ONLY = -only-testing:$(shell scripts/test-filter.sh "$(TEST_FILTER)")
 endif
 
 # Optional: SPEC_DIR=<path> runs the tests against that dossier-format tree (a local clone on any
-# commit) in place of the fetched $(DOSSIER_FORMAT_REF) tag. `make fixtures` then neither fetches
+# commit) in place of the fetched $(DOSSIER_FORMAT_REF). `make fixtures` then neither fetches
 # nor touches anything, and the tree is read, never written. The pin above is unchanged. The
 # path reaches the test process as DOSSIER_SPEC_DIR (xcodebuild forwards TEST_RUNNER_*).
 ifneq ($(strip $(SPEC_DIR)),)
@@ -55,7 +57,7 @@ help:
 	@echo "  fixtures    - Fetch dossier-format $(DOSSIER_FORMAT_REF) into $(FIXTURES_DIR)/ (a no-op under SPEC_DIR)"
 	@echo ""
 	@echo "Options:"
-	@echo "  SPEC_DIR=<path>     test against that dossier-format tree instead of the pinned tag, e.g."
+	@echo "  SPEC_DIR=<path>     test against that dossier-format tree instead of the pinned ref, e.g."
 	@echo "                      TEST_FILTER=ConformanceTests make test SPEC_DIR=../dossier-format"
 	@echo "                      Read-only; the pin ($(DOSSIER_FORMAT_REF)) and $(FIXTURES_DIR)/ are untouched."
 	@echo "                      The live PinnedResources comparison is skipped; PINNED.sha256 checks still run."
@@ -94,18 +96,22 @@ test-ios: fixtures
 	  COMPILER_INDEX_STORE_ENABLE=NO \
 	  $(ARCH)
 
-# Shallow clone of the pinned tag. Skipped when the directory is already at the
-# ref. Never reads or writes any other dossier-format checkout.
+# Shallow fetch of the pinned ref, a tag or a full commit hash. Skipped when the directory is
+# already at the ref, as recorded in its .git/dossier-format-ref. Never reads or writes any other
+# dossier-format checkout.
 fixtures:
 	@if [ -n "$(SPEC_ABS)" ]; then \
 		test -f "$(SPEC_ABS)/examples/conformance.json" || { echo "SPEC_DIR $(SPEC_ABS) has no examples/conformance.json"; exit 1; }; \
 		echo "SPEC_DIR=$(SPEC_ABS): using it in place of $(DOSSIER_FORMAT_REF); $(FIXTURES_DIR) untouched"; \
 	elif [ -d $(FIXTURES_DIR)/.git ] && \
-	   [ "$$(git -C $(FIXTURES_DIR) describe --tags --exact-match 2>/dev/null)" = "$(DOSSIER_FORMAT_REF)" ]; then \
+	   [ "$$(cat $(FIXTURES_DIR)/.git/dossier-format-ref 2>/dev/null)" = "$(DOSSIER_FORMAT_REF)" ]; then \
 		echo "$(FIXTURES_DIR) already at $(DOSSIER_FORMAT_REF)"; \
 	else \
-		rm -rf $(FIXTURES_DIR); \
-		git clone --quiet --depth 1 --branch $(DOSSIER_FORMAT_REF) $(DOSSIER_FORMAT_URL) $(FIXTURES_DIR) && \
+		rm -rf $(FIXTURES_DIR) && mkdir -p $(FIXTURES_DIR) && \
+		git -C $(FIXTURES_DIR) init --quiet && \
+		git -C $(FIXTURES_DIR) fetch --quiet --depth 1 $(DOSSIER_FORMAT_URL) $(DOSSIER_FORMAT_REF) && \
+		git -C $(FIXTURES_DIR) -c advice.detachedHead=false checkout --quiet --detach FETCH_HEAD && \
+		echo "$(DOSSIER_FORMAT_REF)" > $(FIXTURES_DIR)/.git/dossier-format-ref && \
 		echo "Fetched dossier-format $(DOSSIER_FORMAT_REF) into $(FIXTURES_DIR)"; \
 	fi
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Accepting a stale asset, dossier-format 2.2.0 (DF-100, §7). `Asset.accepted` reads an asset's `accepted` entries as `AcceptedEntry` (DossierCore). `stale(template:)` treats a mismatched `portrait`, `face`, `vox` or `description` input as current when an entry for that role has the hash of the role's current selection, and a differing `provenance.artStyle` as current when an entry has the front matter's `artStyle`, so the validator reports no `W-STALE` for it. A later change matches no entry and the asset is stale again.
+- `acceptStale(path:at:)` (Dossier) and `dossier accept <bundle> <path>`: record each mismatch that makes a selected asset stale and can be accepted, at a person's request. Only `manifest.json` changes, under the update marker; `derivedFrom` and `provenance` don't. A page is refused with `DossierWriteError.acceptanceNotAllowed`.
+
+### Changed
+
+- `development` pins dossier-format's `development` at `0f022fb` (format 2.2.0, unreleased) in place of `v2.1.0`. The bundled `manifest-v2.schema.json` gains `accepted`, so an entry of another shape, a `voice` entry, or `accepted` on a page is `E-SCHEMA`. `make fixtures` takes a tag or a full commit hash. Replace the pin with `v2.2.0` when it is tagged.
+- The fixture-page render tests leave out fixtures whose manifest fails its schema, which a writer refuses; a new test checks that refusal.
+
 ## 0.8.2
 
 ### Fixed
