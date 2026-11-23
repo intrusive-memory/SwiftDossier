@@ -125,16 +125,16 @@ private struct SectionRow: View {
   let error: String?
   let commit: (String) -> Bool
   @State private var draft = ""
-  @FocusState private var focused: Bool
 
   var body: some View {
     VStack(alignment: .leading, spacing: 2) {
       Text(row.exists ? row.name : "\(row.name) (not in the file yet)").font(.headline)
-      TextEditor(text: $draft)
-        .focused($focused)
-        .frame(minHeight: 60)
-        .onChange(of: focused) { _, now in if !now { _ = commit(draft) } }
-        .accessibilityIdentifier("section.\(row.name)")
+      // Suggests the section's text when it's emptied, if the host set a provider (#36).
+      SuggestiveTextEditor(
+        text: $draft, field: row.name, identifier: "section.\(row.name)",
+        onAccept: { _ = commit($0) }, onFocusLost: { _ = commit(draft) }
+      )
+      .frame(minHeight: 60)
       if let error { Text(error).font(.caption).foregroundStyle(.red) }
     }
     .onAppear { draft = row.content }
