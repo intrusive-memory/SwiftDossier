@@ -52,6 +52,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
   case destinationNotInBundle(String)
   /// No asset has this path.
   case assetNotFound(String)
+  /// A `dossier` asset can't have `accepted` (§7, DF-100): a stale page is rendered again.
+  case acceptanceNotAllowed(String)
   /// A derived kind's input isn't available (§7).
   case missingDerivedInput(kind: String, role: String)
   /// `delete()` only removes a `.dossier` directory holding a `manifest.json`.
@@ -134,6 +136,8 @@ public enum DossierWriteError: Error, Equatable, Sendable, LocalizedError {
     case .destinationExists(let path): return "A different file is already at \(path)"
     case .destinationNotInBundle(let path): return "\(path) leads through a symbolic link"
     case .assetNotFound(let path): return "No asset has the path \(path)"
+    case .acceptanceNotAllowed(let path):
+      return "\(path) is a page, which can't be accepted as it is; render it again"
     case .missingDerivedInput(let kind, let role): return "A \(kind) needs a \(role) input, and there is none"
     case .notADossierDirectory(let path): return "Not a .dossier directory with a manifest: \(path)"
     case .noSelectedPortrait: return "There is no selected portrait to take a face from"

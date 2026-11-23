@@ -1,7 +1,7 @@
 ---
 type: doc
 title: Integrating SwiftDossier
-updated: 2026-11-12
+updated: 2026-11-21
 ---
 
 # Integrating SwiftDossier
@@ -100,6 +100,20 @@ string is returned).
 - An imported `face`, `view` or `expression`, one with `provenance.copiedFrom`
   (`asset.isImported`), is never stale: neither its inputs nor its `artStyle` are compared. A
   portrait with `copiedFrom` keeps its `artStyle` check.
+- An accepted mismatch isn't reported (format 2.2.0, §7, DF-100). `asset.accepted` lists the
+  asset's `AcceptedEntry`s. A file input of `portrait`, `face`, `vox` or `description` role is
+  current when an entry for that role has the hash of the role's current selection, and a
+  differing `artStyle` is current when an entry has `CHARACTER.md`'s. A later change matches no
+  entry, and the asset is stale again.
+
+To let a person accept a stale asset as it is ("accept as is"), call
+`try bundle.acceptStale(path: asset.path)` (or `dossier accept <bundle> <path>`). It adds an
+entry for each mismatch that can be accepted and writes only `manifest.json`: `derivedFrom` and
+`provenance` still say what was sent, and the page doesn't go out of date. A `castMember`,
+`bundle`, `template` or `voice` input, a role with no selection, and an `artStyle` when
+`CHARACTER.md` has none can't be accepted and stay stale; with nothing to accept, nothing is
+written. A page can't be accepted (`DossierWriteError.acceptanceNotAllowed`): render it again.
+Call it only when a person asks; never accept on their behalf.
 
 `completeness()` reads the rows of `data/tiers.json` against the member's tier (§8.3). The voice
 is hosted when a selected `voiceSample` has a current `voice` input. Then `vox.1.7b` and
@@ -175,6 +189,7 @@ try bundle.setPrompt(.identity, "A tall woman in her forties")
 | `DossierBundle.create(character:role:in:cast:beforeCastWrite:)` | New empty bundle; canonicalizes the name; sets the member's `role` and `manifest` in `CAST.md`. Returns `CreatedBundle`. |
 | `add(_:kind:options:)` | Copies a file in, names images by content, folds provenance from a sidecar or PNG metadata, records `derivedFrom`. Never overwrites. |
 | `select(path:)` / `reject(path:)` | Status changes (§5.4). `select` demotes the previous selection to `candidate`. |
+| `acceptStale(path:at:)` | Accepts a selected asset's current mismatches (§7, DF-100), so it no longer reads as stale. Changes only `accepted`. Not on a page. |
 | `setPrompt(_:_:)` | Sets one `prompts` key (`PromptKey.identity`, `.portrait`, `.subject`). |
 | `remove(path:)` | Deletes one asset and its file. Derived assets stay and read as stale. |
 | `delete()` | Deletes the whole bundle. `CAST.md` is not changed. |
@@ -477,7 +492,8 @@ Copies of a `DossierBundle` share no state: reopen to see another writer's chang
   writes its `.gitignore`.
 - **Write `CAST.md` through SwiftReparto.** SwiftDossier sets only a member's `role` and
   `manifest`, and only through Reparto.
-- **The format is 2.1.0.** This version pins dossier-format `v2.1.0`.
+- **The format is 2.2.0.** This package pins dossier-format `v2.2.0`, which adds `accepted`
+  (DF-100) to 2.1.0.
 - **Don't write `.locations-page/` yourself, and don't commit it.** As with `.preview/`, the
   library owns the store and writes its `.gitignore`.
 - **`PROJECT.md` belongs to SwiftProyecto.** SwiftDossier reads its `locations` and `title`
@@ -587,6 +603,33 @@ A key whose lines hold a YAML comment, an anchor or an alias is read-only too, s
 replace those lines. Ask `isEditable(key:)` on `CharacterDescription` or `LocationDescription`.
 Sections are edited as a whole: `setSection(named:content:)` changes that section's content, its
 heading and every other section stay as written, and a section the file lacks is added at the end.
+
+### Suggestions in empty boxes (`SuggestiveTextEditor`)
+
+The section boxes of `CharacterEditor` and `LocationEditor` can suggest their own text. Give the
+editor a provider and an empty box that loses focus asks it, then shows the answer as dimmed text
+in the box: Tab or **Accept** puts it in (committed like typed text), **Another suggestion** asks
+again, typing drops it, and a failed ask shows the error's `localizedDescription` under the box.
+Nothing changes in your text until a suggestion is accepted. Without a provider the boxes are
+plain text editors.
+
+```swift
+struct ModelSuggestions: SuggestionProvider {
+  func suggest(_ request: SuggestionRequest) async throws -> String {
+    // request.field is the section's name ("Appearance"); request.rejected holds the
+    // suggestions passed over with Another suggestion, oldest first.
+    try await myModel.suggestText(for: request.field, avoiding: request.rejected)
+  }
+}
+
+CharacterEditor(text: $text)
+  .suggestionProvider(ModelSuggestions())
+```
+
+`DossierUI` makes no network or model calls of its own: what to ask, and of what, is yours.
+`SuggestiveTextEditor(text:field:provider:identifier:onAccept:onFocusLost:)` is public, for
+your own boxes. Accessibility identifiers: the editor's own (`section.<name>` in the editors), then
+`.suggestion`, `.accept`, `.another`, `.progress` and `.message` after it.
 
 ### Without a view (`Dossier`)
 

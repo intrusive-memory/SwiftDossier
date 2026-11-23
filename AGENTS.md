@@ -1,7 +1,7 @@
 ---
 type: doc
 title: SwiftDossier — Agent Instructions
-updated: 2026-11-19
+updated: 2026-11-21
 ---
 
 # AGENTS.md
@@ -11,7 +11,7 @@ symlinks to this file.
 
 ## What this package is
 
-The Swift implementation of dossier-format (pinned at `v2.1.0`): read, write, validate, migrate and render .dossier character and location bundles, and build a project's LOCATIONS page; the `dossier` CLI. See [REQUIREMENTS.md](REQUIREMENTS.md).
+The Swift implementation of dossier-format (pinned at `v2.2.0`): read, write, validate, migrate and render .dossier character and location bundles, and build a project's LOCATIONS page; the `dossier` CLI. See [REQUIREMENTS.md](REQUIREMENTS.md).
 Adopters integrating the libraries into an app or tool should read [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 ## Rules
@@ -23,8 +23,8 @@ Adopters integrating the libraries into an app or tool should read [docs/INTEGRA
   locally). Never `swift build` or `swift test`.
   `make help` lists the targets: `build`, `test` (honours `TEST_FILTER=<regex>`),
   `test-ios`, `fixtures`, `release`, `smoke`, `install`, `clean`, `resolve`, `acceptance`.
-  `make fixtures` clones dossier-format at `DOSSIER_FORMAT_REF` (defined only in
-  the Makefile) into the gitignored `.dossier-format/`; `make test` and
+  `make fixtures` fetches dossier-format at `DOSSIER_FORMAT_REF` (a tag or a full commit
+  hash, defined only in the Makefile) into the gitignored `.dossier-format/`; `make test` and
   `make test-ios` run it first. `scripts/pin-resources.sh` regenerates the
   bundled resources (schemas, data, `template/`, `template-locations/`) and
   their `PINNED.sha256` lists from that clone.
@@ -35,7 +35,7 @@ Adopters integrating the libraries into an app or tool should read [docs/INTEGRA
 ## Queryable Codemap
 
 A prebuilt [graphify](https://pypi.org/project/graphifyy/) knowledge graph of this
-codebase lives in [`graphify-out/`](graphify-out/) (3835 nodes · 8203 edges). **Prefer
+codebase lives in [`graphify-out/`](graphify-out/) (4017 nodes · 8796 edges). **Prefer
 querying it before grepping** for architecture or "what connects to what" questions:
 
 ```bash

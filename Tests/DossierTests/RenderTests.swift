@@ -664,8 +664,16 @@ struct ConformancePageTests {
     return !altered.contains(entry.path) && !entry.codes.contains { $0.hasPrefix("W-PAGE-") }
   }
 
-  /// Every fixture holding a page.
-  private static let withPages: [Conformance.Entry] = Conformance.entries.filter { pageName(of: $0) != nil }
+  /// Every fixture holding a page whose manifest a writer can write. One that fails its schema
+  /// (`E-SCHEMA`) is refused before anything is rendered (SD-3), as `schemaRefused` checks.
+  private static let withPages: [Conformance.Entry] = Conformance.entries.filter {
+    pageName(of: $0) != nil && !$0.codes.contains("E-SCHEMA")
+  }
+
+  /// The fixtures holding a page whose manifest fails its schema.
+  private static let schemaInvalidWithPages: [Conformance.Entry] = Conformance.entries.filter {
+    pageName(of: $0) != nil && $0.codes.contains("E-SCHEMA")
+  }
 
   private static func pageName(of entry: Conformance.Entry) -> String? {
     let bundle = Conformance.root.appendingPathComponent(entry.path).appendingPathComponent(entry.bundle)
@@ -751,6 +759,20 @@ struct ConformancePageTests {
     let text = try #require(PageReader(text: String(decoding: try Data(contentsOf: page), as: UTF8.self)).recordText)
     #expect(!text.contains("<"))
     #expect(try SchemaEvaluator.pinned().validate(try JSONValue.parse(Data(text.utf8)), against: "record.schema.json").isEmpty)
+  }
+
+  @Test("A page whose manifest fails its schema isn't rendered, and nothing changes", arguments: schemaInvalidWithPages)
+  func schemaRefused(_ entry: Conformance.Entry) throws {
+    var (root, bundle, _) = try copy(of: entry)
+    defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+    let before = try RenderTree.files(under: root)
+    #expect {
+      try bundle.renderPage()
+    } throws: { error in
+      if case DossierWriteError.schemaViolations = error { return true }
+      return false
+    }
+    #expect(try RenderTree.files(under: root) == before)
   }
 
   @Test("Rendering reads the fixtures and doesn't change them")

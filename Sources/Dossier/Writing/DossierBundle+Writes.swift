@@ -201,6 +201,78 @@ extension DossierBundle {
     try setStatus(of: path, to: .rejected)
   }
 
+  /// Accepts a selected asset as it is (§7, DF-100): records, in its `accepted`, each mismatch
+  /// that now makes it stale and that can be accepted, so it no longer reads as stale. Call it
+  /// only at a person's request: acceptance is the author's judgement, and no other write adds
+  /// an entry.
+  ///
+  /// One entry is added for each `portrait`, `face`, `vox` or `description` role whose inputs
+  /// differ from that role's selection, with the selection's `files` hash, and one `artStyle`
+  /// entry when `provenance.artStyle` differs from the front matter's, each with `date` as
+  /// `acceptedAt`. The entries already there are kept. `derivedFrom` and `provenance` aren't
+  /// changed, nothing is deleted or demoted, and only `manifest.json` is written, so the page's
+  /// `bundle` input doesn't change (§11).
+  ///
+  /// What can't be accepted stays stale: a `castMember`, `bundle`, `template` or `voice` input, a
+  /// role with no selected asset, and an `artStyle` when the front matter has none. A later change
+  /// to the selection or the front matter no longer matches the entry, and the asset is stale
+  /// again until it's accepted again. Nothing is written when there's nothing to accept, which
+  /// includes an asset that isn't `selected` (it's never stale) and one that isn't stale.
+  ///
+  /// - Parameters:
+  ///   - path: The asset's bundle path.
+  ///   - date: When the person accepted. Recorded in whole seconds, UTC.
+  /// - Returns: The asset as written.
+  /// - Throws: ``DossierWriteError/acceptanceNotAllowed(_:)`` for a `dossier` asset, which can't
+  ///   have `accepted`; ``DossierWriteError/assetNotFound(_:)``; or another ``DossierWriteError``.
+  ///   The bundle is then as it was.
+  @discardableResult
+  public mutating func acceptStale(path: String, at date: Date = Date()) throws -> Asset {
+    let writer = ManifestWriter(bundle: url)
+    let current = try writer.currentManifest()
+    guard let target = current.assets.first(where: { $0.hasPath(path) }) else {
+      throw DossierWriteError.assetNotFound(path)
+    }
+    guard target.kind != .dossier else { throw DossierWriteError.acceptanceNotAllowed(target.path) }
+
+    let acceptedAt = Timestamp.string(from: date)
+    let reasons = DossierBundle(url: url, manifest: current, member: member).stale()
+      .filter { $0.path.hasSameBytes(as: target.path) }.map(\.reason)
+    var entries: [AcceptedEntry] = []
+    for reason in reasons {
+      switch reason {
+      case .input(let role, _, let selection?) where AcceptedEntry.acceptableRoles.contains(role):
+        if !entries.contains(where: { $0.role == role }) {
+          entries.append(AcceptedEntry(role: role, sha256: selection, acceptedAt: acceptedAt))
+        }
+      case .artStyle(_, let style?) where !style.isEmpty:
+        if !entries.contains(where: { $0.artStyle != nil }) {
+          entries.append(AcceptedEntry(artStyle: style, acceptedAt: acceptedAt))
+        }
+      default:
+        continue
+      }
+    }
+    guard !entries.isEmpty else {
+      self = DossierBundle(url: url, manifest: current, member: member)
+      return target
+    }
+
+    return try UpdateHolding.holding(bundle: url, label: "accept \(target.path) as it is") {
+      var written = target
+      let manifest = try writer.update { manifest, _ in
+        var assets = manifest.assets
+        if let index = assets.firstIndex(where: { $0.hasPath(path) }) {
+          assets[index].accepted += entries
+          written = assets[index]
+        }
+        manifest.assets = assets
+      }
+      self = DossierBundle(url: url, manifest: manifest, member: member)
+      return written
+    }
+  }
+
   /// Sets one of `prompts`' keys (§5.5), keeping the others and any unknown key. Nothing is
   /// written when nothing changes.
   ///

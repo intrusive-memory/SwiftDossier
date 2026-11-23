@@ -1,6 +1,6 @@
 ---
 type: doc
-updated: 2026-11-19
+updated: 2026-11-21
 ---
 
 # SwiftDossier
@@ -11,7 +11,7 @@ It implements [dossier-format](https://github.com/intrusive-memory/dossier-forma
 
 ## Status
 
-Version 0.8.2 implements dossier-format `v2.1.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). From 2.1.0 it reads location bundles and their plates, finds a project's locations from `PROJECT.md`'s `locations` key, and builds the project's LOCATIONS page; see [docs/INTEGRATION.md](docs/INTEGRATION.md#11-locations). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
+Version 0.9.0 implements dossier-format `v2.2.0`. It reads and writes bundles, validates them, crops faces, checks `CHARACTER.md`, renders the page, and builds the preview that DossierUI shows. Staleness and completeness follow 2.0.0: a voice sample can name a hosted voice instead of a `.vox`, and an imported face, view or expression is never stale. From 2.2.0 an author can accept a stale asset as it is (`acceptStale(path:at:)`, `dossier accept`), which records the judgement in the manifest without rewriting `derivedFrom`. See [docs/INTEGRATION.md](docs/INTEGRATION.md#inputs-staleness-and-completeness). From 2.1.0 it reads location bundles and their plates, finds a project's locations from `PROJECT.md`'s `locations` key, and builds the project's LOCATIONS page; see [docs/INTEGRATION.md](docs/INTEGRATION.md#11-locations). `dossier migrate` isn't built yet and exits with a not-available message. See [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Install
 

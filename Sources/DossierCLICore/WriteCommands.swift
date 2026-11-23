@@ -119,6 +119,33 @@ struct RejectCommand: DossierSubcommand {
   }
 }
 
+struct AcceptCommand: DossierSubcommand {
+  static let configuration = CommandConfiguration(
+    commandName: "accept", abstract: "Accept a stale asset as it is (DOSSIER-FORMAT 7).",
+    discussion: """
+      Records each mismatch that makes the selected asset stale, against the current selection \
+      or the front matter's artStyle, so it no longer reads as stale. derivedFrom and provenance \
+      are unchanged. A later change makes it stale again. A page can't be accepted: render it.
+      """)
+  @Argument(help: "The bundle.") var bundle: String
+  @Argument(help: "The asset's path in the bundle.") var path: String
+  @OptionGroup var output: OutputOptions
+
+  func execute(io: CommandIO) throws -> Int32 {
+    var target = try openBundle(bundle)
+    let before = target.manifest.assets.first { $0.path == path }?.accepted
+    let asset = try target.acceptStale(path: path)
+    if io.json {
+      io.emit(["asset": assetJSON(asset)])
+    } else if before == asset.accepted {
+      io.line("Nothing to accept: " + assetLine(asset))
+    } else {
+      io.line("Accepted " + assetLine(asset))
+    }
+    return 0
+  }
+}
+
 struct RemoveCommand: DossierSubcommand {
   static let configuration = CommandConfiguration(
     commandName: "remove", abstract: "Delete one asset and its file. Needs --yes.",

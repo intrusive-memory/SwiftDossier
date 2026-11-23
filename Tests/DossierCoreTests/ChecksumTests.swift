@@ -34,8 +34,8 @@ struct ChecksumTests {
       #expect(manifest.computedChecksum == manifest.manifestChecksum, "\(entry.path)")
       verified += 1
     }
-    // The count is the pinned tag's. Another tree (SPEC_DIR) may have more fixtures.
-    if SpecTree.isOverridden { #expect(verified >= 147) } else { #expect(verified == 147) }
+    // The count is the pinned revision's. Another tree (SPEC_DIR) may have more fixtures.
+    if SpecTree.isOverridden { #expect(verified >= 153) } else { #expect(verified == 153) }
   }
 
   @Test("The two E-CHECKSUM fixtures fail, including a path-order sum in a v2 manifest")
