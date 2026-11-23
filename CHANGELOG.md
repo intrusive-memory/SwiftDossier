@@ -10,7 +10,7 @@
 
 ### Changed
 
-- `development` pins dossier-format's `development` at `0f022fb` (format 2.2.0, unreleased) in place of `v2.1.0`. The bundled `manifest-v2.schema.json` gains `accepted`, so an entry of another shape, a `voice` entry, or `accepted` on a page is `E-SCHEMA`. `make fixtures` takes a tag or a full commit hash. Replace the pin with `v2.2.0` when it is tagged.
+- Pins dossier-format `v2.2.0` (2026-11-23) in place of `v2.1.0`. The bundled `manifest-v2.schema.json` gains `accepted`, so an entry of another shape, a `voice` entry, or `accepted` on a page is `E-SCHEMA`. `make fixtures` takes a tag or a full commit hash.
 - The fixture-page render tests leave out fixtures whose manifest fails its schema, which a writer refuses; a new test checks that refusal.
 
 ## 0.8.2

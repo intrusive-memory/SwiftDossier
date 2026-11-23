@@ -28,9 +28,8 @@ the two.
 
 dossier-format's specification, schemas, tier table, conformance fixtures, page
 template, field list, design tokens and LOCATIONS page template are written and tagged
-**`v2.1.0`** (2026-11-12). On `development` this package pins dossier-format's
-`development` at `0f022fb`, which adds format 2.2.0's accepting a stale asset (DF-100), until
-`v2.2.0` is tagged; the Makefile's `DOSSIER_FORMAT_REF` names the revision. All of them are copied as
+**`v2.2.0`** (2026-11-23), which adds accepting a stale asset (DF-100) to `v2.1.0`. This package
+pins `v2.2.0`; the Makefile's `DOSSIER_FORMAT_REF` names the revision. All of them are copied as
 resources: the field list in `DossierCore`, the templates and tokens in `Dossier`. The `dossier`
 CLI carries that template when it validates and renders (§4); `renderPage()` fills it.
 

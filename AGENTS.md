@@ -11,7 +11,7 @@ symlinks to this file.
 
 ## What this package is
 
-The Swift implementation of dossier-format (`development` tracks dossier-format `0f022fb`, format 2.2.0 with DF-100, pending the `v2.2.0` tag; the last release pinned `v2.1.0`): read, write, validate, migrate and render .dossier character and location bundles, and build a project's LOCATIONS page; the `dossier` CLI. See [REQUIREMENTS.md](REQUIREMENTS.md).
+The Swift implementation of dossier-format (pinned at `v2.2.0`): read, write, validate, migrate and render .dossier character and location bundles, and build a project's LOCATIONS page; the `dossier` CLI. See [REQUIREMENTS.md](REQUIREMENTS.md).
 Adopters integrating the libraries into an app or tool should read [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
 ## Rules

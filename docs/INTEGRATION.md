@@ -492,8 +492,8 @@ Copies of a `DossierBundle` share no state: reopen to see another writer's chang
   writes its `.gitignore`.
 - **Write `CAST.md` through SwiftReparto.** SwiftDossier sets only a member's `role` and
   `manifest`, and only through Reparto.
-- **The format is 2.1.0, plus 2.2.0's `accepted`.** `development` pins dossier-format's
-  `development` at `0f022fb` (DF-100) until `v2.2.0` is tagged.
+- **The format is 2.2.0.** This package pins dossier-format `v2.2.0`, which adds `accepted`
+  (DF-100) to 2.1.0.
 - **Don't write `.locations-page/` yourself, and don't commit it.** As with `.preview/`, the
   library owns the store and writes its `.gitignore`.
 - **`PROJECT.md` belongs to SwiftProyecto.** SwiftDossier reads its `locations` and `title`

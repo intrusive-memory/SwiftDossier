@@ -5,9 +5,7 @@
 # through xcodebuild; SwiftPM's own drivers are not used in this project.
 
 # The pinned dossier-format revision: a tag, or a full commit hash. Defined ONLY here.
-# Format 2.2.0 (DF-100) is merged on dossier-format's development but not yet tagged, so this is
-# that merge (PR #22, 0f022fb). Replace it with the v2.2.0 tag when dossier-format releases.
-DOSSIER_FORMAT_REF = 0f022fb3f2b394f48c1f00db856040c103d18b8b
+DOSSIER_FORMAT_REF = v2.2.0
 DOSSIER_FORMAT_URL = https://github.com/intrusive-memory/dossier-format
 FIXTURES_DIR = .dossier-format
 
