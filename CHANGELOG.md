@@ -6,6 +6,7 @@
 
 - Accepting a stale asset, dossier-format 2.2.0 (DF-100, §7). `Asset.accepted` reads an asset's `accepted` entries as `AcceptedEntry` (DossierCore). `stale(template:)` treats a mismatched `portrait`, `face`, `vox` or `description` input as current when an entry for that role has the hash of the role's current selection, and a differing `provenance.artStyle` as current when an entry has the front matter's `artStyle`, so the validator reports no `W-STALE` for it. A later change matches no entry and the asset is stale again.
 - `acceptStale(path:at:)` (Dossier) and `dossier accept <bundle> <path>`: record each mismatch that makes a selected asset stale and can be accepted, at a person's request. Only `manifest.json` changes, under the update marker; `derivedFrom` and `provenance` don't. A page is refused with `DossierWriteError.acceptanceNotAllowed`.
+- `SuggestiveTextEditor` (DossierUI, #36): a text editor that, when it's empty and loses focus, asks a host-supplied `SuggestionProvider` and shows the answer as dimmed text in the box. Tab or **Accept** puts it in, **Another suggestion** asks again with the passed-over ones in `SuggestionRequest.rejected`, typing drops it, and a failed ask shows its message under the box. Nothing goes into the text until it's accepted. `.suggestionProvider(_:)` sets the provider for a view tree; the section boxes of `CharacterEditor` and `LocationEditor` use it, and with no provider they are plain text editors as before.
 
 ### Changed
 

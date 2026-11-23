@@ -604,6 +604,33 @@ replace those lines. Ask `isEditable(key:)` on `CharacterDescription` or `Locati
 Sections are edited as a whole: `setSection(named:content:)` changes that section's content, its
 heading and every other section stay as written, and a section the file lacks is added at the end.
 
+### Suggestions in empty boxes (`SuggestiveTextEditor`)
+
+The section boxes of `CharacterEditor` and `LocationEditor` can suggest their own text. Give the
+editor a provider and an empty box that loses focus asks it, then shows the answer as dimmed text
+in the box: Tab or **Accept** puts it in (committed like typed text), **Another suggestion** asks
+again, typing drops it, and a failed ask shows the error's `localizedDescription` under the box.
+Nothing changes in your text until a suggestion is accepted. Without a provider the boxes are
+plain text editors.
+
+```swift
+struct ModelSuggestions: SuggestionProvider {
+  func suggest(_ request: SuggestionRequest) async throws -> String {
+    // request.field is the section's name ("Appearance"); request.rejected holds the
+    // suggestions passed over with Another suggestion, oldest first.
+    try await myModel.suggestText(for: request.field, avoiding: request.rejected)
+  }
+}
+
+CharacterEditor(text: $text)
+  .suggestionProvider(ModelSuggestions())
+```
+
+`DossierUI` makes no network or model calls of its own: what to ask, and of what, is yours.
+`SuggestiveTextEditor(text:field:provider:identifier:onAccept:onFocusLost:)` is public, for
+your own boxes. Accessibility identifiers: the editor's own (`section.<name>` in the editors), then
+`.suggestion`, `.accept`, `.another`, `.progress` and `.message` after it.
+
 ### Without a view (`Dossier`)
 
 ```swift
